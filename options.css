@@ -1,0 +1,315 @@
+:root {
+	color-scheme: light;
+	font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	background: #f4f6f8;
+	color: #18232d;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+}
+
+button,
+input,
+select {
+	font: inherit;
+}
+
+.shell {
+	width: min(900px, calc(100% - 36px));
+	margin: 0 auto;
+	padding: 56px 0 72px;
+}
+
+.hero {
+	margin-bottom: 26px;
+}
+
+.eyebrow {
+	margin: 0 0 8px;
+	color: #2d6796;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+	margin-top: 0;
+}
+
+h1 {
+	margin-bottom: 10px;
+	font-size: clamp(32px, 5vw, 48px);
+	letter-spacing: -0.04em;
+}
+
+h2 {
+	margin-bottom: 6px;
+	font-size: 18px;
+	letter-spacing: -0.015em;
+}
+
+.lede {
+	margin-bottom: 0;
+	color: #536473;
+	font-size: 17px;
+}
+
+.recommendation {
+	margin-bottom: 18px;
+	padding: 13px 15px;
+	border: 1px solid #bbd5e9;
+	border-radius: 10px;
+	background: #eaf4fb;
+	color: #234863;
+	font-size: 14px;
+	line-height: 1.55;
+}
+
+.card {
+	margin-bottom: 18px;
+	padding: 24px;
+	border: 1px solid #dfe4e8;
+	border-radius: 14px;
+	background: #fff;
+	box-shadow: 0 3px 18px rgba(35, 50, 62, 0.045);
+}
+
+.section-heading {
+	margin-bottom: 20px;
+}
+
+.section-heading p,
+.provider-panel p,
+.hint,
+.privacy p {
+	margin-bottom: 0;
+	color: #61717e;
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.section-heading.split {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20px;
+}
+
+.field {
+	display: grid;
+	gap: 7px;
+	margin-bottom: 17px;
+	color: #31414e;
+	font-size: 13px;
+	font-weight: 650;
+}
+
+.field input,
+.field select {
+	width: 100%;
+	min-height: 42px;
+	padding: 9px 11px;
+	border: 1px solid #cbd4db;
+	border-radius: 8px;
+	outline: none;
+	background: #fff;
+	color: #18232d;
+	font-weight: 450;
+}
+
+.field input:focus,
+.field select:focus {
+	border-color: #3f7ead;
+	box-shadow: 0 0 0 3px rgba(63, 126, 173, 0.14);
+}
+
+.field-grid {
+	display: grid;
+	grid-template-columns: 2fr 1fr;
+	gap: 0 16px;
+}
+
+.provider-panel {
+	margin: 2px 0 4px;
+	padding: 16px;
+	border: 1px solid #e2e7eb;
+	border-radius: 10px;
+	background: #f8fafb;
+}
+
+.provider-panel[hidden] {
+	display: none;
+}
+
+.provider-panel .field:last-of-type,
+.provider-panel p + button {
+	margin-bottom: 0;
+}
+
+.provider-panel p + button {
+	margin-top: 14px;
+}
+
+.hint {
+	padding-top: 2px;
+}
+
+.checkbox-field {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	color: #31414e;
+	font-size: 14px;
+}
+
+.checkbox-field input {
+	width: 17px;
+	height: 17px;
+	accent-color: #2f6f9e;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 46px;
+	margin: 3px 0 22px;
+}
+
+button {
+	border: 0;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.primary,
+.secondary {
+	min-height: 40px;
+	padding: 9px 14px;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.primary {
+	background: #245f8c;
+	color: #fff;
+}
+
+.primary:hover {
+	background: #1d527b;
+}
+
+.secondary {
+	border: 1px solid #c8d3db;
+	background: #fff;
+	color: #284557;
+}
+
+.secondary:hover {
+	background: #f1f5f7;
+}
+
+.text-button {
+	padding: 4px 0;
+	background: transparent;
+	color: #2b668f;
+	font-size: 13px;
+	font-weight: 650;
+}
+
+#status {
+	margin-left: 4px;
+	color: #3c6e4e;
+	font-size: 13px;
+}
+
+#status[data-error="true"] {
+	color: #a43d35;
+}
+
+.usage-list {
+	display: grid;
+	gap: 10px;
+}
+
+.usage-row {
+	display: grid;
+	grid-template-columns: 110px repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	align-items: center;
+	padding: 12px 0;
+	border-top: 1px solid #edf0f2;
+	font-size: 13px;
+}
+
+.usage-row:first-child {
+	border-top: 0;
+}
+
+.usage-row strong {
+	text-transform: capitalize;
+}
+
+.metric {
+	color: #61717e;
+}
+
+.metric b {
+	display: block;
+	margin-top: 2px;
+	color: #253745;
+	font-size: 14px;
+}
+
+.empty {
+	margin-bottom: 0;
+	color: #72818c;
+	font-size: 13px;
+}
+
+.privacy {
+	padding: 4px 2px;
+}
+
+.privacy h2 {
+	font-size: 15px;
+}
+
+code {
+	padding: 1px 4px;
+	border-radius: 4px;
+	background: #e8edf1;
+}
+
+@media (max-width: 680px) {
+	.shell {
+		width: min(100% - 24px, 900px);
+		padding-top: 30px;
+	}
+
+	.card {
+		padding: 18px;
+	}
+
+	.field-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.actions,
+	.section-heading.split {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.usage-row {
+		grid-template-columns: 1fr 1fr;
+	}
+}

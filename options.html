@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>一键双语翻译设置</title>
+		<link rel="stylesheet" href="options.css" />
+		<script src="lib/core.js" defer></script>
+		<script src="options.js" defer></script>
+	</head>
+	<body>
+		<main class="shell">
+			<header class="hero">
+				<p class="eyebrow">Chrome Manifest V3</p>
+				<h1>一键双语翻译</h1>
+				<p class="lede">设置一次，之后点击扩展图标即可翻译或恢复当前网页。</p>
+			</header>
+
+			<section class="recommendation" aria-label="推荐配置">
+				<strong>默认建议：</strong>
+				先配置一个云端 API Key。需要免费额度时可优先尝试 Azure Translator F0 或 DeepL API Free。
+			</section>
+
+			<form id="settings-form">
+				<section class="card">
+					<div class="section-heading">
+						<div>
+							<h2>翻译服务</h2>
+							<p>云服务仅发送筛选后的正文段落，不发送网址、Cookie、输入框或整页 HTML。</p>
+						</div>
+					</div>
+
+					<label class="field">
+						<span>Provider</span>
+						<select id="provider" name="provider">
+							<option value="azure">Azure Translator（F0 每月 200 万字符）</option>
+							<option value="deepl">DeepL API（Free / Developer / Pro / Growth）</option>
+							<option value="deepseek">DeepSeek V4 Flash（低价、上下文较好）</option>
+						</select>
+					</label>
+
+					<div class="provider-panel" data-provider-panel="azure">
+						<label class="field">
+							<span>Azure API Key</span>
+							<input id="azure-api-key" type="password" autocomplete="off" spellcheck="false" />
+						</label>
+						<label class="field">
+							<span>资源区域</span>
+							<input id="azure-region" placeholder="例如 eastasia；全局资源可留空" autocomplete="off" />
+						</label>
+					</div>
+
+					<div class="provider-panel" data-provider-panel="deepl" hidden>
+						<label class="field">
+							<span>DeepL API Key</span>
+							<input id="deepl-api-key" type="password" autocomplete="off" spellcheck="false" />
+						</label>
+						<p class="hint">自动识别旧 API Free（`:fx` 密钥）与 Developer、Pro、Growth。</p>
+					</div>
+
+					<div class="provider-panel" data-provider-panel="deepseek" hidden>
+						<label class="field">
+							<span>DeepSeek API Key</span>
+							<input id="deepseek-api-key" type="password" autocomplete="off" spellcheck="false" />
+						</label>
+						<label class="field">
+							<span>模型</span>
+							<input id="deepseek-model" value="deepseek-v4-flash" autocomplete="off" spellcheck="false" />
+						</label>
+						<p class="hint">翻译请求会关闭 thinking，并强制逐段 JSON 输出以降低延迟和成本。</p>
+					</div>
+				</section>
+
+				<section class="card">
+					<div class="section-heading">
+						<div>
+							<h2>翻译行为</h2>
+							<p>默认自动识别页面主语言，在中文与英文之间互译。</p>
+						</div>
+					</div>
+
+					<div class="field-grid">
+						<label class="field">
+							<span>中英方向</span>
+							<select id="target-mode">
+								<option value="auto">自动：中文页译英文，英文页译中文</option>
+								<option value="zh">始终把英文译为中文</option>
+								<option value="en">始终把中文译为英文</option>
+							</select>
+						</label>
+						<label class="field">
+							<span>云端并发请求</span>
+							<input id="concurrency" type="number" min="1" max="4" step="1" />
+						</label>
+					</div>
+
+					<label class="checkbox-field">
+						<input id="translate-dynamic" type="checkbox" />
+						<span>继续翻译 SPA、无限滚动和懒加载的新正文</span>
+					</label>
+				</section>
+
+				<div class="actions">
+					<button id="save" class="primary" type="submit">保存设置</button>
+					<button id="test-provider" class="secondary" type="button">测试当前服务</button>
+					<output id="status" role="status" aria-live="polite"></output>
+				</div>
+			</form>
+
+			<section class="card">
+				<div class="section-heading split">
+					<div>
+						<h2>本月用量</h2>
+						<p>缓存命中不会再次调用云 API；DeepSeek 按实际响应 token 记录。</p>
+					</div>
+					<button id="clear-cache" class="text-button" type="button">清空翻译缓存</button>
+				</div>
+				<div id="usage" class="usage-list">
+					<p class="empty">暂无云端调用记录。</p>
+				</div>
+			</section>
+
+			<section class="privacy">
+				<h2>隐私与密钥</h2>
+				<p>
+					扩展只在你点击图标后取得当前标签页的临时权限。API Key 保存在本机
+					<code>chrome.storage.local</code>，并禁止内容脚本读取。浏览器端 BYOK 不能等同于服务端密钥保险箱；若要向他人发布并统一付费，应使用自有后端代理，不能把开发者 Key 打包进扩展。
+				</p>
+			</section>
+		</main>
+	</body>
+</html>

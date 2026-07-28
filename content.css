@@ -1,0 +1,91 @@
+.bt-translation[data-bt-owned="true"] {
+	display: block !important;
+	box-sizing: border-box !important;
+	width: auto !important;
+	margin: 0.16em 0 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	background: transparent !important;
+	color: var(--bt-source-color, inherit) !important;
+	font-family: var(--bt-source-font-family, inherit) !important;
+	font-size: var(--bt-source-font-size, 0.94em) !important;
+	font-style: normal !important;
+	font-variant: normal !important;
+	font-weight: var(--bt-source-font-weight, inherit) !important;
+	letter-spacing: normal !important;
+	line-height: var(--bt-source-line-height, 1.5) !important;
+	text-align: var(--bt-source-text-align, inherit) !important;
+	text-decoration: none !important;
+	text-indent: 0 !important;
+	text-transform: none !important;
+	white-space: pre-wrap !important;
+	opacity: 0.72 !important;
+}
+
+.bt-translation[data-bt-owned="true"]::before,
+.bt-translation[data-bt-owned="true"]::after {
+	display: none !important;
+	content: none !important;
+}
+
+h1 > .bt-translation[data-bt-owned="true"],
+h1[data-bt-source] + .bt-translation[data-bt-owned="true"],
+h2 > .bt-translation[data-bt-owned="true"],
+h2[data-bt-source] + .bt-translation[data-bt-owned="true"],
+h3 > .bt-translation[data-bt-owned="true"],
+h3[data-bt-source] + .bt-translation[data-bt-owned="true"],
+h4 > .bt-translation[data-bt-owned="true"],
+h4[data-bt-source] + .bt-translation[data-bt-owned="true"],
+h5 > .bt-translation[data-bt-owned="true"],
+h5[data-bt-source] + .bt-translation[data-bt-owned="true"],
+h6 > .bt-translation[data-bt-owned="true"],
+h6[data-bt-source] + .bt-translation[data-bt-owned="true"] {
+	font-size: var(--bt-source-font-size, 0.72em) !important;
+}
+
+.bt-status[data-bt-owned="true"] {
+	all: initial !important;
+	position: fixed !important;
+	right: 20px !important;
+	bottom: 20px !important;
+	z-index: 2147483647 !important;
+	display: flex !important;
+	max-width: min(420px, calc(100vw - 40px)) !important;
+	align-items: center !important;
+	gap: 10px !important;
+	box-sizing: border-box !important;
+	padding: 10px 12px !important;
+	border: 1px solid rgba(255, 255, 255, 0.14) !important;
+	border-radius: 10px !important;
+	background: rgba(26, 32, 39, 0.94) !important;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.26) !important;
+	color: #f5f7f9 !important;
+	font: 500 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+	letter-spacing: normal !important;
+	text-align: left !important;
+}
+
+.bt-status__text[data-bt-owned="true"] {
+	all: unset !important;
+	display: block !important;
+	min-width: 0 !important;
+	color: inherit !important;
+	font: inherit !important;
+}
+
+.bt-status__action[data-bt-owned="true"] {
+	all: unset !important;
+	flex: 0 0 auto !important;
+	box-sizing: border-box !important;
+	padding: 5px 8px !important;
+	border-radius: 6px !important;
+	background: #e6f1fb !important;
+	color: #173852 !important;
+	font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+	cursor: pointer !important;
+}
+
+.bt-status__action[data-bt-owned="true"]:focus-visible {
+	outline: 2px solid #8ac7ff !important;
+	outline-offset: 2px !important;
+}
