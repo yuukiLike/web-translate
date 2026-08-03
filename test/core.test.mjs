@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import "../lib/provider-catalog.generated.js";
 import "../lib/core.js";
 
 const core = globalThis.BilingualTranslatorCore;
@@ -13,10 +14,80 @@ test("normalizes settings without leaking invalid values", () => {
 		deepseek: { model: " custom-model " },
 	});
 
-	assert.equal(settings.provider, "azure");
+	assert.equal(settings.provider, "deepseek");
 	assert.equal(settings.targetMode, "auto");
 	assert.equal(settings.concurrency, 4);
-	assert.equal(settings.deepseek.model, "custom-model");
+	assert.equal(settings.deepseek.model, "deepseek-v4-flash");
+});
+
+test("preserves credentials while constraining every model to the local allowlist", () => {
+	const settings = core.normalizeSettings({
+		provider: "openai",
+		targetMode: "zh",
+		translateDynamicContent: false,
+		concurrency: 3,
+		azure: { apiKey: "azure-key", region: "eastasia" },
+		deepl: { apiKey: "deepl-key" },
+		deepseek: { apiKey: "deepseek-key", model: "deepseek-chat" },
+		openai: { apiKey: "openai-key", model: "gpt-5.6-luna" },
+		google: { apiKey: "google-key", model: "unknown-google-model" },
+		anthropic: { apiKey: "anthropic-key", model: "claude-sonnet-5" },
+	});
+
+	assert.equal(settings.provider, "openai");
+	assert.equal(settings.debugLogging, false);
+	assert.deepEqual(settings.azure, { apiKey: "azure-key", region: "eastasia" });
+	assert.deepEqual(settings.deepl, { apiKey: "deepl-key" });
+	assert.deepEqual(settings.deepseek, { apiKey: "deepseek-key", model: "deepseek-v4-flash" });
+	assert.deepEqual(settings.openai, { apiKey: "openai-key", model: "gpt-5.6-luna" });
+	assert.deepEqual(settings.google, { apiKey: "google-key", model: "gemini-3.5-flash-lite" });
+	assert.deepEqual(settings.anthropic, { apiKey: "anthropic-key", model: "claude-sonnet-5" });
+});
+
+test("keeps long API keys intact and exposes only public run settings", () => {
+	const apiKey = `key-${"x".repeat(1_000)}`;
+	const settings = core.normalizeSettings({
+		provider: "google",
+		debugLogging: true,
+		google: { apiKey, model: "gemini-3.5-flash-lite" },
+	});
+
+	assert.equal(settings.provider, "google");
+	assert.equal(settings.debugLogging, true);
+	assert.equal(settings.google.apiKey, apiKey);
+	assert.deepEqual(core.publicSettings(settings), {
+		provider: "google",
+		targetMode: "auto",
+		translateDynamicContent: true,
+		concurrency: 2,
+	});
+});
+
+test("exposes the fixed local provider catalog and recommendation order", () => {
+	assert.equal(core.MODEL_CATALOG.source.commit, "141191529fcad56200de45e7267a21dffcc4c33e");
+	assert.equal(core.MODEL_CATALOG.defaultProviderId, "deepseek");
+	assert.deepEqual([...core.MODEL_PROVIDER_IDS], ["deepseek", "openai", "google", "anthropic"]);
+	assert.deepEqual([...core.RECOMMENDED_MODEL_PROVIDERS], ["deepseek", "openai", "google"]);
+	assert.equal(core.MODEL_CATALOG.providers.openai.defaultModelId, "gpt-5.6-luna");
+});
+
+test("centralizes provider labels, credentials, validation, limits, and concurrency", () => {
+	const openai = core.normalizeSettings({
+		provider: "openai",
+		openai: { apiKey: "openai-key", model: "gpt-5.6-luna" },
+	});
+
+	assert.equal(core.getProviderLabel("azure"), "Azure Translator");
+	assert.equal(core.getProviderLabel("openai"), "OpenAI");
+	assert.equal(core.getProviderApiKey(openai), "openai-key");
+	assert.equal(core.getProviderConfigurationError(openai), null);
+	assert.match(core.getProviderConfigurationError({ provider: "deepl" }), /DeepL API Key/u);
+	assert.equal(core.getProviderMaximumConcurrency("azure"), 4);
+	assert.equal(core.getProviderMaximumConcurrency("deepl"), 4);
+	assert.equal(core.getProviderMaximumConcurrency("deepseek"), 2);
+	assert.equal(core.getProviderMaximumConcurrency("openai"), 2);
+	assert.deepEqual(core.getProviderLimits("openai"), core.getProviderLimits("deepseek"));
+	assert.equal(core.getProviderModel(openai), "gpt-5.6-luna");
 });
 
 test("detects the Chinese-English direction", () => {
@@ -73,18 +144,23 @@ test("batches segments without changing their order", () => {
 	);
 });
 
-test("parses fenced DeepSeek JSON and validates cardinality", () => {
+test("parses fenced model JSON and keeps the DeepSeek parser alias", () => {
 	const content =
 		'```json\n{"translations":[{"id":"b","text":"世界"},{"id":"a","text":"你好"}]}\n```';
+	assert.deepEqual(core.parseModelTranslations(content, ["a", "b"]), ["你好", "世界"]);
 	assert.deepEqual(core.parseDeepSeekTranslations(content, ["a", "b"]), ["你好", "世界"]);
 	assert.throws(
-		() => core.parseDeepSeekTranslations('{"translations":[{"id":"a","text":"缺少一个"}]}', ["a", "b"]),
+		() => core.parseModelTranslations('{"translations":[{"id":"a","text":"缺少一个"}]}', ["a", "b"]),
 		/数量/,
+	);
+	assert.throws(
+		() => core.parseModelTranslations('{"translations":[{"id":"wrong","text":"错误"}]}', ["a"]),
+		/ID/,
 	);
 });
 
 test("cache keys vary by provider, direction, and text", () => {
-	const azure = core.createDefaultSettings();
+	const azure = { ...core.createDefaultSettings(), provider: "azure" };
 	const deepseek = { ...azure, provider: "deepseek" };
 
 	assert.notEqual(core.cacheKey(azure, "en", "zh", "hello"), core.cacheKey(deepseek, "en", "zh", "hello"));
@@ -93,6 +169,18 @@ test("cache keys vary by provider, direction, and text", () => {
 	assert.notEqual(
 		core.cacheKey(azure, "en", "zh", "hello", "https://one.example"),
 		core.cacheKey(azure, "en", "zh", "hello", "https://two.example"),
+	);
+});
+
+test("model cache signatures isolate explicit providers and protocol versions", () => {
+	const deepseek = { provider: "deepseek", deepseek: { model: "deepseek-v4-flash" } };
+	const openai = { provider: "openai", openai: { model: "gpt-5.6-luna" } };
+
+	assert.match(core.getProviderSignature(deepseek), /deepseek-v4-flash/u);
+	assert.match(core.getProviderSignature(deepseek), /ai-sdk-json-v2/u);
+	assert.notEqual(
+		core.cacheKey(deepseek, "en", "zh", "hello"),
+		core.cacheKey(openai, "en", "zh", "hello"),
 	);
 });
 

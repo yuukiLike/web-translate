@@ -1,15 +1,18 @@
 {
 	"manifest_version": 3,
 	"name": "一键双语翻译",
-	"version": "0.1.0",
-	"description": "一键将当前网页转换为中英双语对照，支持 Azure、DeepL 和 DeepSeek API。",
+	"version": "0.4.0",
+	"description": "一键将当前网页转换为中英双语对照，使用经校验的固定模型目录和显式云服务。",
 	"minimum_chrome_version": "140",
-	"permissions": ["activeTab", "scripting", "storage"],
+	"permissions": ["activeTab", "contextMenus", "scripting", "storage"],
 	"host_permissions": [
 		"https://api-free.deepl.com/*",
 		"https://api.deepl.com/*",
 		"https://api.deepseek.com/*",
-		"https://api.cognitive.microsofttranslator.com/*"
+		"https://api.cognitive.microsofttranslator.com/*",
+		"https://api.openai.com/*",
+		"https://generativelanguage.googleapis.com/*",
+		"https://api.anthropic.com/*"
 	],
 	"background": {
 		"service_worker": "background.js",

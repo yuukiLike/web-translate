@@ -1,0 +1,400 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import vm from "node:vm";
+
+const catalogSource = readFileSync(
+	new URL("../lib/provider-catalog.generated.js", import.meta.url),
+	"utf8",
+);
+const coreSource = readFileSync(new URL("../lib/core.js", import.meta.url), "utf8");
+const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
+const backgroundSource = readFileSync(new URL("../background.js", import.meta.url), "utf8").replace(
+	/^import "\.\/lib\/(?:provider-catalog\.generated|core|provider-runtime)\.js";\s*/gmu,
+	"",
+);
+const extensionUrl = "chrome-extension://background-test/";
+
+function clone(value) {
+	return value === undefined ? undefined : structuredClone(value);
+}
+
+function createStorageArea(initial = {}) {
+	const data = clone(initial);
+
+	function select(keys) {
+		if (keys === null || keys === undefined) {
+			return clone(data);
+		}
+		if (typeof keys === "string") {
+			return Object.hasOwn(data, keys) ? { [keys]: clone(data[keys]) } : {};
+		}
+		if (Array.isArray(keys)) {
+			return Object.fromEntries(
+				keys.filter((key) => Object.hasOwn(data, key)).map((key) => [key, clone(data[key])]),
+			);
+		}
+		return Object.fromEntries(
+			Object.entries(keys).map(([key, fallback]) => [
+				key,
+				Object.hasOwn(data, key) ? clone(data[key]) : clone(fallback),
+			]),
+		);
+	}
+
+	return {
+		data,
+		async get(keys) {
+			return select(keys);
+		},
+		async set(values) {
+			for (const [key, value] of Object.entries(values)) {
+				data[key] = clone(value);
+			}
+		},
+		async remove(keys) {
+			for (const key of Array.isArray(keys) ? keys : [keys]) {
+				delete data[key];
+			}
+		},
+		async getBytesInUse(keys) {
+			return new TextEncoder().encode(JSON.stringify(select(keys))).byteLength;
+		},
+		async setAccessLevel() {},
+	};
+}
+
+function createChromeEvent() {
+	const listeners = [];
+	return {
+		listeners,
+		addListener(listener) {
+			listeners.push(listener);
+		},
+	};
+}
+
+function createDeepSeekSettings(overrides = {}) {
+	return {
+		provider: "deepseek",
+		targetMode: "auto",
+		translateDynamicContent: true,
+		concurrency: 2,
+		debugLogging: false,
+		deepseek: {
+			apiKey: "sk-example-secret",
+			model: "deepseek-v4-flash",
+			...overrides,
+		},
+	};
+}
+
+function createHarness({ settings, fetchHandler, runtimeHandler }) {
+	const local = createStorageArea(settings ? { settings } : {});
+	const session = createStorageArea();
+	const onInstalled = createChromeEvent();
+	const onMessage = createChromeEvent();
+	const onConnect = createChromeEvent();
+	const onClicked = createChromeEvent();
+	const onContextMenuClicked = createChromeEvent();
+	const contextMenuItems = new Map();
+	const actionTitles = [];
+	const requests = [];
+	const runtimeRequests = [];
+	let identifier = 0;
+	let optionsOpenCount = 0;
+	const chrome = {
+		action: {
+			onClicked,
+			async setBadgeText() {},
+			async setBadgeBackgroundColor() {},
+			async setTitle(details) {
+				actionTitles.push(clone(details));
+			},
+		},
+		contextMenus: {
+			onClicked: onContextMenuClicked,
+			async removeAll() {
+				contextMenuItems.clear();
+			},
+			create(item) {
+				contextMenuItems.set(item.id, clone(item));
+				return item.id;
+			},
+			async update(id, changes) {
+				const item = contextMenuItems.get(id);
+				if (!item) {
+					throw new Error(`unknown context menu: ${id}`);
+				}
+				contextMenuItems.set(id, { ...item, ...clone(changes) });
+			},
+		},
+		permissions: {
+			async contains() {
+				return true;
+			},
+			async remove() {
+				return true;
+			},
+		},
+			runtime: {
+			onInstalled,
+			onMessage,
+			onConnect,
+			getURL(path = "") {
+				return `${extensionUrl}${path}`;
+			},
+			getManifest() {
+				return clone(manifest);
+			},
+			async openOptionsPage() {
+				optionsOpenCount += 1;
+			},
+		},
+		scripting: {
+			async insertCSS() {},
+			async executeScript() {},
+		},
+		storage: { local, session },
+	};
+	const context = vm.createContext({
+		AbortController,
+		Date,
+		Error,
+		Math,
+		TextEncoder,
+		URL,
+		URLSearchParams,
+		chrome,
+		clearTimeout,
+		crypto: {
+			randomUUID() {
+				identifier += 1;
+				return `test-id-${identifier}`;
+			},
+		},
+		async fetch(url, init = {}) {
+			const request = { url: String(url), init };
+			requests.push(request);
+			if (typeof fetchHandler !== "function") {
+				throw new Error(`unexpected request: ${request.url}`);
+			}
+			return await fetchHandler(request);
+		},
+		globalThis: null,
+		setTimeout,
+	});
+	context.globalThis = context;
+	vm.runInContext(catalogSource, context, { filename: "provider-catalog.generated.js" });
+	vm.runInContext(coreSource, context, { filename: "core.js" });
+	context.BilingualTranslatorProviderRuntime = Object.freeze({
+		async generateTranslation(request) {
+			runtimeRequests.push({
+				providerId: request.providerId,
+				apiKey: request.apiKey,
+				modelId: request.modelId,
+				messages: clone(request.messages),
+				maxOutputTokens: request.maxOutputTokens,
+			});
+			if (typeof runtimeHandler !== "function") {
+				throw new Error("unexpected model provider request");
+			}
+			return await runtimeHandler(request);
+		},
+	});
+	vm.runInContext(backgroundSource, context, { filename: "background.js" });
+
+	async function sendMessage(message, sender = { url: `${extensionUrl}options.html` }) {
+		assert.equal(onMessage.listeners.length, 1);
+		return await new Promise((resolve) => {
+			const keepsChannelOpen = onMessage.listeners[0](clone(message), clone(sender), (response) => {
+				resolve(clone(response));
+			});
+			assert.equal(keepsChannelOpen, true);
+		});
+	}
+
+	return {
+		actionTitles,
+		chrome,
+		contextMenuItems,
+		get optionsOpenCount() {
+			return optionsOpenCount;
+		},
+		local,
+		onContextMenuClicked,
+		requests,
+		runtimeRequests,
+		sendMessage,
+		session,
+	};
+}
+
+async function waitFor(predicate) {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		if (predicate()) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error("condition was not met");
+}
+
+test("action menu exposes version 0.4.0 and toggles debug without changing credentials", async () => {
+	const settings = createDeepSeekSettings();
+	const harness = createHarness({ settings });
+
+	await waitFor(() => harness.contextMenuItems.size === 3);
+	assert.equal(manifest.version, "0.4.0");
+	assert.ok(manifest.permissions.includes("contextMenus"));
+	assert.equal(harness.contextMenuItems.get("action-extension-version").title, "当前版本 v0.4.0");
+	assert.equal(harness.contextMenuItems.get("action-debug-logging").checked, false);
+	assert.ok(
+		harness.actionTitles.some(
+			(details) => details.title === "翻译/恢复当前网页 · v0.4.0 · 调试已关闭",
+		),
+	);
+
+	assert.equal(harness.onContextMenuClicked.listeners.length, 1);
+	harness.onContextMenuClicked.listeners[0]({
+		menuItemId: "action-debug-logging",
+		checked: true,
+	});
+	await waitFor(() => harness.local.data.settings?.debugLogging === true);
+	assert.equal(harness.local.data.settings.deepseek.apiKey, "sk-example-secret");
+	assert.equal(harness.contextMenuItems.get("action-debug-logging").checked, true);
+
+	harness.onContextMenuClicked.listeners[0]({ menuItemId: "action-open-debug-panel" });
+	await waitFor(() => harness.optionsOpenCount === 1);
+});
+
+test("explicit DeepSeek runtime translates and records rich metadata without secrets or text", async () => {
+	const apiKey = "sk-secret-never-log";
+	const querySecret = "private-query-token";
+	const sourceText = "hello";
+	const translatedText = "translated output";
+	const settings = createDeepSeekSettings({ apiKey });
+	const harness = createHarness({
+		settings: { ...settings, debugLogging: true },
+		async runtimeHandler(request) {
+			request.onRequestEvent({
+				eventType: "request-start",
+				requestId: "provider-request-1",
+				endpoint: `https://api.deepseek.com/chat/completions?token=${querySecret}`,
+				method: "POST",
+				status: "started",
+			});
+			request.onRequestEvent({
+				eventType: "request-end",
+				requestId: "provider-request-1",
+				endpoint: `https://api.deepseek.com/chat/completions?token=${querySecret}`,
+				method: "POST",
+				httpStatus: 200,
+				elapsedMs: 42,
+				status: "success",
+				retryable: false,
+			});
+			return {
+				text: JSON.stringify({
+					translations: [{ id: "segment-1", text: translatedText }],
+				}),
+				finishReason: "stop",
+				rawFinishReason: "stop",
+				responseId: "response-1",
+				responseModel: "deepseek-v4-flash",
+				usage: {
+					inputTokens: 12,
+					outputTokens: 4,
+					cacheReadTokens: 3,
+					cacheWriteTokens: 0,
+					noCacheTokens: 9,
+				},
+				warningCount: 0,
+			};
+		},
+	});
+	const webpageSender = {
+		url: "https://page.example/article",
+		tab: { id: 7, incognito: false, url: "https://page.example/article" },
+	};
+
+	assert.deepEqual(
+		await harness.sendMessage({ type: "START_RUN", runId: "run-1" }, webpageSender),
+		{
+			ok: true,
+			settings: {
+				provider: "deepseek",
+				targetMode: "auto",
+				translateDynamicContent: true,
+				concurrency: 2,
+			},
+		},
+	);
+	const translation = await harness.sendMessage(
+		{
+			type: "TRANSLATE_BATCH",
+			runId: "run-1",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [{ id: "segment-1", text: sourceText }],
+		},
+		webpageSender,
+	);
+	assert.equal(translation.ok, true);
+	assert.deepEqual(translation.results, [{ id: "segment-1", text: translatedText }]);
+	assert.equal(harness.requests.length, 0);
+	assert.equal(harness.runtimeRequests.length, 1);
+	assert.equal(harness.runtimeRequests[0].providerId, "deepseek");
+	assert.equal(harness.runtimeRequests[0].apiKey, apiKey);
+	assert.equal(harness.runtimeRequests[0].modelId, "deepseek-v4-flash");
+	assert.deepEqual(
+		harness.runtimeRequests[0].messages.map((message) => message.role),
+		["system", "user"],
+	);
+	assert.match(harness.runtimeRequests[0].messages[1].content, /hello/u);
+
+	const debugResponse = await harness.sendMessage({ type: "GET_DEBUG_LOGS" });
+	assert.equal(debugResponse.ok, true);
+	assert.ok(debugResponse.events.some((event) => event.eventType === "run.started"));
+	assert.ok(debugResponse.events.some((event) => event.eventType === "model.request.started"));
+	assert.ok(debugResponse.events.some((event) => event.eventType === "sdk.request-start"));
+	assert.ok(debugResponse.events.some((event) => event.eventType === "sdk.request-end"));
+	const responseEvent = debugResponse.events.find(
+		(event) => event.eventType === "model.response.validated",
+	);
+	assert.equal(responseEvent.providerAdapter, "@ai-sdk/deepseek");
+	assert.equal(responseEvent.inferencePolicy, "thinking-disabled");
+	assert.equal(responseEvent.responseId, "response-1");
+	assert.equal(responseEvent.responseModel, "deepseek-v4-flash");
+	assert.equal(responseEvent.finishReason, "stop");
+	assert.equal(responseEvent.cacheReadTokens, 3);
+	assert.equal(
+		debugResponse.events.find((event) => event.eventType === "sdk.request-end").endpoint,
+		"https://api.deepseek.com/chat/completions",
+	);
+	assert.ok(debugResponse.events.every((event) => !Object.hasOwn(event, "headers")));
+	assert.ok(debugResponse.events.every((event) => !Object.hasOwn(event, "body")));
+	const serializedDebugEvents = JSON.stringify(harness.session.data["debug-events-v1"]);
+	assert.ok(!serializedDebugEvents.includes(apiKey));
+	assert.ok(!serializedDebugEvents.includes(querySecret));
+	assert.ok(!serializedDebugEvents.includes("Authorization"));
+	assert.ok(!serializedDebugEvents.includes(sourceText));
+	assert.ok(!serializedDebugEvents.includes(translatedText));
+
+	const denied = await harness.sendMessage({ type: "GET_DEBUG_LOGS" }, webpageSender);
+	assert.equal(denied.ok, false);
+	assert.match(denied.error, /无权读取敏感设置/u);
+});
+
+test("manifest and message surface no longer allow runtime model directories or arbitrary API hosts", async () => {
+	assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
+	assert.ok(!manifest.host_permissions.some((pattern) => pattern.includes("models.dev")));
+	assert.ok(manifest.host_permissions.includes("https://api.openai.com/*"));
+	assert.ok(manifest.host_permissions.includes("https://generativelanguage.googleapis.com/*"));
+	assert.ok(manifest.host_permissions.includes("https://api.anthropic.com/*"));
+
+	const harness = createHarness({ settings: createDeepSeekSettings() });
+	const response = await harness.sendMessage({ type: "GET_MODEL_CATALOG", refresh: true });
+	assert.equal(response.ok, false);
+	assert.match(response.error, /未知消息类型/u);
+});

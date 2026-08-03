@@ -591,8 +591,10 @@
 
 	async function translateWithCloud(segments, runId) {
 		const limits = core.getProviderLimits(state.settings.provider);
-		const requestedConcurrency =
-			state.settings.provider === "deepseek" ? Math.min(2, state.settings.concurrency) : state.settings.concurrency;
+		const requestedConcurrency = Math.min(
+			core.getProviderMaximumConcurrency(state.settings.provider),
+			state.settings.concurrency,
+		);
 		const queue = [...segments];
 		const resolvedTranslations = new Map();
 

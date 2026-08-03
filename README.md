@@ -1,95 +1,207 @@
 # 一键双语翻译
 
-零依赖的 Chrome Manifest V3 扩展。点击工具栏图标后，将当前已加载网页转换为中英段落对照；再次点击恢复原页面。
+Chrome Manifest V3 扩展。点击工具栏图标后，把当前网页转换为中英双语对照；译文以纯文本直接显示在原文下方，再次点击恢复原页面。
+
+当前版本：`0.4.0`。
 
 ## 当前能力
 
-- 工具栏图标或快捷键一键翻译/恢复，不使用弹窗（Windows/Linux：`Alt+Shift+B`；macOS：`Control+Shift+B`）
-- 自动判断中文页或英文页，也可固定翻译方向
-- 当前视口优先，译文逐批回填
-- 保留原文，译文作为无标签的纯文本行紧贴显示在原文下方
-- 支持普通文章、文档、表格、可见链接/按钮文案、X/Twitter 推文，以及 SPA/无限滚动新增内容
-- 同批文本去重、90 天持久缓存、停止任务时取消请求
-- 本月 API 用量统计
-- Azure Translator、DeepL、DeepSeek V4 Flash；可随时切换 Provider 和各自的 API Key
+- 工具栏图标或快捷键一键翻译/恢复，不使用弹窗
+- 自动判断中英文方向，也可固定翻译方向
+- 当前视口优先，逐批回填译文
+- 持续翻译 SPA、无限滚动和懒加载的新正文
+- 处理普通文章、文档、表格、可见链接/按钮文案和 X/Twitter 推文
+- 同批去重、90 天持久缓存、请求取消、有限重试和月度用量统计
+- 原生支持 Azure Translator、DeepL
+- 通过 Vercel AI SDK 显式支持 DeepSeek、OpenAI、Google、Anthropic
+- 固定 models.dev snapshot、JSON Schema 校验和人工 Provider/API allowlist
+- 右键工具栏图标可开关调试、打开详细面板并核对当前加载版本
+- 脱敏调试面板实时显示批次、缓存、HTTP、重试、响应模型、结束原因和 token
 
-## 安装
+## 安装与首次使用
 
-无需安装依赖或构建。
+仓库已包含生成后的 Provider bundle，普通安装不需要 npm，也不会下载任何中英本地模型。
 
 1. 打开 `chrome://extensions`。
 2. 开启“开发者模式”。
 3. 点击“加载已解压的扩展程序”。
 4. 选择本目录 `apps/bilingual-web-translator`。
-5. 安装后会自动打开设置页，选择 Provider 并填写 API Key。
-6. 建议固定扩展图标，然后在任意普通网页点击图标。
+5. 首次安装会打开设置页。选择 Provider，填写你自己的 API Key。
+6. 点击“测试当前服务”，成功后打开普通网页并点击扩展图标。
+7. 建议把扩展固定到 Chrome 工具栏。
 
-本扩展要求 Chrome 140+ 桌面版。没有配置有效 API Key 时不会翻译，也不会下载任何本地模型；点击扩展图标会直接打开设置页。
+没有有效 API Key 时不会翻译。扩展不会要求下载模型；它把筛选后的正文段落直接发送给用户选择的云 Provider。
 
-若要打开本地保存的 `pi-test/test.htm` 测试，请在扩展详情页开启“允许访问文件网址”，再刷新该本地页面。
+快捷键：
 
-## Provider 选择
+- Windows/Linux：`Alt+Shift+B`
+- macOS：`Control+Shift+B`
 
-截至 2026-07-28，建议顺序如下：
+本扩展要求 Chrome 140+ 桌面版。测试本地 `file://` 页面时，需要在扩展详情页开启“允许访问文件网址”，然后刷新页面。
 
-| Provider | 适用场景 | 公开免费额度或价格 |
+## 更新本地扩展
+
+代码或生成产物改变后，不需要删除并重新引入目录：
+
+1. 在 `chrome://extensions` 找到扩展。
+2. 点击“重新加载”。
+3. 刷新正在测试的网页。
+4. 再点击扩展图标。
+
+设置页顶部、工具栏悬停 title 和图标右键菜单都会显示 Chrome 当前实际加载的版本。
+
+## Provider 推荐
+
+前三个推荐模型来自固定本地 snapshot。表中价格是 snapshot 记录的每 100 万 token 美元价格，不是实时报价。
+
+| 顺序 | Provider / 模型 | 输入 / 输出 | 建议 |
+| --- | --- | ---: | --- |
+| 1 | DeepSeek `deepseek-v4-flash` | $0.14 / $0.28 | 默认；当前候选中最低成本，翻译时关闭 thinking |
+| 2 | OpenAI `gpt-5.6-luna` | $0.20 / $1.20 | 稳定、高吞吐；翻译时显式设置 `reasoning: none` |
+| 3 | Google `gemini-3.5-flash-lite` | $0.30 / $2.50 | 高吞吐；thinking 降到模型支持的 `minimal`；免费层资格可能变化 |
+| 可选 | Anthropic `claude-sonnet-5` | $2.00 / $10.00 | 质量对照；翻译时显式设置 `reasoning: none` |
+
+Azure Translator 和 DeepL 是专用翻译 API，也可以直接选择。扩展不会自动在 Provider 之间故障转移，避免在用户无感知时把正文发送给另一家公司。
+
+模型、价格、免费层、账户权限和区域政策可能变化，以各 Provider 官方控制台为准。
+
+## 固定模型目录架构
+
+```text
+models.dev 固定 commit
+  → data/models-dev-subset.json
+  → 本地 JSON Schema 校验
+  → config/provider-allowlist.json
+  → Vercel AI SDK 显式 Provider
+  → DeepSeek / OpenAI / Google / Anthropic 官方 API
+```
+
+当前 snapshot 固定到：
+
+```text
+141191529fcad56200de45e7267a21dffcc4c33e
+```
+
+运行中的扩展不会请求 Models.dev，不接受自定义 Base URL，也没有任意 HTTPS 的可选 host permission。所有模型 Provider、SDK 包、默认模型和 API Base URL 都在构建时校验并打包。
+
+| Provider | SDK | API Base URL |
 | --- | --- | --- |
-| Azure Translator F0 | 需要稳定、快速的云端专用翻译 | 每月 200 万字符免费 |
-| DeepL | 更看重专用翻译质量 | 旧 API Free 每月 50 万字符；新 Developer 计划为 100 万字符总额度 |
-| DeepSeek V4 Flash | 需要上下文能力且关注低价 | cache miss 输入 $0.14/M token，输出 $0.28/M token |
+| DeepSeek | `@ai-sdk/deepseek` | `https://api.deepseek.com` |
+| OpenAI | `@ai-sdk/openai` | `https://api.openai.com/v1` |
+| Google | `@ai-sdk/google` | `https://generativelanguage.googleapis.com/v1beta` |
+| Anthropic | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1` |
 
-DeepSeek 请求固定使用 `deepseek-v4-flash`、关闭 thinking、批量发送段落，并严格校验返回 ID。旧的 `deepseek-chat` 和 `deepseek-reasoner` 不作为默认值。
+详细更新流程见 [固定模型目录与 Provider 架构](docs/provider-catalog.md)。
 
-本扩展不调用未经官方支持的免费 Google Translate 网页接口。此类接口没有稳定性、配额和隐私保证。
+## Azure Translator 的“资源区域”
 
-官方资料：
+资源区域是 Azure 用来识别和路由订阅资源的创建区域，不是源语言或目标语言。
 
-- [Azure Translator 限制](https://learn.microsoft.com/en-us/azure/ai-services/translator/service-limits)
-- [DeepL API 限额](https://developers.deepl.com/docs/resources/usage-limits)
-- [DeepL API 计划](https://support.deepl.com/hc/en-us/articles/360021200939-DeepL-API-plans)
-- [DeepL API 鉴权与域名](https://developers.deepl.com/docs/getting-started/auth)
-- [DeepL 文本翻译 API](https://developers.deepl.com/api-reference/translate/request-translation)
-- [DeepSeek 模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)
+- Translator 单服务全局资源通常可以留空。
+- 区域性 Translator 资源必须填写区域。
+- Azure AI 多服务或 Foundry 资源通常必须填写区域。
+- 值必须与 Azure 门户资源页面一致，例如 `eastasia`；不一致常导致 `401` 或 `403`。
+
+以 [Azure Translator 鉴权文档](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/authentication) 为准。
+
+## 调试模式
+
+右键扩展图标勾选“开发调试模式”，再选择“打开详细调试面板”。设置页也可以开启“记录调试事件”并保存。
+
+面板可以看到：
+
+- 扩展版本、models.dev snapshot SHA、Service Worker 实例
+- Provider、模型、显式 SDK adapter、固定 API host 和低推理策略
+- 批次段落数、字符数、缓存命中/未命中
+- HTTP endpoint、状态、耗时、超时、尝试次数和退避等待
+- Provider 响应 ID、实际响应模型、标准/原始结束原因和警告数量
+- 输入、输出、cache read、cache write、no-cache token 或计费字符
+
+调试事件采用严格字段白名单，绝不保存：
+
+- API Key、Authorization 或其他请求头
+- query token、请求体、响应体或完整 Provider 错误原文
+- 网页原文、译文、Cookie、表单值或整页 HTML
+
+事件只位于 `chrome.storage.session`，最多 300 条且约 512 KiB。完整字段、事件顺序和故障诊断见 [调试模式与请求诊断](docs/debugging.md)。
+
+## 插件数据流
+
+```text
+网页 DOM
+  → content.js：TreeWalker 筛选、去重、分批、监听新增 DOM
+  → background.js：固定任务设置、缓存、限流/重试、Provider 调用
+  → Provider API：返回译文和用量
+  → background.js：校验结束原因、JSON、段落 ID、数量和长度
+  → content.js：通过 textContent 把译文插入原文下方
+```
+
+主要文件：
+
+- `manifest.json`：Manifest V3 入口、action、设置页和固定权限
+- `lib/provider-catalog.generated.js`：只读的本地 Provider/模型目录
+- `lib/core.js`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验
+- `content.js`：DOM 遍历、视口优先、增量监听和双语渲染
+- `background.js`：API Key、任务、缓存、重试、用量和安全调试事件
+- `src/provider-runtime.js`：四个显式 Vercel AI SDK Provider 的统一源代码
+- `lib/provider-runtime.js`：供 Service Worker 使用的生成 bundle
+- `options.*`：Provider 设置、本地目录、用量和调试界面
+
+第一次开发 Chrome 插件建议阅读 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
 
 ## 性能与成本策略
 
-1. 首次用原生 `TreeWalker` 线性遍历文本节点；不使用正则解析 HTML，也不对所有元素反复递归查询。
-2. 每个文本节点只归属一个翻译单元；嵌套段落、列表和 `lang` 容器不会重复翻译。X 的 `tweetText` 作为原子块，不会被内部 `span`、链接、emoji 或单字符节点拆碎。
-3. `MutationObserver` 只扫描新增或实际发生文本变化的子树；180ms 节流不会因持续滚动而一直延后。高频 `class/style` 更新只检查受影响内容的可见性，不重新扫描整棵 DOM。
-4. 先翻译当前视口附近内容；每轮云请求结束后重新检查滚动新增内容，使新可见正文能在旧后台批次之间插队。
-5. Azure、DeepL 使用原生数组请求；DeepSeek 将多个带稳定 ID 的段落合并为一个 JSON 请求。
-6. 云 API 默认并发 2，可在设置中调整为 1–4；DeepSeek 最大使用 2。
-7. 相同文本批内只提交一次，成功译文按站点、Provider、模型和语言对隔离缓存。
-8. 不使用累计字符硬上限阻断无限滚动；成本通过批处理、缓存和用量统计控制。
-9. 对网络超时及 408、429、500、502、503、504 最多指数退避重试两次；支持秒数和 HTTP 日期格式的 `Retry-After`，超过 60 秒则提示稍后重试。
+1. 首次使用原生 `TreeWalker` 线性遍历文本节点，不用正则解析 HTML。
+2. `MutationObserver` 只扫描新增或真正变化的子树，支持无限滚动。
+3. 当前视口附近内容优先，云请求之间重新检查新可见正文。
+4. 同批文本去重；缓存按站点、Provider、模型、协议版本和语言对隔离。
+5. Azure/DeepL 使用数组请求；模型 Provider 把多个稳定 ID 段落合并为一个 JSON 任务。
+6. 默认并发 2；模型 Provider 最大并发 2，Azure/DeepL 最大并发 4。
+7. SDK 内部重试关闭，后台统一处理超时和最多三次尝试，避免双重重试成本。
+8. DeepSeek 关闭 thinking，OpenAI 和 Anthropic 设置 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking，减少延迟和推理 token。
+9. Provider runtime 生产 bundle 已压缩，并预设 Zod `jitless`，避免触发 Manifest V3 CSP 禁止的动态代码探测。
 
 ## 隐私与安全
 
-- 使用 `activeTab`，仅在用户点击图标后取得当前标签页的临时权限。
-- 云端只接收筛选后的纯文本段落，不接收网址、Cookie、表单值或整页 HTML。
-- API 请求由扩展 Service Worker 发出；内容脚本无法读取 API Key。
-- Key 保存在 `chrome.storage.local`，并通过 `TRUSTED_CONTEXTS` 限制内容脚本访问。
-- 无痕标签页不读写翻译缓存。
-- DeepSeek 输入被视为不可信数据，关闭工具和 thinking；所有返回内容只通过 `textContent` 写入页面。
+- `activeTab` 只在用户点击图标后临时访问当前标签页。
+- 云端只接收筛选后的纯文本段落，不接收网址、Cookie、输入框或整页 HTML。
+- API 请求由 Service Worker 发出；内容脚本不能读取 API Key。
+- Key 保存在本机 `chrome.storage.local`，访问级别限制为 `TRUSTED_CONTEXTS`。
+- 无痕标签页不读写持久翻译缓存。
+- Provider 返回值只通过 `textContent` 写入网页。
+- 所有可执行 JavaScript 随扩展打包，不从网络下载代码。
 
-浏览器端 BYOK 无法提供服务端密钥保险箱级别的保护。若要面向其他用户发布并由开发者统一承担费用，必须使用带鉴权、配额和速率限制的自有后端代理，不能把开发者 API Key 写入扩展。
+浏览器端 BYOK 不是服务端密钥保险箱。若面向他人发布并由开发者统一付费，应使用带鉴权、配额和速率限制的自有后端代理，不能把开发者 Key 写进扩展。
 
 ## 已知边界
 
-MVP 保证普通 HTML 页面中当前已加载的 DOM。以下内容不能保证完整翻译：
-
-- `chrome://`、Chrome Web Store 等禁止脚本注入的页面
+- `chrome://`、Chrome Web Store 等禁止注入的页面
 - Chrome 内置 PDF Viewer
-- Shadow DOM（当前扫描器不跨越 shadow root）
-- iframe（当前仅处理主页面 frame）
+- Shadow DOM
+- iframe（当前只处理主 frame）
 - 图片、扫描文档、视频字幕和输入框
 
-## 本地验证
+## 开发与验证
+
+普通用户无需执行本节。修改 snapshot、SDK 依赖或 Provider runtime 时需要 Node.js 22+：
 
 ```bash
 cd apps/bilingual-web-translator
-node --check background.js
-node --check content.js
-node --check options.js
-node --test test/*.test.mjs
+npm install --ignore-scripts
+node scripts/validate-provider-config.mjs
+node scripts/build-provider-runtime.mjs
+npm run check
 ```
+
+`npm run check` 不调用真实 Provider，不需要 API Key；它还会在内存中重新生成 bundle，并拒绝过期的 `lib/` 产物。
+
+## 官方资料
+
+- [Chrome 扩展入门](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world)
+- [Chrome Manifest V3](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
+- [Models.dev 源码与数据](https://github.com/anomalyco/models.dev)
+- [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/generating-text)
+- [DeepSeek API](https://api-docs.deepseek.com/)
+- [OpenAI 模型](https://developers.openai.com/api/docs/models)
+- [Google Gemini 模型](https://ai.google.dev/gemini-api/docs/models)
+- [Anthropic API](https://docs.anthropic.com/en/api/overview)

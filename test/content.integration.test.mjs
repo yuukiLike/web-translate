@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 
+const catalogSource = readFileSync(
+	new URL("../lib/provider-catalog.generated.js", import.meta.url),
+	"utf8",
+);
 const coreSource = readFileSync(new URL("../lib/core.js", import.meta.url), "utf8");
 const contentSource = readFileSync(new URL("../content.js", import.meta.url), "utf8");
 
@@ -704,6 +708,7 @@ test("production content script renders and incrementally maintains every X-like
 	context.window = context;
 	context.innerHeight = 800;
 
+	vm.runInContext(catalogSource, context, { filename: "provider-catalog.generated.js" });
 	vm.runInContext(coreSource, context, { filename: "core.js" });
 	vm.runInContext(contentSource, context, { filename: "content.js" });
 	try {

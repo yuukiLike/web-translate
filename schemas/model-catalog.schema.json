@@ -1,0 +1,159 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://bilingual-web-translator.invalid/schemas/model-catalog.schema.json",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["$schema", "schemaVersion", "source", "providers"],
+	"properties": {
+		"$schema": { "const": "../schemas/model-catalog.schema.json" },
+		"schemaVersion": { "const": 1 },
+		"source": { "$ref": "#/$defs/source" },
+		"providers": {
+			"type": "array",
+			"minItems": 4,
+			"maxItems": 4,
+			"items": { "$ref": "#/$defs/provider" }
+		}
+	},
+	"$defs": {
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "repository", "commit", "fetchedAt"],
+			"properties": {
+				"name": { "const": "models.dev" },
+				"repository": { "const": "https://github.com/anomalyco/models.dev" },
+				"commit": { "pattern": "^[0-9a-f]{40}$", "type": "string" },
+				"fetchedAt": {
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+					"type": "string"
+				}
+			}
+		},
+		"providerId": {
+			"enum": ["deepseek", "openai", "google", "anthropic"],
+			"type": "string"
+		},
+		"provider": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "name", "models"],
+			"properties": {
+				"id": { "$ref": "#/$defs/providerId" },
+				"name": { "minLength": 1, "type": "string" },
+				"models": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "$ref": "#/$defs/model" }
+				}
+			}
+		},
+		"model": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"id",
+				"providerId",
+				"name",
+				"releaseDate",
+				"lastUpdated",
+				"openWeights",
+				"capabilities",
+				"cost",
+				"limits",
+				"modalities"
+			],
+			"properties": {
+				"id": { "pattern": "^[a-z0-9][a-z0-9._-]*$", "type": "string" },
+				"providerId": { "$ref": "#/$defs/providerId" },
+				"baseModel": { "minLength": 1, "type": "string" },
+				"name": { "minLength": 1, "type": "string" },
+				"description": { "minLength": 1, "type": "string" },
+				"family": { "minLength": 1, "type": "string" },
+				"releaseDate": { "$ref": "#/$defs/catalogDate" },
+				"lastUpdated": { "$ref": "#/$defs/catalogDate" },
+				"knowledge": { "$ref": "#/$defs/catalogDate" },
+				"openWeights": { "type": "boolean" },
+				"capabilities": { "$ref": "#/$defs/capabilities" },
+				"cost": { "$ref": "#/$defs/cost" },
+				"limits": { "$ref": "#/$defs/limits" },
+				"modalities": { "$ref": "#/$defs/modalities" }
+			}
+		},
+		"catalogDate": {
+			"pattern": "^[0-9]{4}-[0-9]{2}(?:-[0-9]{2})?$",
+			"type": "string"
+		},
+		"capabilities": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["attachment", "reasoning", "toolCall", "structuredOutput", "temperature"],
+			"properties": {
+				"attachment": { "type": "boolean" },
+				"reasoning": { "type": "boolean" },
+				"toolCall": { "type": "boolean" },
+				"structuredOutput": { "type": "boolean" },
+				"temperature": { "type": "boolean" }
+			}
+		},
+		"cost": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["input", "output"],
+			"properties": {
+				"input": { "$ref": "#/$defs/nonNegativeNumber" },
+				"output": { "$ref": "#/$defs/nonNegativeNumber" },
+				"reasoning": { "$ref": "#/$defs/nonNegativeNumber" },
+				"cacheRead": { "$ref": "#/$defs/nonNegativeNumber" },
+				"cacheWrite": { "$ref": "#/$defs/nonNegativeNumber" },
+				"tiers": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "$ref": "#/$defs/costTier" }
+				}
+			}
+		},
+		"costTier": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["contextThreshold", "input", "output"],
+			"properties": {
+				"contextThreshold": { "$ref": "#/$defs/positiveInteger" },
+				"input": { "$ref": "#/$defs/nonNegativeNumber" },
+				"output": { "$ref": "#/$defs/nonNegativeNumber" },
+				"cacheRead": { "$ref": "#/$defs/nonNegativeNumber" },
+				"cacheWrite": { "$ref": "#/$defs/nonNegativeNumber" }
+			}
+		},
+		"limits": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["context", "output"],
+			"properties": {
+				"context": { "$ref": "#/$defs/positiveInteger" },
+				"input": { "$ref": "#/$defs/positiveInteger" },
+				"output": { "$ref": "#/$defs/positiveInteger" }
+			}
+		},
+		"modalities": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["input", "output"],
+			"properties": {
+				"input": { "$ref": "#/$defs/modalitiesList" },
+				"output": { "$ref": "#/$defs/modalitiesList" }
+			}
+		},
+		"modalitiesList": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"enum": ["text", "image", "audio", "video", "pdf"],
+				"type": "string"
+			}
+		},
+		"nonNegativeNumber": { "minimum": 0, "type": "number" },
+		"positiveInteger": { "minimum": 1, "type": "integer" }
+	}
+}

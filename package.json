@@ -1,0 +1,26 @@
+{
+	"name": "bilingual-web-translator",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"build:provider-runtime": "node scripts/build-provider-runtime.mjs",
+		"check": "node scripts/validate-provider-config.mjs && node scripts/build-provider-runtime.mjs --check && node --check background.js && node --check content.js && node --check options.js && node --test test/*.test.mjs",
+		"test:catalog": "node --test test/catalog.test.mjs",
+		"validate:provider-catalog": "node scripts/validate-provider-config.mjs"
+	},
+	"dependencies": {
+		"@ai-sdk/anthropic": "4.0.27",
+		"@ai-sdk/deepseek": "3.0.19",
+		"@ai-sdk/google": "4.0.31",
+		"@ai-sdk/openai": "4.0.27",
+		"ai": "7.0.49"
+	},
+	"devDependencies": {
+		"ajv": "8.20.0",
+		"esbuild": "0.28.1"
+	}
+}
