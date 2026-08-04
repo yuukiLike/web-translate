@@ -89,6 +89,13 @@ function createDeepSeekSettings(overrides = {}) {
 	};
 }
 
+function createWebpageSender({ id = 7, incognito = false, url = "https://page.example/article" } = {}) {
+	return {
+		url,
+		tab: { id, incognito, url },
+	};
+}
+
 function createHarness({ settings, fetchHandler, runtimeHandler }) {
 	const local = createStorageArea(settings ? { settings } : {});
 	const session = createStorageArea();
@@ -313,10 +320,7 @@ test("explicit DeepSeek runtime translates and records rich metadata without sec
 			};
 		},
 	});
-	const webpageSender = {
-		url: "https://page.example/article",
-		tab: { id: 7, incognito: false, url: "https://page.example/article" },
-	};
+	const webpageSender = createWebpageSender();
 
 	assert.deepEqual(
 		await harness.sendMessage({ type: "START_RUN", runId: "run-1" }, webpageSender),
@@ -384,6 +388,195 @@ test("explicit DeepSeek runtime translates and records rich metadata without sec
 	const denied = await harness.sendMessage({ type: "GET_DEBUG_LOGS" }, webpageSender);
 	assert.equal(denied.ok, false);
 	assert.match(denied.error, /无权读取敏感设置/u);
+});
+
+test("extension-only settings messages authorize before parsing sensitive changes", async () => {
+	const settings = createDeepSeekSettings();
+	const harness = createHarness({ settings });
+	const webpageSender = createWebpageSender();
+	const response = await harness.sendMessage(
+		{
+			type: "SAVE_SETTINGS",
+			settings: createDeepSeekSettings({ apiKey: "stolen-write" }),
+		},
+		webpageSender,
+	);
+
+	assert.equal(response.ok, false);
+	assert.match(response.error, /无权读取敏感设置/u);
+	assert.equal(harness.local.data.settings.deepseek.apiKey, settings.deepseek.apiKey);
+});
+
+test("incognito cache messages bypass payload validation and snapshot access", async () => {
+	const harness = createHarness({ settings: createDeepSeekSettings() });
+	const incognitoSender = createWebpageSender({ id: 8, incognito: true });
+
+	assert.deepEqual(await harness.sendMessage({ type: "CACHE_LOOKUP" }, incognitoSender), {
+		ok: true,
+		results: [],
+	});
+	assert.deepEqual(await harness.sendMessage({ type: "CACHE_STORE" }, incognitoSender), {
+		ok: true,
+	});
+	assert.equal(
+		Object.keys(harness.local.data).some((key) => key.startsWith("translation-cache:")),
+		false,
+	);
+	assert.equal(harness.runtimeRequests.length, 0);
+	assert.equal(harness.requests.length, 0);
+});
+
+test("persistent cache handles full and mixed hits while preserving usage and result order", async () => {
+	const harness = createHarness({
+		settings: createDeepSeekSettings(),
+		async runtimeHandler(request) {
+			const payload = JSON.parse(request.messages[1].content);
+			assert.deepEqual(payload.segments, [{ id: "missing", text: "world" }]);
+			return {
+				text: JSON.stringify({
+					translations: [{ id: "missing", text: "世界" }],
+				}),
+				finishReason: "stop",
+				rawFinishReason: "stop",
+				usage: {
+					inputTokens: 8,
+					outputTokens: 2,
+					cacheReadTokens: 3,
+				},
+				warningCount: 0,
+			};
+		},
+	});
+	const webpageSender = createWebpageSender({ id: 9 });
+	await harness.sendMessage({ type: "START_RUN", runId: "cache-run" }, webpageSender);
+	assert.deepEqual(
+		await harness.sendMessage(
+			{
+				type: "CACHE_STORE",
+				runId: "cache-run",
+				sourceLanguage: "en",
+				targetLanguage: "zh",
+				entries: [{ id: "cached", text: "hello", translation: "你好" }],
+			},
+			webpageSender,
+		),
+		{ ok: true },
+	);
+
+	const fullHit = await harness.sendMessage(
+		{
+			type: "TRANSLATE_BATCH",
+			runId: "cache-run",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [{ id: "cached", text: "hello" }],
+		},
+		webpageSender,
+	);
+	assert.deepEqual(fullHit, {
+		ok: true,
+		results: [{ id: "cached", text: "你好" }],
+		cacheHits: 1,
+	});
+	assert.equal(harness.runtimeRequests.length, 0);
+
+	const mixedHit = await harness.sendMessage(
+		{
+			type: "TRANSLATE_BATCH",
+			runId: "cache-run",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [
+				{ id: "cached", text: "hello" },
+				{ id: "missing", text: "world" },
+			],
+		},
+		webpageSender,
+	);
+	assert.deepEqual(mixedHit, {
+		ok: true,
+		results: [
+			{ id: "cached", text: "你好" },
+			{ id: "missing", text: "世界" },
+		],
+		cacheHits: 1,
+	});
+	assert.equal(harness.runtimeRequests.length, 1);
+
+	const cacheLookup = await harness.sendMessage(
+		{
+			type: "CACHE_LOOKUP",
+			runId: "cache-run",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [
+				{ id: "cached", text: "hello" },
+				{ id: "missing", text: "world" },
+			],
+		},
+		webpageSender,
+	);
+	assert.deepEqual(cacheLookup.results, [
+		{ id: "cached", text: "你好" },
+		{ id: "missing", text: "世界" },
+	]);
+
+	const usage = Object.values(harness.local.data.usage)[0].deepseek;
+	assert.equal(usage.apiCalls, 1);
+	assert.equal(usage.charactersSubmitted, 5);
+	assert.equal(usage.cachedCharacters, 10);
+	assert.equal(usage.inputTokens, 8);
+	assert.equal(usage.cachedInputTokens, 3);
+	assert.equal(usage.outputTokens, 2);
+});
+
+test("clearing cache rejects webpage callers and invalidates earlier run snapshots", async () => {
+	const harness = createHarness({ settings: createDeepSeekSettings() });
+	const webpageSender = createWebpageSender({ id: 10 });
+	await harness.sendMessage({ type: "START_RUN", runId: "stale-cache-run" }, webpageSender);
+	const cacheStoreMessage = {
+		type: "CACHE_STORE",
+		runId: "stale-cache-run",
+		sourceLanguage: "en",
+		targetLanguage: "zh",
+		entries: [{ id: "cached", text: "hello", translation: "你好" }],
+	};
+	await harness.sendMessage(cacheStoreMessage, webpageSender);
+
+	const denied = await harness.sendMessage({ type: "CLEAR_CACHE" }, webpageSender);
+	assert.equal(denied.ok, false);
+	assert.match(denied.error, /无权读取敏感设置/u);
+	const beforeClear = await harness.sendMessage(
+		{
+			type: "CACHE_LOOKUP",
+			runId: "stale-cache-run",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [{ id: "cached", text: "hello" }],
+		},
+		webpageSender,
+	);
+	assert.deepEqual(beforeClear.results, [{ id: "cached", text: "你好" }]);
+
+	const cleared = await harness.sendMessage({ type: "CLEAR_CACHE" });
+	assert.equal(cleared.ok, true);
+	assert.ok(cleared.removed > 0);
+	assert.deepEqual(await harness.sendMessage(cacheStoreMessage, webpageSender), { ok: true });
+	const afterClear = await harness.sendMessage(
+		{
+			type: "CACHE_LOOKUP",
+			runId: "stale-cache-run",
+			sourceLanguage: "en",
+			targetLanguage: "zh",
+			segments: [{ id: "cached", text: "hello" }],
+		},
+		webpageSender,
+	);
+	assert.deepEqual(afterClear.results, []);
+	assert.equal(
+		Object.keys(harness.local.data).some((key) => key.startsWith("translation-cache:")),
+		false,
+	);
 });
 
 test("manifest and message surface no longer allow runtime model directories or arbitrary API hosts", async () => {

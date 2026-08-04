@@ -173,6 +173,49 @@ function normalizeTokenCount(value) {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
+function createProviderGenerationOptions(providerId) {
+	switch (providerId) {
+		case "deepseek":
+			return {
+				providerOptions: {
+					deepseek: { thinking: { type: "disabled" } },
+				},
+			};
+		case "google":
+			return {
+				providerOptions: {
+					google: {
+						thinkingConfig: { includeThoughts: false, thinkingLevel: "minimal" },
+					},
+				},
+			};
+		case "openai":
+		case "anthropic":
+			return { reasoning: "none" };
+		default:
+			throw new Error(`Unsupported provider: ${providerId}`);
+	}
+}
+
+function normalizeTranslationResult(result) {
+	const inputTokenDetails = result.usage.inputTokenDetails;
+	return {
+		text: result.text,
+		finishReason: result.finishReason,
+		rawFinishReason: result.rawFinishReason ?? null,
+		responseId: result.response.id,
+		responseModel: result.response.modelId,
+		usage: {
+			inputTokens: normalizeTokenCount(result.usage.inputTokens),
+			outputTokens: normalizeTokenCount(result.usage.outputTokens),
+			cacheReadTokens: normalizeTokenCount(inputTokenDetails.cacheReadTokens),
+			cacheWriteTokens: normalizeTokenCount(inputTokenDetails.cacheWriteTokens),
+			noCacheTokens: normalizeTokenCount(inputTokenDetails.noCacheTokens),
+		},
+		warningCount: Array.isArray(result.warnings) ? result.warnings.length : 0,
+	};
+}
+
 async function generateTranslation({
 	providerId,
 	apiKey,
@@ -198,34 +241,9 @@ async function generateTranslation({
 		abortSignal,
 		maxOutputTokens: outputTokenLimit,
 		maxRetries: 0,
-		...(providerId === "openai" || providerId === "anthropic" ? { reasoning: "none" } : {}),
-		...(providerId === "deepseek"
-			? { providerOptions: { deepseek: { thinking: { type: "disabled" } } } }
-			: providerId === "google"
-				? {
-						providerOptions: {
-							google: {
-								thinkingConfig: { includeThoughts: false, thinkingLevel: "minimal" },
-							},
-						},
-					}
-				: {}),
+		...createProviderGenerationOptions(providerId),
 	});
-	return {
-		text: result.text,
-		finishReason: result.finishReason,
-		rawFinishReason: result.rawFinishReason ?? null,
-		responseId: result.response.id,
-		responseModel: result.response.modelId,
-		usage: {
-			inputTokens: normalizeTokenCount(result.usage.inputTokens),
-			outputTokens: normalizeTokenCount(result.usage.outputTokens),
-			cacheReadTokens: normalizeTokenCount(result.usage.inputTokenDetails.cacheReadTokens),
-			cacheWriteTokens: normalizeTokenCount(result.usage.inputTokenDetails.cacheWriteTokens),
-			noCacheTokens: normalizeTokenCount(result.usage.inputTokenDetails.noCacheTokens),
-		},
-		warningCount: Array.isArray(result.warnings) ? result.warnings.length : 0,
-	};
+	return normalizeTranslationResult(result);
 }
 
 globalThis.BilingualTranslatorProviderRuntime = Object.freeze({ generateTranslation });

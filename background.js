@@ -292,177 +292,216 @@ async function handleMessage(message, sender) {
 	}
 
 	switch (message.type) {
-		case "START_RUN": {
-			const tabId = getSenderTabId(sender);
-			const runId = validateRunId(message.runId);
-			const settings = await getSettings();
-			assertProviderConfigured(settings);
-			await assertProviderPermission(settings);
-			const snapshot = {
-				settings,
-				cacheGeneration,
-				cacheScope: getCacheScope(sender),
-			};
-			await saveRunSnapshot(tabId, runId, snapshot);
-			runBatchSequences.set(runKey(tabId, runId), 0);
-			recordDebugEvent(settings, {
-				component: "background",
-				eventType: "run.started",
-				tabId,
-				runId,
-				provider: settings.provider,
-				model: getProviderModel(settings),
-				extensionVersion: EXTENSION_VERSION,
-				catalogSourceSha: providerCatalog.source.commit,
-				providerAdapter: getProviderAdapter(settings),
-				apiHost: getProviderApiHost(settings),
-				configuredConcurrency: Math.min(
-					settings.concurrency,
-					core.getProviderMaximumConcurrency(settings),
-				),
-				status: "started",
-			});
-			return { settings: core.publicSettings(settings) };
-		}
-		case "GET_OPTIONS_STATE": {
-			assertExtensionPage(sender);
-			const [settings, storedUsage] = await Promise.all([
-				getSettings(),
-				chrome.storage.local.get(core.USAGE_KEY),
-			]);
-			return { settings, usage: storedUsage[core.USAGE_KEY] ?? {} };
-		}
-		case "SAVE_SETTINGS": {
-			assertExtensionPage(sender);
-			const settings = core.normalizeSettings(message.settings);
-			await queueSettingsWrite(settings);
-			await updateActionUiState(settings);
-			recordDebugEvent(settings, {
-				component: "background",
-				eventType: "settings.saved",
-				provider: settings.provider,
-				model: getProviderModel(settings),
-				extensionVersion: EXTENSION_VERSION,
-				catalogSourceSha: providerCatalog.source.commit,
-				providerAdapter: getProviderAdapter(settings),
-				apiHost: getProviderApiHost(settings),
-				configuredConcurrency: Math.min(
-					settings.concurrency,
-					core.getProviderMaximumConcurrency(settings),
-				),
-				status: "completed",
-			});
-			return { settings };
-		}
-		case "TEST_PROVIDER": {
-			assertExtensionPage(sender);
-			const settings = await getSettings();
-			await assertProviderPermission(settings);
-			return await testProvider(settings);
-		}
-		case "GET_DEBUG_LOGS": {
-			assertExtensionPage(sender);
-			return { events: await getDebugEvents() };
-		}
-		case "CLEAR_DEBUG_LOGS": {
-			assertExtensionPage(sender);
-			await clearDebugEvents();
-			return {};
-		}
-		case "CLEAR_CACHE": {
-			assertExtensionPage(sender);
-			return { removed: await clearCache() };
-		}
-		case "TRANSLATE_BATCH": {
-			const tabId = getSenderTabId(sender);
-			const request = validateTranslationRequest(message);
-			const snapshot = await getRunSnapshot(tabId, request.runId);
-			const batchIndex = nextRunBatchIndex(tabId, request.runId);
-			const queueDepth = (activeRuns.get(runKey(tabId, request.runId))?.size ?? 0) + 1;
-			try {
-				return await translateCloudBatch(
-					snapshot,
-					request,
-					tabId,
-					!sender.tab.incognito,
-					batchIndex,
-					queueDepth,
-				);
-			} catch (error) {
-				recordDebugEvent(snapshot.settings, {
-					component: "background",
-					eventType: "batch.failed",
-					tabId,
-					runId: request.runId,
-					provider: snapshot.settings.provider,
-					model: getProviderModel(snapshot.settings),
-					sourceLanguage: request.sourceLanguage,
-					targetLanguage: request.targetLanguage,
-					segmentCount: request.segments.length,
-					sourceCharacters: sumSegmentCharacters(request.segments),
-					batchIndex,
-					queueDepth,
-					status: "failed",
-					errorCode: getSafeErrorCode(error),
-					cancelled: error?.message === "翻译已取消",
-				});
-				throw error;
-			}
-		}
-		case "CACHE_LOOKUP": {
-			const tabId = getSenderTabId(sender);
-			if (sender.tab.incognito) {
-				return { results: [] };
-			}
-			const request = validateTranslationRequest(message);
-			const snapshot = await getRunSnapshot(tabId, request.runId);
-			const cached = await lookupCache(
-				snapshot.settings,
-				request.sourceLanguage,
-				request.targetLanguage,
-				request.segments,
-				snapshot.cacheScope,
-			);
-			return {
-				results: request.segments
-					.filter((segment) => cached.has(segment.id))
-					.map((segment) => ({ id: segment.id, text: cached.get(segment.id) })),
-			};
-		}
-		case "CACHE_STORE": {
-			const tabId = getSenderTabId(sender);
-			if (sender.tab.incognito) {
-				return {};
-			}
-			const request = validateCacheStoreRequest(message);
-			const snapshot = await getRunSnapshot(tabId, request.runId);
-			await storeCache(
-				snapshot.settings,
-				request.sourceLanguage,
-				request.targetLanguage,
-				request.entries,
-				snapshot.cacheScope,
-				snapshot.cacheGeneration,
-			);
-			return {};
-		}
-		case "CANCEL_RUN": {
-			const tabId = getSenderTabId(sender);
-			await cancelRun(tabId, validateRunId(message.runId));
-			return {};
-		}
-		case "STATUS": {
-			const tabId = getSenderTabId(sender);
-			await updateTabStatus(tabId, message);
-			return {};
-		}
-		case "OPEN_OPTIONS": {
-			await chrome.runtime.openOptionsPage();
-			return {};
-		}
+		case "START_RUN":
+			return await handleStartRunMessage(message, sender);
+		case "GET_OPTIONS_STATE":
+			return await handleGetOptionsStateMessage(sender);
+		case "SAVE_SETTINGS":
+			return await handleSaveSettingsMessage(message, sender);
+		case "TEST_PROVIDER":
+			return await handleTestProviderMessage(sender);
+		case "GET_DEBUG_LOGS":
+			return await handleGetDebugLogsMessage(sender);
+		case "CLEAR_DEBUG_LOGS":
+			return await handleClearDebugLogsMessage(sender);
+		case "CLEAR_CACHE":
+			return await handleClearCacheMessage(sender);
+		case "TRANSLATE_BATCH":
+			return await handleTranslateBatchMessage(message, sender);
+		case "CACHE_LOOKUP":
+			return await handleCacheLookupMessage(message, sender);
+		case "CACHE_STORE":
+			return await handleCacheStoreMessage(message, sender);
+		case "CANCEL_RUN":
+			return await handleCancelRunMessage(message, sender);
+		case "STATUS":
+			return await handleStatusMessage(message, sender);
+		case "OPEN_OPTIONS":
+			return await handleOpenOptionsMessage();
 		default:
 			throw new Error("未知消息类型");
 	}
+}
+
+async function handleStartRunMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	const runId = validateRunId(message.runId);
+	const settings = await getSettings();
+	assertProviderConfigured(settings);
+	await assertProviderPermission(settings);
+	const snapshot = {
+		settings,
+		cacheGeneration,
+		cacheScope: getCacheScope(sender),
+	};
+	await saveRunSnapshot(tabId, runId, snapshot);
+	runBatchSequences.set(runKey(tabId, runId), 0);
+	recordDebugEvent(settings, {
+		component: "background",
+		eventType: "run.started",
+		tabId,
+		runId,
+		provider: settings.provider,
+		model: getProviderModel(settings),
+		extensionVersion: EXTENSION_VERSION,
+		catalogSourceSha: providerCatalog.source.commit,
+		providerAdapter: getProviderAdapter(settings),
+		apiHost: getProviderApiHost(settings),
+		configuredConcurrency: Math.min(
+			settings.concurrency,
+			core.getProviderMaximumConcurrency(settings),
+		),
+		status: "started",
+	});
+	return { settings: core.publicSettings(settings) };
+}
+
+async function handleGetOptionsStateMessage(sender) {
+	assertExtensionPage(sender);
+	const [settings, storedUsage] = await Promise.all([
+		getSettings(),
+		chrome.storage.local.get(core.USAGE_KEY),
+	]);
+	return { settings, usage: storedUsage[core.USAGE_KEY] ?? {} };
+}
+
+async function handleSaveSettingsMessage(message, sender) {
+	assertExtensionPage(sender);
+	const settings = core.normalizeSettings(message.settings);
+	await queueSettingsWrite(settings);
+	await updateActionUiState(settings);
+	recordDebugEvent(settings, {
+		component: "background",
+		eventType: "settings.saved",
+		provider: settings.provider,
+		model: getProviderModel(settings),
+		extensionVersion: EXTENSION_VERSION,
+		catalogSourceSha: providerCatalog.source.commit,
+		providerAdapter: getProviderAdapter(settings),
+		apiHost: getProviderApiHost(settings),
+		configuredConcurrency: Math.min(
+			settings.concurrency,
+			core.getProviderMaximumConcurrency(settings),
+		),
+		status: "completed",
+	});
+	return { settings };
+}
+
+async function handleTestProviderMessage(sender) {
+	assertExtensionPage(sender);
+	const settings = await getSettings();
+	await assertProviderPermission(settings);
+	return await testProvider(settings);
+}
+
+async function handleGetDebugLogsMessage(sender) {
+	assertExtensionPage(sender);
+	return { events: await getDebugEvents() };
+}
+
+async function handleClearDebugLogsMessage(sender) {
+	assertExtensionPage(sender);
+	await clearDebugEvents();
+	return {};
+}
+
+async function handleClearCacheMessage(sender) {
+	assertExtensionPage(sender);
+	return { removed: await clearCache() };
+}
+
+async function handleTranslateBatchMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	const request = validateTranslationRequest(message);
+	const snapshot = await getRunSnapshot(tabId, request.runId);
+	const batchIndex = nextRunBatchIndex(tabId, request.runId);
+	const queueDepth = (activeRuns.get(runKey(tabId, request.runId))?.size ?? 0) + 1;
+	try {
+		return await translateCloudBatch(
+			snapshot,
+			request,
+			tabId,
+			!sender.tab.incognito,
+			batchIndex,
+			queueDepth,
+		);
+	} catch (error) {
+		recordDebugEvent(snapshot.settings, {
+			component: "background",
+			eventType: "batch.failed",
+			tabId,
+			runId: request.runId,
+			provider: snapshot.settings.provider,
+			model: getProviderModel(snapshot.settings),
+			sourceLanguage: request.sourceLanguage,
+			targetLanguage: request.targetLanguage,
+			segmentCount: request.segments.length,
+			sourceCharacters: sumSegmentCharacters(request.segments),
+			batchIndex,
+			queueDepth,
+			status: "failed",
+			errorCode: getSafeErrorCode(error),
+			cancelled: error?.message === "翻译已取消",
+		});
+		throw error;
+	}
+}
+
+async function handleCacheLookupMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	if (sender.tab.incognito) {
+		return { results: [] };
+	}
+	const request = validateTranslationRequest(message);
+	const snapshot = await getRunSnapshot(tabId, request.runId);
+	const cached = await lookupCache(
+		snapshot.settings,
+		request.sourceLanguage,
+		request.targetLanguage,
+		request.segments,
+		snapshot.cacheScope,
+	);
+	return {
+		results: request.segments
+			.filter((segment) => cached.has(segment.id))
+			.map((segment) => ({ id: segment.id, text: cached.get(segment.id) })),
+	};
+}
+
+async function handleCacheStoreMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	if (sender.tab.incognito) {
+		return {};
+	}
+	const request = validateCacheStoreRequest(message);
+	const snapshot = await getRunSnapshot(tabId, request.runId);
+	await storeCache(
+		snapshot.settings,
+		request.sourceLanguage,
+		request.targetLanguage,
+		request.entries,
+		snapshot.cacheScope,
+		snapshot.cacheGeneration,
+	);
+	return {};
+}
+
+async function handleCancelRunMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	await cancelRun(tabId, validateRunId(message.runId));
+	return {};
+}
+
+async function handleStatusMessage(message, sender) {
+	const tabId = getSenderTabId(sender);
+	await updateTabStatus(tabId, message);
+	return {};
+}
+
+async function handleOpenOptionsMessage() {
+	await chrome.runtime.openOptionsPage();
+	return {};
 }
 
 function assertExtensionPage(sender) {
@@ -621,7 +660,55 @@ async function translateCloudBatch(
 ) {
 	const settings = snapshot.settings;
 	assertProviderConfigured(settings);
-	const sourceCharacters = sumSegmentCharacters(request.segments);
+	const batchContext = {
+		settings,
+		request,
+		tabId,
+		batchIndex,
+		queueDepth,
+		sourceCharacters: sumSegmentCharacters(request.segments),
+	};
+	recordBatchReceived(batchContext);
+
+	const { cachedTranslations, missingSegments, cacheHits } = await resolveBatchCache(
+		batchContext,
+		snapshot.cacheScope,
+		usePersistentCache,
+	);
+	if (missingSegments.length > 0) {
+		const translatedBatch = await translateMissingBatchSegments(batchContext, missingSegments);
+		await persistTranslatedBatch(
+			batchContext,
+			snapshot,
+			cachedTranslations,
+			missingSegments,
+			translatedBatch,
+			usePersistentCache,
+		);
+		for (const entry of translatedBatch.entries) {
+			cachedTranslations.set(entry.id, entry.translation);
+		}
+	} else {
+		await recordUsage(getUsageProviderKey(settings), {
+			apiCalls: 0,
+			charactersSubmitted: 0,
+			cachedCharacters: request.segments.reduce((sum, segment) => sum + segment.text.length, 0),
+		});
+	}
+
+	const result = {
+		results: request.segments.map((segment) => ({
+			id: segment.id,
+			text: cachedTranslations.get(segment.id),
+		})),
+		cacheHits,
+	};
+	recordBatchCompleted(batchContext, cacheHits, missingSegments.length);
+	return result;
+}
+
+function recordBatchReceived(batchContext) {
+	const { settings, request, tabId, batchIndex, queueDepth, sourceCharacters } = batchContext;
 	recordDebugEvent(settings, {
 		component: "background",
 		eventType: "batch.received",
@@ -638,16 +725,23 @@ async function translateCloudBatch(
 		queueDepth,
 		status: "started",
 	});
-	const cached = usePersistentCache
+}
+
+async function resolveBatchCache(batchContext, cacheScope, usePersistentCache) {
+	const { settings, request, tabId, batchIndex, queueDepth, sourceCharacters } = batchContext;
+	const cachedTranslations = usePersistentCache
 		? await lookupCache(
 				settings,
 				request.sourceLanguage,
 				request.targetLanguage,
 				request.segments,
-				snapshot.cacheScope,
+				cacheScope,
 			)
 		: new Map();
-	const missing = request.segments.filter((segment) => !cached.has(segment.id));
+	const missingSegments = request.segments.filter(
+		(segment) => !cachedTranslations.has(segment.id),
+	);
+	const cacheHits = request.segments.length - missingSegments.length;
 	recordDebugEvent(settings, {
 		component: "cache",
 		eventType: "cache.resolved",
@@ -660,96 +754,108 @@ async function translateCloudBatch(
 		sourceCharacters,
 		batchIndex,
 		queueDepth,
-		cacheHits: request.segments.length - missing.length,
-		cacheMisses: missing.length,
+		cacheHits,
+		cacheMisses: missingSegments.length,
 		status: "completed",
 	});
-	let providerResult = { translations: [], usage: {} };
+	return { cachedTranslations, missingSegments, cacheHits };
+}
 
-	if (missing.length > 0) {
-		const controller = registerRunController(tabId, request.runId);
-		try {
-			providerResult = await translateWithProvider(
+async function translateMissingBatchSegments(batchContext, missingSegments) {
+	const { settings, request, tabId, batchIndex, queueDepth } = batchContext;
+	const controller = registerRunController(tabId, request.runId);
+	let providerResult;
+	try {
+		providerResult = await translateWithProvider(
+			settings,
+			request.sourceLanguage,
+			request.targetLanguage,
+			missingSegments,
+			controller.signal,
+			{ tabId, runId: request.runId, batchIndex, queueDepth },
+		);
+	} finally {
+		unregisterRunController(tabId, request.runId, controller);
+	}
+	if (providerResult.translations.length !== missingSegments.length) {
+		throw new Error("翻译服务返回的段落数量不一致");
+	}
+	recordDebugEvent(settings, {
+		component: "provider",
+		eventType: "provider.usage",
+		tabId,
+		runId: request.runId,
+		provider: settings.provider,
+		model: getProviderModel(settings),
+		segmentCount: missingSegments.length,
+		sourceCharacters: sumSegmentCharacters(missingSegments),
+		batchIndex,
+		queueDepth,
+		inputTokens: numberOrUndefined(providerResult.usage.inputTokens),
+		outputTokens: numberOrUndefined(providerResult.usage.outputTokens),
+		cacheReadTokens: numberOrUndefined(providerResult.usage.cachedInputTokens),
+		noCacheTokens:
+			typeof providerResult.usage.inputTokens === "number"
+				? Math.max(
+						0,
+						providerResult.usage.inputTokens - numberOrZero(providerResult.usage.cachedInputTokens),
+					)
+				: undefined,
+		billedCharacters: numberOrUndefined(providerResult.usage.billedCharacters),
+		status: "completed",
+	});
+	return {
+		entries: missingSegments.map((segment, index) => ({
+			id: segment.id,
+			text: segment.text,
+			translation: validateTranslationOutput(
+				providerResult.translations[index],
+				segment.text,
+			),
+		})),
+		usage: providerResult.usage,
+	};
+}
+
+async function persistTranslatedBatch(
+	batchContext,
+	snapshot,
+	cachedTranslations,
+	missingSegments,
+	translatedBatch,
+	usePersistentCache,
+) {
+	const { settings, request } = batchContext;
+	const persistenceTasks = [
+		recordUsage(getUsageProviderKey(settings), {
+			apiCalls: 1,
+			charactersSubmitted: missingSegments.reduce(
+				(sum, segment) => sum + segment.text.length,
+				0,
+			),
+			cachedCharacters: request.segments
+				.filter((segment) => cachedTranslations.has(segment.id))
+				.reduce((sum, segment) => sum + segment.text.length, 0),
+			...translatedBatch.usage,
+		}),
+	];
+	if (usePersistentCache) {
+		persistenceTasks.push(
+			storeCache(
 				settings,
 				request.sourceLanguage,
 				request.targetLanguage,
-				missing,
-				controller.signal,
-				{ tabId, runId: request.runId, batchIndex, queueDepth },
-			);
-		} finally {
-			unregisterRunController(tabId, request.runId, controller);
-		}
-		if (providerResult.translations.length !== missing.length) {
-			throw new Error("翻译服务返回的段落数量不一致");
-		}
-		recordDebugEvent(settings, {
-			component: "provider",
-			eventType: "provider.usage",
-			tabId,
-			runId: request.runId,
-			provider: settings.provider,
-			model: getProviderModel(settings),
-			segmentCount: missing.length,
-			sourceCharacters: sumSegmentCharacters(missing),
-			batchIndex,
-			queueDepth,
-			inputTokens: numberOrUndefined(providerResult.usage.inputTokens),
-			outputTokens: numberOrUndefined(providerResult.usage.outputTokens),
-			cacheReadTokens: numberOrUndefined(providerResult.usage.cachedInputTokens),
-			noCacheTokens:
-				typeof providerResult.usage.inputTokens === "number"
-					? Math.max(
-							0,
-							providerResult.usage.inputTokens - numberOrZero(providerResult.usage.cachedInputTokens),
-						)
-					: undefined,
-			billedCharacters: numberOrUndefined(providerResult.usage.billedCharacters),
-			status: "completed",
-		});
-		const newEntries = missing.map((segment, index) => ({
-			id: segment.id,
-			text: segment.text,
-			translation: validateTranslationOutput(providerResult.translations[index], segment.text),
-		}));
-		const persistenceTasks = [
-			recordUsage(getUsageProviderKey(settings), {
-				apiCalls: 1,
-				charactersSubmitted: missing.reduce((sum, segment) => sum + segment.text.length, 0),
-				cachedCharacters: request.segments
-					.filter((segment) => cached.has(segment.id))
-					.reduce((sum, segment) => sum + segment.text.length, 0),
-				...providerResult.usage,
-			}),
-		];
-		if (usePersistentCache) {
-			persistenceTasks.push(
-				storeCache(
-					settings,
-					request.sourceLanguage,
-					request.targetLanguage,
-					newEntries,
-					snapshot.cacheScope,
-					snapshot.cacheGeneration,
-				),
-			);
-		}
-		await Promise.allSettled(persistenceTasks);
-		for (const entry of newEntries) {
-			cached.set(entry.id, entry.translation);
-		}
-	} else {
-		await recordUsage(getUsageProviderKey(settings), {
-			apiCalls: 0,
-			charactersSubmitted: 0,
-			cachedCharacters: request.segments.reduce((sum, segment) => sum + segment.text.length, 0),
-		});
+				translatedBatch.entries,
+				snapshot.cacheScope,
+				snapshot.cacheGeneration,
+			),
+		);
 	}
+	await Promise.allSettled(persistenceTasks);
+}
 
-	const result = {
-		results: request.segments.map((segment) => ({ id: segment.id, text: cached.get(segment.id) })),
-		cacheHits: request.segments.length - missing.length,
-	};
+function recordBatchCompleted(batchContext, cacheHits, cacheMisses) {
+	const { settings, request, tabId, batchIndex, queueDepth, sourceCharacters } = batchContext;
 	recordDebugEvent(settings, {
 		component: "background",
 		eventType: "batch.completed",
@@ -761,11 +867,10 @@ async function translateCloudBatch(
 		sourceCharacters,
 		batchIndex,
 		queueDepth,
-		cacheHits: result.cacheHits,
-		cacheMisses: missing.length,
+		cacheHits,
+		cacheMisses,
 		status: "completed",
 	});
-	return result;
 }
 
 function assertProviderConfigured(settings) {
