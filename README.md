@@ -1,10 +1,10 @@
 # 一键双语翻译
 
-Chrome Manifest V3 扩展。点击工具栏图标后，把当前网页转换为中英双语对照；译文以纯文本直接显示在原文下方，再次点击恢复原页面。
+同一仓库包含 Chrome Manifest V3 扩展和 Raycast 本地扩展。Chrome 版一键把网页转换为行间双语对照；Raycast 版在浏览器之外翻译任意应用的选区、剪贴板或手动输入文字。
 
-当前版本：`0.4.0`。
+当前版本：Chrome `0.4.0`，Raycast `0.1.0`。
 
-## 当前能力
+## Chrome 当前能力
 
 - 工具栏图标或快捷键一键翻译/恢复，不使用弹窗
 - 自动判断中英文方向，也可固定翻译方向
@@ -50,16 +50,36 @@ Chrome Manifest V3 扩展。点击工具栏图标后，把当前网页转换为�
 
 设置页顶部、工具栏悬停 title 和图标右键菜单都会显示 Chrome 当前实际加载的版本。
 
+## Raycast 版本
+
+Raycast 版位于 `raycast-extension/`，复用同一份固定 models.dev snapshot 和 Provider allowlist。它提供：
+
+- 手动输入后显示中英双语结果
+- 读取任意前台应用选区，没有选区时回退到剪贴板
+- 一键复制译文，或把译文直接粘贴回原应用
+- DeepSeek、OpenAI、Google、Anthropic、Azure Translator 和 DeepL
+- 90 天本地缓存和不含正文、译文、Key 的脱敏诊断面板
+
+本地安装：
+
+```bash
+cd raycast-extension
+npm install --ignore-scripts
+npm run dev
+```
+
+完整安装、快捷键、Provider 配置、调试和开发说明见 [Raycast 扩展文档](raycast-extension/README.md)。Chrome 与 Raycast 的 API Key 都只保存在各自的本地设置中，不会自动互相复制。
+
 ## Provider 推荐
 
 前三个推荐模型来自固定本地 snapshot。表中价格是 snapshot 记录的每 100 万 token 美元价格，不是实时报价。
 
-| 顺序 | Provider / 模型 | 输入 / 输出 | 建议 |
-| --- | --- | ---: | --- |
-| 1 | DeepSeek `deepseek-v4-flash` | $0.14 / $0.28 | 默认；当前候选中最低成本，翻译时关闭 thinking |
-| 2 | OpenAI `gpt-5.6-luna` | $0.20 / $1.20 | 稳定、高吞吐；翻译时显式设置 `reasoning: none` |
-| 3 | Google `gemini-3.5-flash-lite` | $0.30 / $2.50 | 高吞吐；thinking 降到模型支持的 `minimal`；免费层资格可能变化 |
-| 可选 | Anthropic `claude-sonnet-5` | $2.00 / $10.00 | 质量对照；翻译时显式设置 `reasoning: none` |
+| 顺序 | Provider / 模型                |    输入 / 输出 | 建议                                                          |
+| ---- | ------------------------------ | -------------: | ------------------------------------------------------------- |
+| 1    | DeepSeek `deepseek-v4-flash`   |  $0.14 / $0.28 | 默认；当前候选中最低成本，翻译时关闭 thinking                 |
+| 2    | OpenAI `gpt-5.6-luna`          |  $0.20 / $1.20 | 稳定、高吞吐；翻译时显式设置 `reasoning: none`                |
+| 3    | Google `gemini-3.5-flash-lite` |  $0.30 / $2.50 | 高吞吐；thinking 降到模型支持的 `minimal`；免费层资格可能变化 |
+| 可选 | Anthropic `claude-sonnet-5`    | $2.00 / $10.00 | 质量对照；翻译时显式设置 `reasoning: none`                    |
 
 Azure Translator 和 DeepL 是专用翻译 API，也可以直接选择。扩展不会自动在 Provider 之间故障转移，避免在用户无感知时把正文发送给另一家公司。
 
@@ -84,12 +104,12 @@ models.dev 固定 commit
 
 运行中的扩展不会请求 Models.dev，不接受自定义 Base URL，也没有任意 HTTPS 的可选 host permission。所有模型 Provider、SDK 包、默认模型和 API Base URL 都在构建时校验并打包。
 
-| Provider | SDK | API Base URL |
-| --- | --- | --- |
-| DeepSeek | `@ai-sdk/deepseek` | `https://api.deepseek.com` |
-| OpenAI | `@ai-sdk/openai` | `https://api.openai.com/v1` |
-| Google | `@ai-sdk/google` | `https://generativelanguage.googleapis.com/v1beta` |
-| Anthropic | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1` |
+| Provider  | SDK                 | API Base URL                                       |
+| --------- | ------------------- | -------------------------------------------------- |
+| DeepSeek  | `@ai-sdk/deepseek`  | `https://api.deepseek.com`                         |
+| OpenAI    | `@ai-sdk/openai`    | `https://api.openai.com/v1`                        |
+| Google    | `@ai-sdk/google`    | `https://generativelanguage.googleapis.com/v1beta` |
+| Anthropic | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1`                     |
 
 详细更新流程见 [固定模型目录与 Provider 架构](docs/provider-catalog.md)。
 
@@ -146,6 +166,7 @@ models.dev 固定 commit
 - `src/provider-runtime.js`：四个显式 Vercel AI SDK Provider 的统一源代码
 - `lib/provider-runtime.js`：供 Service Worker 使用的生成 bundle
 - `options.*`：Provider 设置、本地目录、用量和调试界面
+- `raycast-extension/`：选区、剪贴板和手动文本翻译的 Raycast 版本
 
 第一次开发 Chrome 插件建议阅读 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
 

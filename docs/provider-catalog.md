@@ -15,12 +15,12 @@
 
 以下价格是当前本地 snapshot 记录的每 100 万 token 美元价格，不是实时报价。模型可用性、免费层、区域和账户配额始终以 Provider 控制台为准。
 
-| 顺序 | Provider / 模型 | snapshot 输入 / 输出 | 推荐用途 |
-| --- | --- | ---: | --- |
-| 1 | DeepSeek `deepseek-v4-flash` | $0.14 / $0.28 | 默认选择；当前四个候选中成本最低，翻译时关闭 thinking |
-| 2 | OpenAI `gpt-5.6-luna` | $0.20 / $1.20 | 稳定、高吞吐；显式关闭 reasoning |
-| 3 | Google `gemini-3.5-flash-lite` | $0.30 / $2.50 | thinking 使用模型支持的最低 `minimal`；免费层资格可能变化 |
-| 可选 | Anthropic `claude-sonnet-5` | $2.00 / $10.00 | 质量对照；显式关闭 reasoning |
+| 顺序 | Provider / 模型                | snapshot 输入 / 输出 | 推荐用途                                                  |
+| ---- | ------------------------------ | -------------------: | --------------------------------------------------------- |
+| 1    | DeepSeek `deepseek-v4-flash`   |        $0.14 / $0.28 | 默认选择；当前四个候选中成本最低，翻译时关闭 thinking     |
+| 2    | OpenAI `gpt-5.6-luna`          |        $0.20 / $1.20 | 稳定、高吞吐；显式关闭 reasoning                          |
+| 3    | Google `gemini-3.5-flash-lite` |        $0.30 / $2.50 | thinking 使用模型支持的最低 `minimal`；免费层资格可能变化 |
+| 可选 | Anthropic `claude-sonnet-5`    |       $2.00 / $10.00 | 质量对照；显式关闭 reasoning                              |
 
 前三个是产品推荐，不是自动故障转移链。扩展只调用用户当前选择并配置了 API Key 的 Provider，不会在失败后把正文悄悄发送给另一家公司。
 
@@ -45,28 +45,30 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 
 ## 文件职责
 
-| 文件 | 职责 | 是否手工维护 |
-| --- | --- | --- |
-| `data/models-dev-subset.json` | 固定上游模型元数据 | 是，更新时审查 |
-| `schemas/model-catalog.schema.json` | snapshot 结构约束 | 是 |
-| `config/provider-allowlist.json` | 可实际调用的 Provider、SDK 包、官方 API 和默认模型 | 是，安全敏感 |
-| `schemas/provider-allowlist.schema.json` | allowlist 结构约束 | 是 |
-| `scripts/validate-provider-config.mjs` | schema 与跨文件不变量校验 | 是 |
-| `src/provider-runtime.js` | 四个显式 Provider 的统一调用层 | 是 |
-| `scripts/build-provider-runtime.mjs` | 校验后生成浏览器脚本并打包 SDK | 是 |
-| `lib/provider-catalog.generated.js` | 设置页、内容脚本和后台使用的只读目录 | 否，生成文件 |
-| `lib/provider-runtime.js` | Service Worker 使用的压缩 Provider bundle | 否，生成文件 |
+| 文件                                                  | 职责                                               | 是否手工维护   |
+| ----------------------------------------------------- | -------------------------------------------------- | -------------- |
+| `data/models-dev-subset.json`                         | 固定上游模型元数据                                 | 是，更新时审查 |
+| `schemas/model-catalog.schema.json`                   | snapshot 结构约束                                  | 是             |
+| `config/provider-allowlist.json`                      | 可实际调用的 Provider、SDK 包、官方 API 和默认模型 | 是，安全敏感   |
+| `schemas/provider-allowlist.schema.json`              | allowlist 结构约束                                 | 是             |
+| `scripts/validate-provider-config.mjs`                | schema 与跨文件不变量校验                          | 是             |
+| `src/provider-runtime.js`                             | 四个显式 Provider 的统一调用层                     | 是             |
+| `scripts/build-provider-runtime.mjs`                  | 校验后生成浏览器脚本并打包 SDK                     | 是             |
+| `lib/provider-catalog.generated.js`                   | 设置页、内容脚本和后台使用的只读目录               | 否，生成文件   |
+| `lib/provider-runtime.js`                             | Service Worker 使用的压缩 Provider bundle          | 否，生成文件   |
+| `raycast-extension/scripts/sync-catalog.mjs`          | 从同一 snapshot 和 allowlist 生成 Raycast 类型目录 | 是             |
+| `raycast-extension/src/generated/provider-catalog.ts` | Raycast Provider、模型、成本与 snapshot 常量       | 否，生成文件   |
 
 安装扩展的普通用户不需要运行 npm，也不会下载本地翻译模型。只要仓库已经包含两个 `lib/*.generated/runtime.js` 产物，Chrome 可以直接“加载已解压的扩展程序”。npm 依赖只用于开发者更新目录或重新打包 SDK。
 
 ## allowlist 实际允许什么
 
-| Provider ID | 显式 SDK | 固定 API Base URL |
-| --- | --- | --- |
-| `deepseek` | `@ai-sdk/deepseek` | `https://api.deepseek.com` |
-| `openai` | `@ai-sdk/openai` | `https://api.openai.com/v1` |
-| `google` | `@ai-sdk/google` | `https://generativelanguage.googleapis.com/v1beta` |
-| `anthropic` | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1` |
+| Provider ID | 显式 SDK            | 固定 API Base URL                                  |
+| ----------- | ------------------- | -------------------------------------------------- |
+| `deepseek`  | `@ai-sdk/deepseek`  | `https://api.deepseek.com`                         |
+| `openai`    | `@ai-sdk/openai`    | `https://api.openai.com/v1`                        |
+| `google`    | `@ai-sdk/google`    | `https://generativelanguage.googleapis.com/v1beta` |
+| `anthropic` | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1`                     |
 
 校验器还会确认：
 
@@ -111,9 +113,10 @@ npm install --ignore-scripts
 ```bash
 node scripts/validate-provider-config.mjs
 node scripts/build-provider-runtime.mjs
+node raycast-extension/scripts/sync-catalog.mjs
 ```
 
-生成脚本会再次执行校验。任何 schema 或跨文件不变量失败都会阻止写出新 bundle。
+Chrome 生成脚本会再次执行校验。Raycast 生成器只消费已经通过校验的同一组输入，并再次确认 allowlist 默认模型真实存在。任何 schema、跨文件不变量或生成目录映射失败都会阻止写出新产物。
 
 ### 5. 运行完整离线检查
 
@@ -121,7 +124,7 @@ node scripts/build-provider-runtime.mjs
 npm run check
 ```
 
-`npm run check` 会在内存中按同一配置重新生成目录脚本与 SDK bundle；只要已提交的 `lib/` 产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
+`npm run check` 会在内存中按同一配置重新生成 Chrome 目录脚本与 SDK bundle，同时检查 Raycast TypeScript 目录；只要任一已提交生成产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。Chrome 生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
 
 测试不会调用真实 Provider，也不需要 API Key。它会验证 schema、allowlist、生成的全局目录、非法 Provider 拒绝、四家 SDK 的官方 endpoint 与低推理请求参数、调试脱敏和 DOM 增量翻译契约。
 
@@ -138,7 +141,7 @@ npm run check
 
 ## Provider runtime 的统一接口
 
-后台只调用一个本地全局接口：
+Chrome 后台只调用一个本地全局接口：
 
 ```js
 globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
@@ -155,6 +158,8 @@ globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
 返回值统一为文本、标准/原始结束原因、响应 ID、实际响应模型、token 明细和警告数量。Provider 原始响应不会写入调试存储。
 
 SDK 内部重试固定为 `0`。扩展后台统一处理超时、最多三次尝试和 `Retry-After`，避免 SDK 与业务层叠加重试造成额外成本。DeepSeek 关闭 thinking；OpenAI 和 Anthropic 使用 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking。
+
+Raycast 版不导入 Chrome 的 IIFE/global bundle，而是从 `src/generated/provider-catalog.ts` 读取同一组固定 Provider 和模型，再由 `raycast-extension/src/lib/` 中的 TypeScript adapter 显式创建 SDK Provider。两端共享安全边界和模型选择，但使用各自的本地缓存实现，API Key 也分别保存在各自的本地安全设置中。
 
 ## 安全与隐私边界
 

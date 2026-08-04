@@ -1,0 +1,1 @@
+export const RAYCAST_EXTENSION_VERSION = "0.1.0";

@@ -1,0 +1,209 @@
+{
+	"$schema": "https://www.raycast.com/schemas/extension.json",
+	"name": "bilingual-translate",
+	"title": "Bilingual Translate",
+	"description": "Translate selected, clipboard, or manually entered text with your own API key",
+	"icon": "icon.png",
+	"author": "yuukiLike",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.22.2"
+	},
+	"categories": [
+		"Productivity"
+	],
+	"platforms": [
+		"macOS"
+	],
+	"commands": [
+		{
+			"name": "translate-text",
+			"title": "Translate Text",
+			"subtitle": "Bilingual Translate",
+			"description": "Enter text and show the original with its translation",
+			"mode": "view"
+		},
+		{
+			"name": "translate-selection",
+			"title": "Translate Selection",
+			"subtitle": "Bilingual Translate",
+			"description": "Translate selected text, falling back to the clipboard",
+			"mode": "view"
+		},
+		{
+			"name": "translate-selection-copy",
+			"title": "Translate Selection and Copy",
+			"subtitle": "Bilingual Translate",
+			"description": "Translate selected text and copy the result",
+			"mode": "no-view"
+		},
+		{
+			"name": "translate-selection-paste",
+			"title": "Translate Selection and Paste",
+			"subtitle": "Bilingual Translate",
+			"description": "Translate selected text and paste the result into the frontmost app",
+			"mode": "no-view"
+		},
+		{
+			"name": "translation-diagnostics",
+			"title": "Translation Diagnostics",
+			"subtitle": "Bilingual Translate",
+			"description": "Inspect sanitized translation request events",
+			"mode": "view"
+		}
+	],
+	"preferences": [
+		{
+			"name": "provider",
+			"title": "Provider",
+			"description": "The selected provider is the only service that receives text",
+			"type": "dropdown",
+			"required": true,
+			"default": "deepseek",
+			"data": [
+				{
+					"title": "DeepSeek",
+					"value": "deepseek"
+				},
+				{
+					"title": "OpenAI",
+					"value": "openai"
+				},
+				{
+					"title": "Google Gemini",
+					"value": "google"
+				},
+				{
+					"title": "Anthropic",
+					"value": "anthropic"
+				},
+				{
+					"title": "Azure Translator",
+					"value": "azure"
+				},
+				{
+					"title": "DeepL",
+					"value": "deepl"
+				}
+			]
+		},
+		{
+			"name": "targetLanguage",
+			"title": "Translation Direction",
+			"description": "Auto translates Chinese to English and other text to Simplified Chinese",
+			"type": "dropdown",
+			"required": true,
+			"default": "auto",
+			"data": [
+				{
+					"title": "Auto Detect",
+					"value": "auto"
+				},
+				{
+					"title": "Simplified Chinese",
+					"value": "zh"
+				},
+				{
+					"title": "English",
+					"value": "en"
+				}
+			]
+		},
+		{
+			"name": "deepseekApiKey",
+			"title": "DeepSeek API Key",
+			"description": "Used only when DeepSeek is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "openaiApiKey",
+			"title": "OpenAI API Key",
+			"description": "Used only when OpenAI is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "googleApiKey",
+			"title": "Google Gemini API Key",
+			"description": "Used only when Google Gemini is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "anthropicApiKey",
+			"title": "Anthropic API Key",
+			"description": "Used only when Anthropic is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "azureApiKey",
+			"title": "Azure Translator API Key",
+			"description": "Used only when Azure Translator is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "azureRegion",
+			"title": "Azure Resource Region",
+			"description": "Leave blank for a global single-service Translator resource",
+			"type": "textfield",
+			"required": false,
+			"placeholder": "eastasia"
+		},
+		{
+			"name": "deeplApiKey",
+			"title": "DeepL API Key",
+			"description": "Used only when DeepL is the selected provider",
+			"type": "password",
+			"required": false
+		},
+		{
+			"name": "cacheEnabled",
+			"title": "Translation Cache",
+			"description": "Keep translations locally for 90 days to reduce latency and API cost",
+			"type": "checkbox",
+			"required": false,
+			"default": true,
+			"label": "Cache translations locally"
+		},
+		{
+			"name": "debugMode",
+			"title": "Debug Mode",
+			"description": "Record sanitized request metadata without text, API keys, headers, or response bodies",
+			"type": "checkbox",
+			"required": false,
+			"default": false,
+			"label": "Record sanitized diagnostics"
+		}
+	],
+	"scripts": {
+		"build": "node ../scripts/validate-provider-config.mjs && node scripts/sync-catalog.mjs --check && ray build -e dist -o dist",
+		"dev": "node ../scripts/validate-provider-config.mjs && node scripts/sync-catalog.mjs --check && ray develop",
+		"lint": "ray lint",
+		"fix-lint": "ray lint --fix",
+		"typecheck": "tsc --noEmit",
+		"test": "node --test test/*.test.ts",
+		"sync:catalog": "node ../scripts/validate-provider-config.mjs && node scripts/sync-catalog.mjs",
+		"check": "node ../scripts/validate-provider-config.mjs && node scripts/sync-catalog.mjs --check && ray lint && tsc --noEmit && node --test test/*.test.ts"
+	},
+	"dependencies": {
+		"@ai-sdk/anthropic": "4.0.27",
+		"@ai-sdk/deepseek": "3.0.19",
+		"@ai-sdk/google": "4.0.31",
+		"@ai-sdk/openai": "4.0.27",
+		"@raycast/api": "1.104.23",
+		"ai": "7.0.49"
+	},
+	"devDependencies": {
+		"@raycast/eslint-config": "2.2.0",
+		"@types/node": "22.19.17",
+		"@types/react": "19.0.10",
+		"eslint": "10.8.0",
+		"prettier": "3.9.6",
+		"typescript": "5.9.3"
+	}
+}
