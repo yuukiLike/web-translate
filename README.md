@@ -14,6 +14,7 @@
 - 同批去重、90 天持久缓存、请求取消、有限重试和月度用量统计
 - 原生支持 Azure Translator、DeepL
 - 通过 Vercel AI SDK 显式支持 DeepSeek、OpenAI、Google、Anthropic
+- 支持自定义 OpenAI-compatible Chat Completions 服务，按域名单独授权
 - 固定 models.dev snapshot、JSON Schema 校验和人工 Provider/API allowlist
 - 右键工具栏图标可开关调试、打开详细面板并核对当前加载版本
 - 脱敏调试面板实时显示批次、缓存、HTTP、重试、响应模型、结束原因和 token
@@ -25,9 +26,9 @@
 1. 打开 `chrome://extensions`。
 2. 开启“开发者模式”。
 3. 点击“加载已解压的扩展程序”。
-4. 选择本目录 `apps/bilingual-web-translator`。
-5. 首次安装会打开设置页。选择 Provider，填写你自己的 API Key。
-6. 点击“测试当前服务”，成功后打开普通网页并点击扩展图标。
+4. 选择 `web-translate` 仓库中的 `chrome-extension/` 目录。
+5. 首次安装会打开设置页。DeepSeek 已默认选中，粘贴你自己的 API Key 即可；需要时再切换服务。
+6. 点击“保存并测试”，成功后打开普通网页并点击扩展图标。
 7. 建议把扩展固定到 Chrome 工具栏。
 
 没有有效 API Key 时不会翻译。扩展不会要求下载模型；它把筛选后的正文段落直接发送给用户选择的云 Provider。
@@ -38,6 +39,8 @@
 - macOS：`Control+Shift+B`
 
 本扩展要求 Chrome 140+ 桌面版。测试本地 `file://` 页面时，需要在扩展详情页开启“允许访问文件网址”，然后刷新页面。
+
+如果你此前加载的是 `web-translate` 仓库根目录，这次目录重构后需要删除旧条目，再重新选择 `chrome-extension/`。Chrome 可能把新路径视为另一份未打包扩展，因此旧设置和 API Key 可能不会自动迁移；重新填写一次即可。此后更新仍只需点击“重新加载”。
 
 ## 更新本地扩展
 
@@ -96,13 +99,15 @@ models.dev 固定 commit
   → DeepSeek / OpenAI / Google / Anthropic 官方 API
 ```
 
+自定义 OpenAI-compatible 服务走独立路径：手动配置 Base URL、模型 ID 和 Key，再由 Chrome 按 origin 请求可选权限。
+
 当前 snapshot 固定到：
 
 ```text
 141191529fcad56200de45e7267a21dffcc4c33e
 ```
 
-运行中的扩展不会请求 Models.dev，不接受自定义 Base URL，也没有任意 HTTPS 的可选 host permission。所有模型 Provider、SDK 包、默认模型和 API Base URL 都在构建时校验并打包。
+运行中的扩展不会请求 Models.dev。DeepSeek、OpenAI、Google 和 Anthropic 的 SDK、默认模型与 API Base URL 都在构建时校验并打包。另有一个明确标记的自定义 OpenAI-compatible 入口：用户需要手动填写 Base URL、模型 ID 和 Key；保存或测试时，Chrome 只为该 origin 请求一次可选 host permission。它不会改变固定模型目录，也不会下载远程代码。
 
 | Provider  | SDK                 | API Base URL                                       |
 | --------- | ------------------- | -------------------------------------------------- |
@@ -126,7 +131,7 @@ models.dev 固定 commit
 
 ## 调试模式
 
-右键扩展图标勾选“开发调试模式”，再选择“打开详细调试面板”。设置页也可以开启“记录调试事件”并保存。
+右键扩展图标勾选“开发调试模式”，再选择“打开详细调试面板”。设置页“调试”标签中的“记录事件”也会在切换后自动保存。
 
 面板可以看到：
 
@@ -149,23 +154,23 @@ models.dev 固定 commit
 
 ```text
 网页 DOM
-  → content.js：TreeWalker 筛选、去重、分批、监听新增 DOM
-  → background.js：固定任务设置、缓存、限流/重试、Provider 调用
+  → chrome-extension/content/content-script.js：TreeWalker 筛选、去重、分批、监听新增 DOM
+  → chrome-extension/background/service-worker.js：固定任务设置、缓存、限流/重试、Provider 调用
   → Provider API：返回译文和用量
-  → background.js：校验结束原因、JSON、段落 ID、数量和长度
-  → content.js：通过 textContent 把译文插入原文下方
+  → chrome-extension/background/service-worker.js：校验结束原因、JSON、段落 ID、数量和长度
+  → chrome-extension/content/content-script.js：通过 textContent 把译文插入原文下方
 ```
 
 主要文件：
 
-- `manifest.json`：Manifest V3 入口、action、设置页和固定权限
-- `lib/provider-catalog.generated.js`：只读的本地 Provider/模型目录
-- `lib/core.js`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验
-- `content.js`：DOM 遍历、视口优先、增量监听和双语渲染
-- `background.js`：API Key、任务、缓存、重试、用量和安全调试事件
-- `src/provider-runtime.js`：四个显式 Vercel AI SDK Provider 的统一源代码
-- `lib/provider-runtime.js`：供 Service Worker 使用的生成 bundle
-- `options.*`：Provider 设置、本地目录、用量和调试界面
+- `chrome-extension/manifest.json`：Chrome 可直接加载的 Manifest V3 入口
+- `chrome-extension/background/service-worker.js`：API Key、任务、缓存、重试、用量和安全调试事件
+- `chrome-extension/content/`：DOM 遍历、视口优先、增量监听、双语渲染与页面样式
+- `chrome-extension/shared/core.js`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验
+- `chrome-extension/generated/`：只读模型目录与 Provider runtime 生成产物
+- `chrome-extension/options/`：编译后的 Vue 设置页，也是 Chrome 的 Options page
+- `src/provider-runtime.js`：四个固定模型 Provider 与自定义 OpenAI-compatible 调用的统一源代码
+- `src/options/`：Vue 设置页源码
 - `raycast-extension/`：选区、剪贴板和手动文本翻译的 Raycast 版本
 
 第一次开发 Chrome 插件建议阅读 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
@@ -204,17 +209,17 @@ models.dev 固定 commit
 
 ## 开发与验证
 
-普通用户无需执行本节。修改 snapshot、SDK 依赖或 Provider runtime 时需要 Node.js 22+：
+普通用户无需执行本节。开发环境固定为 Node.js 24；本项目目录的 `.nvmrc` 记录当前版本：
 
 ```bash
-cd apps/bilingual-web-translator
+cd web-translate
 npm install --ignore-scripts
 node scripts/validate-provider-config.mjs
-node scripts/build-provider-runtime.mjs
+npm run build:chrome
 npm run check
 ```
 
-`npm run check` 不调用真实 Provider，不需要 API Key；它还会在内存中重新生成 bundle，并拒绝过期的 `lib/` 产物。
+`npm run build:chrome` 会生成 `chrome-extension/generated/` 与 `chrome-extension/options/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 Provider 或 Vue 设置页 bundle。
 
 ## 官方资料
 

@@ -1,6 +1,6 @@
 # 固定模型目录与 Provider 架构
 
-本扩展不会在运行时下载模型目录或执行远程代码。开发者先把 models.dev 的一个固定版本裁剪为本地 snapshot，再经过 JSON Schema 和人工 allowlist 校验，最后把目录与显式 Vercel AI SDK Provider 一起打包进扩展。
+本扩展不会在运行时下载模型目录或执行远程代码。开发者先把 models.dev 的一个固定版本裁剪为本地 snapshot，再经过 JSON Schema 和人工 allowlist 校验，最后把目录与显式 Vercel AI SDK Provider 一起打包进扩展。自定义 OpenAI-compatible 服务是独立的手动入口，不会写入或放宽这份固定目录。
 
 ```text
 固定 models.dev commit
@@ -33,7 +33,7 @@ Azure Translator 和 DeepL 仍然可用，但它们是专用翻译 API，不属�
 固定 snapshot 带来的边界是：
 
 - 同一扩展版本始终看到相同 Provider、模型、成本元数据和 API 地址。
-- Chrome 不需要 `models.dev` host permission，也不需要任意 HTTPS 的可选权限。
+- Chrome 不需要 `models.dev` host permission。只有用户选择自定义 OpenAI-compatible 服务时，才会为用户填写的 origin 请求可选 host permission。
 - 模型目录变更会形成可审查的 Git diff。
 - schema、allowlist、生成产物和测试能在发布前一起失败，而不是在用户浏览网页时才失败。
 
@@ -52,14 +52,16 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 | `config/provider-allowlist.json`                      | 可实际调用的 Provider、SDK 包、官方 API 和默认模型 | 是，安全敏感   |
 | `schemas/provider-allowlist.schema.json`              | allowlist 结构约束                                 | 是             |
 | `scripts/validate-provider-config.mjs`                | schema 与跨文件不变量校验                          | 是             |
-| `src/provider-runtime.js`                             | 四个显式 Provider 的统一调用层                     | 是             |
+| `src/provider-runtime.js`                             | 四个固定 Provider 与自定义 OpenAI-compatible 调用层 | 是             |
 | `scripts/build-provider-runtime.mjs`                  | 校验后生成浏览器脚本并打包 SDK                     | 是             |
-| `lib/provider-catalog.generated.js`                   | 设置页、内容脚本和后台使用的只读目录               | 否，生成文件   |
-| `lib/provider-runtime.js`                             | Service Worker 使用的压缩 Provider bundle          | 否，生成文件   |
+| `chrome-extension/generated/provider-catalog.js`      | 设置页、内容脚本和后台使用的只读目录               | 否，生成文件   |
+| `chrome-extension/generated/provider-runtime.js`      | Service Worker 使用的压缩 Provider bundle          | 否，生成文件   |
+| `src/options/`                                        | Vue 设置页源码                                     | 是             |
+| `chrome-extension/options/`                           | Chrome 直接加载的设置页 bundle                     | 否，生成文件   |
 | `raycast-extension/scripts/sync-catalog.mjs`          | 从同一 snapshot 和 allowlist 生成 Raycast 类型目录 | 是             |
 | `raycast-extension/src/generated/provider-catalog.ts` | Raycast Provider、模型、成本与 snapshot 常量       | 否，生成文件   |
 
-安装扩展的普通用户不需要运行 npm，也不会下载本地翻译模型。只要仓库已经包含两个 `lib/*.generated/runtime.js` 产物，Chrome 可以直接“加载已解压的扩展程序”。npm 依赖只用于开发者更新目录或重新打包 SDK。
+安装扩展的普通用户不需要运行 npm，也不会下载本地翻译模型。仓库已经包含 `chrome-extension/generated/` 和 `chrome-extension/options/` 产物，Chrome 可以直接“加载已解压的扩展程序”并选择 `chrome-extension/`。npm 依赖只用于开发者更新目录、重新打包 SDK 或构建 Vue 设置页。
 
 ## allowlist 实际允许什么
 
@@ -82,6 +84,12 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 
 运行时还会再次检查 `providerId + modelId` 组合；不在 allowlist 的值会在网络请求前被拒绝。
 
+## 自定义 OpenAI-compatible 服务
+
+自定义入口不属于 models.dev snapshot 或 Provider allowlist。用户必须同时填写 Base URL、模型 ID 和 API Key；扩展只接受 HTTPS，或本机 `localhost` / `127.0.0.1` 的 HTTP 地址。保存或测试时，设置页通过 `chrome.permissions.request()` 为该 origin 请求授权，拒绝授权就不会发起请求。
+
+`chrome-extension/manifest.json` 只把 `https://*/*` 和两个本机 HTTP origin 声明为 `optional_host_permissions`，不会在安装时自动获得这些站点权限。固定 Provider 继续使用精确的 `host_permissions`。自定义调用复用扩展内已经打包的 OpenAI Chat Completions 适配逻辑；不会下载远程 SDK、模型目录或 JavaScript。
+
 ## 更新 snapshot 的操作指南
 
 ### 1. 确认上游版本
@@ -100,7 +108,7 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 
 ### 3. 安装精确依赖
 
-使用 Node.js 22+，从扩展目录执行：
+使用 Node.js 24，从项目目录执行；同目录的 `.nvmrc` 记录当前版本：
 
 ```bash
 npm install --ignore-scripts
@@ -112,11 +120,11 @@ npm install --ignore-scripts
 
 ```bash
 node scripts/validate-provider-config.mjs
-node scripts/build-provider-runtime.mjs
+npm run build:chrome
 node raycast-extension/scripts/sync-catalog.mjs
 ```
 
-Chrome 生成脚本会再次执行校验。Raycast 生成器只消费已经通过校验的同一组输入，并再次确认 allowlist 默认模型真实存在。任何 schema、跨文件不变量或生成目录映射失败都会阻止写出新产物。
+Chrome 构建会再次执行校验，生成 `chrome-extension/generated/` 中的目录和 SDK runtime，并把 `src/options/` 编译到 `chrome-extension/options/`。Raycast 生成器只消费已经通过校验的同一组输入，并再次确认 allowlist 默认模型真实存在。任何 schema、跨文件不变量或生成目录映射失败都会阻止写出新产物。
 
 ### 5. 运行完整离线检查
 
@@ -124,7 +132,7 @@ Chrome 生成脚本会再次执行校验。Raycast 生成器只消费已经通�
 npm run check
 ```
 
-`npm run check` 会在内存中按同一配置重新生成 Chrome 目录脚本与 SDK bundle，同时检查 Raycast TypeScript 目录；只要任一已提交生成产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。Chrome 生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
+`npm run check` 会在内存中按同一配置重新生成 Chrome 目录脚本、SDK runtime 和 Vue 设置页，同时检查 Raycast TypeScript 目录；只要任一已提交生成产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。Chrome 生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
 
 测试不会调用真实 Provider，也不需要 API Key。它会验证 schema、allowlist、生成的全局目录、非法 Provider 拒绝、四家 SDK 的官方 endpoint 与低推理请求参数、调试脱敏和 DOM 增量翻译契约。
 
@@ -134,7 +142,7 @@ npm run check
 
 - 没有意外增加 Provider 或 API 域名。
 - 推荐模型与默认模型一致。
-- `manifest.json` 只声明固定官方 host permissions。
+- `chrome-extension/manifest.json` 的固定 host permissions 仍只包含官方 API；自定义地址只能通过可选权限按 origin 授权。
 - 生成文件不包含真实 API Key。
 
 随后在 `chrome://extensions` 重新加载扩展，并刷新测试网页。
@@ -148,6 +156,7 @@ globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
   providerId,
   apiKey,
   modelId,
+  baseUrl,
   messages,
   abortSignal,
   maxOutputTokens,
@@ -165,6 +174,7 @@ Raycast 版不导入 Chrome 的 IIFE/global bundle，而是从 `src/generated/pr
 
 - Provider 代码随扩展打包；不从 CDN 或目录站点下载 JavaScript。
 - API Key 只传给当前选中的显式 Provider。
+- 自定义 Provider 只访问用户填写并由 Chrome 明确授权的 origin。
 - 调试 callback 只能输出方法、无查询参数的 endpoint、HTTP 状态、耗时和可重试标记。
 - 网页正文和译文不会进入 catalog、allowlist 或调试事件。
 - 生成 bundle 是代码依赖，应和源文件、lockfile 一起审查。

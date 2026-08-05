@@ -301,6 +301,12 @@
 		if (!document.body || roots.length === 0) {
 			return [];
 		}
+		const { candidateDrafts, assignedOwners } = assignTextNodesToCandidateDrafts(roots);
+		markPartialCandidateDrafts(candidateDrafts, assignedOwners);
+		return buildCandidatesFromDrafts(candidateDrafts);
+	}
+
+	function assignTextNodesToCandidateDrafts(roots) {
 		const candidates = new Map();
 		const owners = new WeakMap();
 		const parentCache = new WeakMap();
@@ -337,8 +343,11 @@
 				state.textOwners.set(node, candidate);
 			}
 		}
+		return { candidateDrafts: candidates, assignedOwners: owners };
+	}
 
-		for (const draft of candidates.values()) {
+	function markPartialCandidateDrafts(candidateDrafts, assignedOwners) {
+		for (const draft of candidateDrafts.values()) {
 			for (const entry of draft.nodes) {
 				if (!/\S/u.test(entry.node.textContent ?? "")) {
 					continue;
@@ -348,8 +357,8 @@
 					ancestor;
 					ancestor = ancestor.parentElement
 				) {
-					const ancestorDraft = candidates.get(ancestor);
-					if (ancestorDraft && owners.get(entry.node) !== ancestor) {
+					const ancestorDraft = candidateDrafts.get(ancestor);
+					if (ancestorDraft && assignedOwners.get(entry.node) !== ancestor) {
 						ancestorDraft.partial = true;
 					}
 					if (ancestor === document.body) {
@@ -358,8 +367,10 @@
 				}
 			}
 		}
+	}
 
-		return [...candidates.values()]
+	function buildCandidatesFromDrafts(candidateDrafts) {
+		return [...candidateDrafts.values()]
 			.map((draft) => ({
 				element: draft.element,
 				partial: Boolean(draft.partial),
@@ -439,19 +450,25 @@
 
 	function getLayoutSignature(style) {
 		const display = String(style.display);
-		if (display === "contents" || display.startsWith("inline")) {
-			return display.startsWith("inline-flex")
-				? `inline-flex:${String(style.flexDirection)}`
-				: display.startsWith("inline-grid")
-					? "inline-grid"
-					: display === "contents"
-						? "contents"
-						: "inline";
+		if (display === "contents") {
+			return "contents";
+		}
+		if (display.startsWith("inline-flex")) {
+			return `inline-flex:${String(style.flexDirection)}`;
+		}
+		if (display.startsWith("inline-grid")) {
+			return "inline-grid";
+		}
+		if (display.startsWith("inline")) {
+			return "inline";
 		}
 		if (display.includes("flex")) {
 			return `flex:${String(style.flexDirection)}`;
 		}
-		return display.includes("grid") ? "grid" : "block";
+		if (display.includes("grid")) {
+			return "grid";
+		}
+		return "block";
 	}
 
 	function updateLayoutSignature(element, assumeChangedIfUnknown = false) {
@@ -876,96 +893,119 @@
 		}, 180);
 	}
 
-	function scheduleVisibilitySweep(runId, target) {
-		queueVisibilityTarget(target);
+	function scheduleVisibilitySweep(runId) {
 		if (!isCurrentRun(runId) || state.visibilityTimer !== null) {
 			return;
 		}
 		state.visibilityTimer = setTimeout(() => {
 			state.visibilityTimer = null;
-			if (!isCurrentRun(runId)) {
-				return;
-			}
-			const targets = [...state.visibilityTargets].filter((element) => element?.isConnected);
-			state.visibilityTargets.clear();
-			const trackedElements = new Set();
-			const layoutRoots = new Set();
-			for (const element of targets) {
-				const trackedAncestor = findTrackedAncestor(element);
-				if (updateLayoutSignature(element, Boolean(trackedAncestor))) {
-					layoutRoots.add(element);
-				}
-				if (element.dataset?.btSource === runId) {
-					trackedElements.add(element);
-				}
-				for (const source of element.querySelectorAll?.(
-					`[data-bt-source="${CSS.escape(runId)}"]`,
-				) ?? []) {
-					trackedElements.add(source);
-				}
-				if (trackedAncestor) {
-					trackedElements.add(trackedAncestor);
-				}
-			}
-			for (const element of trackedElements) {
-				if (updateLayoutSignature(element)) {
-					layoutRoots.add(element);
-				}
-				if (element.parentElement && updateLayoutSignature(element.parentElement)) {
-					layoutRoots.add(element.parentElement);
-				}
-			}
-
-			let shouldScan = false;
-			for (const element of layoutRoots) {
-				const hasTrackedDescendant = Boolean(
-					element.dataset?.btSource === runId ||
-					element.querySelector?.(`[data-bt-source="${CSS.escape(runId)}"]`),
-				);
-				const scanRoot = hasTrackedDescendant
-					? element
-					: findTrackedAncestor(element) ?? element;
-				invalidateTrackedSubtree(element, !hasTrackedDescendant);
-				queueRoot(scanRoot);
-				shouldScan = true;
-			}
-			for (const element of trackedElements) {
-				const elementState = state.elementStates.get(element);
-				if (!isEligibleElement(element)) {
-					invalidateElement(element);
-					state.deferredElements.add(element);
-				} else if (elementState?.translationNode) {
-					copySourcePresentation(element, elementState.translationNode);
-				}
-			}
-
-			for (const element of [...state.deferredElements]) {
-				if (!element.isConnected) {
-					state.deferredElements.delete(element);
-					continue;
-				}
-				const isAffected =
-					targets.length === 0 ||
-					targets.some(
-						(targetElement) =>
-							targetElement === element ||
-							targetElement.contains(element) ||
-							element.contains(targetElement),
-					);
-				if (isAffected && isEligibleElement(element)) {
-					state.deferredElements.delete(element);
-					queueRoot(element);
-					shouldScan = true;
-				}
-			}
-			if (shouldScan) {
-				void runTranslationPass(runId).catch((error) => {
-					if (isCurrentRun(runId)) {
-						handleTranslationError(error);
-					}
-				});
-			}
+			runVisibilitySweep(runId);
 		}, 250);
+	}
+
+	function runVisibilitySweep(runId) {
+		if (!isCurrentRun(runId)) {
+			return;
+		}
+		const targets = [...state.visibilityTargets].filter((element) => element?.isConnected);
+		state.visibilityTargets.clear();
+		const { trackedElements, layoutRoots } = collectVisibilityAffectedElements(targets, runId);
+		let shouldScan = invalidateChangedLayouts(layoutRoots, runId);
+		reconcileTrackedElementVisibility(trackedElements);
+		if (restoreDeferredElements(targets)) {
+			shouldScan = true;
+		}
+		if (shouldScan) {
+			void runTranslationPass(runId).catch((error) => {
+				if (isCurrentRun(runId)) {
+					handleTranslationError(error);
+				}
+			});
+		}
+	}
+
+	function collectVisibilityAffectedElements(targets, runId) {
+		const trackedElements = new Set();
+		const layoutRoots = new Set();
+		for (const element of targets) {
+			const trackedAncestor = findTrackedAncestor(element);
+			if (updateLayoutSignature(element, Boolean(trackedAncestor))) {
+				layoutRoots.add(element);
+			}
+			if (element.dataset?.btSource === runId) {
+				trackedElements.add(element);
+			}
+			for (const source of element.querySelectorAll?.(
+				`[data-bt-source="${CSS.escape(runId)}"]`,
+			) ?? []) {
+				trackedElements.add(source);
+			}
+			if (trackedAncestor) {
+				trackedElements.add(trackedAncestor);
+			}
+		}
+		for (const element of trackedElements) {
+			if (updateLayoutSignature(element)) {
+				layoutRoots.add(element);
+			}
+			if (element.parentElement && updateLayoutSignature(element.parentElement)) {
+				layoutRoots.add(element.parentElement);
+			}
+		}
+		return { trackedElements, layoutRoots };
+	}
+
+	function invalidateChangedLayouts(layoutRoots, runId) {
+		let invalidatedLayout = false;
+		for (const element of layoutRoots) {
+			const hasTrackedDescendant = Boolean(
+				element.dataset?.btSource === runId ||
+					element.querySelector?.(`[data-bt-source="${CSS.escape(runId)}"]`),
+			);
+			const scanRoot = hasTrackedDescendant
+				? element
+				: findTrackedAncestor(element) ?? element;
+			invalidateTrackedSubtree(element, !hasTrackedDescendant);
+			queueRoot(scanRoot);
+			invalidatedLayout = true;
+		}
+		return invalidatedLayout;
+	}
+
+	function reconcileTrackedElementVisibility(trackedElements) {
+		for (const element of trackedElements) {
+			const elementState = state.elementStates.get(element);
+			if (!isEligibleElement(element)) {
+				invalidateElement(element);
+				state.deferredElements.add(element);
+			} else if (elementState?.translationNode) {
+				copySourcePresentation(element, elementState.translationNode);
+			}
+		}
+	}
+
+	function restoreDeferredElements(targets) {
+		let restoredElement = false;
+		for (const element of [...state.deferredElements]) {
+			if (!element.isConnected) {
+				state.deferredElements.delete(element);
+				continue;
+			}
+			const isAffected =
+				targets.length === 0 ||
+				targets.some(
+					(targetElement) =>
+						targetElement === element ||
+						targetElement.contains(element) ||
+						element.contains(targetElement),
+				);
+			if (isAffected && isEligibleElement(element)) {
+				state.deferredElements.delete(element);
+				queueRoot(element);
+				restoredElement = true;
+			}
+		}
+		return restoredElement;
 	}
 
 	function queueVisibilityTarget(element) {
@@ -989,7 +1029,8 @@
 				return false;
 			}
 			if (mutation.attributeName === "class" || mutation.attributeName === "style") {
-				scheduleVisibilitySweep(state.runId, mutation.target);
+				queueVisibilityTarget(mutation.target);
+				scheduleVisibilitySweep(state.runId);
 				return false;
 			}
 			if (mutation.attributeName === "hidden") {

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import "../lib/provider-catalog.generated.js";
-import "../lib/core.js";
+import "../chrome-extension/generated/provider-catalog.js";
+import "../chrome-extension/shared/core.js";
 
 const core = globalThis.BilingualTranslatorCore;
 
@@ -32,6 +32,11 @@ test("preserves credentials while constraining every model to the local allowlis
 		openai: { apiKey: "openai-key", model: "gpt-5.6-luna" },
 		google: { apiKey: "google-key", model: "unknown-google-model" },
 		anthropic: { apiKey: "anthropic-key", model: "claude-sonnet-5" },
+		custom: {
+			apiKey: "custom-key",
+			baseUrl: "https://user:secret@proxy.example.com/v1/",
+			model: " my-model ",
+		},
 	});
 
 	assert.equal(settings.provider, "openai");
@@ -42,6 +47,48 @@ test("preserves credentials while constraining every model to the local allowlis
 	assert.deepEqual(settings.openai, { apiKey: "openai-key", model: "gpt-5.6-luna" });
 	assert.deepEqual(settings.google, { apiKey: "google-key", model: "gemini-3.5-flash-lite" });
 	assert.deepEqual(settings.anthropic, { apiKey: "anthropic-key", model: "claude-sonnet-5" });
+	assert.deepEqual(settings.custom, {
+		apiKey: "custom-key",
+		baseUrl: "",
+		model: "my-model",
+	});
+});
+
+test("normalizes custom OpenAI-compatible endpoints and validates required fields", () => {
+	const settings = core.normalizeSettings({
+		provider: "custom",
+		custom: {
+			apiKey: "custom-key",
+			baseUrl: "https://proxy.example.com/v1/",
+			model: " gpt-4o-mini ",
+		},
+	});
+
+	assert.equal(settings.provider, "custom");
+	assert.deepEqual(settings.custom, {
+		apiKey: "custom-key",
+		baseUrl: "https://proxy.example.com/v1",
+		model: "gpt-4o-mini",
+	});
+	assert.equal(core.getProviderLabel(settings), "自定义");
+	assert.equal(core.getProviderModel(settings), "gpt-4o-mini");
+	assert.equal(core.getCustomApiOrigin(settings.custom.baseUrl), "https://proxy.example.com");
+	assert.equal(core.getProviderConfigurationError(settings), null);
+	assert.equal(core.usesChatTranslation("custom"), true);
+	assert.equal(core.usesTokenUsage("custom"), true);
+	assert.match(
+		core.getProviderConfigurationError({ provider: "custom", custom: { apiKey: "x", baseUrl: "", model: "m" } }),
+		/Base URL/u,
+	);
+	assert.match(
+		core.getProviderConfigurationError({
+			provider: "custom",
+			custom: { apiKey: "x", baseUrl: "https://proxy.example.com/v1", model: "" },
+		}),
+		/模型/u,
+	);
+	assert.equal(core.normalizeCustomBaseUrl("http://evil.example.com/v1"), "");
+	assert.equal(core.normalizeCustomBaseUrl("http://localhost:8080/v1"), "http://localhost:8080/v1");
 });
 
 test("keeps long API keys intact and exposes only public run settings", () => {

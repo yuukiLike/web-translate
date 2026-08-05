@@ -4,11 +4,17 @@ import test from "node:test";
 import vm from "node:vm";
 
 const catalogSource = readFileSync(
-	new URL("../lib/provider-catalog.generated.js", import.meta.url),
+	new URL("../chrome-extension/generated/provider-catalog.js", import.meta.url),
 	"utf8",
 );
-const coreSource = readFileSync(new URL("../lib/core.js", import.meta.url), "utf8");
-const contentSource = readFileSync(new URL("../content.js", import.meta.url), "utf8");
+const coreSource = readFileSync(
+	new URL("../chrome-extension/shared/core.js", import.meta.url),
+	"utf8",
+);
+const contentSource = readFileSync(
+	new URL("../chrome-extension/content/content-script.js", import.meta.url),
+	"utf8",
+);
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -606,6 +612,7 @@ test("production content script renders and incrementally maintains every X-like
 		["Recommended profile", "推荐资料"],
 		["Language switches.", "语言会切换。"],
 		["语言已经切换。", "Language has switched."],
+		["Initially hidden content.", "初始隐藏的内容。"],
 		["Final status race content.", "结束状态竞态内容。"],
 		["Retry after failure.", "失败后重试。"],
 		["Trigger retry.", "触发重试。"],
@@ -708,9 +715,9 @@ test("production content script renders and incrementally maintains every X-like
 	context.window = context;
 	context.innerHeight = 800;
 
-	vm.runInContext(catalogSource, context, { filename: "provider-catalog.generated.js" });
+	vm.runInContext(catalogSource, context, { filename: "provider-catalog.js" });
 	vm.runInContext(coreSource, context, { filename: "core.js" });
-	vm.runInContext(contentSource, context, { filename: "content.js" });
+	vm.runInContext(contentSource, context, { filename: "content-script.js" });
 	try {
 		await waitFor(
 			() => environment.document.querySelectorAll(".bt-translation[data-bt-owned='true']").length === 18,
@@ -844,6 +851,26 @@ test("production content script renders and incrementally maintains every X-like
 			"Language has switched.",
 	);
 	assert.deepEqual(requestedTexts.slice(layoutRequestStart), ["语言已经切换。"]);
+
+	const deferred = createTweet(environment, "Initially hidden content.");
+	deferred.tweetText.style.display = "none";
+	const deferredRequestStart = requestedTexts.length;
+	timeline.append(deferred.article);
+	await new Promise((resolve) => setTimeout(resolve, 230));
+	assert.equal(deferred.tweetText.nextElementSibling, null);
+	assert.deepEqual(requestedTexts.slice(deferredRequestStart), []);
+	deferred.tweetText.style.display = "block";
+	deferred.tweetText.setAttribute("style", "display:block");
+	await waitFor(
+		() => deferred.tweetText.nextElementSibling?.textContent === "初始隐藏的内容。",
+	);
+	assert.deepEqual(requestedTexts.slice(deferredRequestStart), ["Initially hidden content."]);
+	deferred.article.remove();
+	await waitFor(
+		() =>
+			deferred.tweetText.nextElementSibling === null &&
+			deferred.tweetText.dataset.btSource === undefined,
+	);
 
 	const dynamic = createTweet(environment, "New content loaded after scrolling.");
 	const dynamicRequestStart = requestedTexts.length;

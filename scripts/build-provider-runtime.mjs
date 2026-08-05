@@ -7,9 +7,9 @@ import { build } from "esbuild";
 import { loadValidatedConfiguration } from "./validate-provider-config.mjs";
 
 const applicationRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outputDirectory = resolve(applicationRoot, "lib");
+const outputDirectory = resolve(applicationRoot, "chrome-extension/generated");
 const runtimeOutputPath = resolve(outputDirectory, "provider-runtime.js");
-const catalogOutputPath = resolve(outputDirectory, "provider-catalog.generated.js");
+const catalogOutputPath = resolve(outputDirectory, "provider-catalog.js");
 const checkOnly = process.argv.slice(2).includes("--check");
 
 if (process.argv.slice(2).some((argument) => argument !== "--check")) {
@@ -97,5 +97,7 @@ if (checkOnly) {
 		writeFile(catalogOutputPath, catalogContents, "utf8"),
 		writeFile(runtimeOutputPath, runtimeContents, "utf8"),
 	]);
-	console.log("Generated lib/provider-catalog.generated.js and lib/provider-runtime.js.");
+	console.log(
+		"Generated chrome-extension/generated/provider-catalog.js and chrome-extension/generated/provider-runtime.js.",
+	);
 }
