@@ -15,6 +15,7 @@ import {
 	getManifestVersion,
 } from "./optionsRuntime.js";
 import { useDebug } from "./useDebug.js";
+import { useDebugSettings } from "./useDebugSettings.js";
 
 export function useOptions() {
 	const core = globalThis.BilingualTranslatorCore;
@@ -30,7 +31,6 @@ export function useOptions() {
 	const busy = ref("");
 	const connected = ref(false);
 	const usage = ref({});
-	const savedDebug = ref(false);
 	let initialSettings = createFallbackSettings(catalog);
 
 	if (!fatal.value) {
@@ -45,9 +45,10 @@ export function useOptions() {
 	}
 
 	const draft = reactive(initialSettings);
+	const debugSettings = useDebugSettings({ busy, draft, sendMessage, setStatus });
 	const debug = useDebug({
 		enabled: toRef(draft, "debugLogging"),
-		saved: savedDebug,
+		saved: debugSettings.savedLogging,
 		runtime,
 		sendMessage,
 	});
@@ -130,7 +131,7 @@ export function useOptions() {
 
 	function acceptSavedSettings(value) {
 		const settings = applySettings(value);
-		savedDebug.value = settings.debugLogging;
+		debugSettings.accept(settings);
 		return settings;
 	}
 
@@ -173,26 +174,6 @@ export function useOptions() {
 			setStatus("设置已保存");
 			return true;
 		} catch (error) {
-			setStatus(errorText(error), true);
-			return false;
-		} finally {
-			busy.value = "";
-		}
-	}
-
-	async function saveDebug() {
-		const requested = draft.debugLogging;
-		busy.value = "debug";
-		setStatus(requested ? "正在开启调试记录…" : "正在关闭调试记录…");
-		try {
-			const response = await sendMessage({ type: "SET_DEBUG_LOGGING", enabled: requested });
-			const stored = response.debugLogging === true;
-			savedDebug.value = stored;
-			draft.debugLogging = stored;
-			setStatus(stored ? "调试记录已开启" : "调试记录已关闭");
-			return true;
-		} catch (error) {
-			draft.debugLogging = savedDebug.value;
 			setStatus(errorText(error), true);
 			return false;
 		} finally {
@@ -249,11 +230,7 @@ export function useOptions() {
 			return;
 		}
 		const settings = core.normalizeSettings(changedSettings.newValue);
-		if (settings.debugLogging === savedDebug.value && draft.debugLogging === savedDebug.value) {
-			return;
-		}
-		savedDebug.value = settings.debugLogging;
-		draft.debugLogging = settings.debugLogging;
+		debugSettings.sync(settings);
 	}
 
 	onMounted(() => {
@@ -280,7 +257,8 @@ export function useOptions() {
 		busy,
 		connected,
 		save,
-		saveDebug,
+		saveDebug: debugSettings.saveLogging,
+		saveDebugRequestPayload: debugSettings.saveRequestPayload,
 		testProvider,
 		clearCache,
 		debug,

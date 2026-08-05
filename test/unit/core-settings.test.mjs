@@ -20,6 +20,23 @@ test("设置规范化会拒绝非法枚举并约束并发", () => {
 	assert.equal(settings.translateDynamicContent, true);
 });
 
+// 旧版只有 debugLogging；升级后不得把它解释为已同意记录网页正文。
+test("请求正文调试必须独立明示同意", () => {
+	const legacy = core.normalizeSettings({ debugLogging: true });
+	assert.equal(legacy.debugLogging, true);
+	assert.equal(legacy.debugRequestPayload, false);
+
+	const consented = core.normalizeSettings({
+		debugLogging: true,
+		debugRequestPayload: true,
+	});
+	assert.equal(consented.debugRequestPayload, true);
+	assert.equal(
+		core.normalizeSettings({ ...consented, debugLogging: false }).debugRequestPayload,
+		false,
+	);
+});
+
 // 验证凭据会保留，但模型只能选择固定目录中的条目。
 test("模型设置保留 API Key 并限制在 allowlist", () => {
 	const longKey = `sk-${"x".repeat(1_000)}`;

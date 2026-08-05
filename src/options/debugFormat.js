@@ -99,6 +99,35 @@ function booleanText(value) {
 	return value ? "是" : "否";
 }
 
+function formatRequestPayload(value) {
+	if (!isRecord(value)) {
+		return "";
+	}
+	const payload = {};
+	if (typeof value.model === "string" && value.model) {
+		payload.model = value.model.slice(0, 300);
+	}
+	if (typeof value.max_tokens === "number" && Number.isFinite(value.max_tokens)) {
+		payload.max_tokens = Math.max(0, Math.round(value.max_tokens));
+	}
+	if (isRecord(value.thinking) && typeof value.thinking.type === "string") {
+		payload.thinking = { type: value.thinking.type.slice(0, 100) };
+	}
+	if (Array.isArray(value.messages)) {
+		payload.messages = value.messages.slice(0, 32).flatMap((message) => {
+			if (
+				!isRecord(message) ||
+				typeof message.role !== "string" ||
+				typeof message.content !== "string"
+			) {
+				return [];
+			}
+			return [{ role: message.role.slice(0, 50), content: message.content.slice(0, 32_768) }];
+		});
+	}
+	return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2).slice(0, 40_000) : "";
+}
+
 export function debugFields(event) {
 	const fields = [
 		["seq", "序号", event.seq],
@@ -112,6 +141,8 @@ export function debugFields(event) {
 		["apiHost", "API Host", formatApiHost(event.apiHost)],
 		["inferencePolicy", "推理策略", event.inferencePolicy],
 		["model", "模型", event.model],
+		["requestPayload", "DeepSeek 请求正文", formatRequestPayload(event.requestPayload), true],
+		["requestPayloadTruncated", "请求正文已截断", booleanText(event.requestPayloadTruncated)],
 		["responseId", "响应 ID", event.responseId],
 		["responseModel", "响应模型", event.responseModel],
 		["finishReason", "结束原因", event.finishReason],
@@ -147,9 +178,9 @@ export function debugFields(event) {
 		["runId", "运行", event.runId],
 		["requestId", "请求", event.requestId],
 	];
-	return fields.flatMap(([key, label, value]) => {
-		const text = scalarText(value);
-		return text ? [{ key, label, value: text }] : [];
+	return fields.flatMap(([key, label, value, multiline]) => {
+		const text = multiline ? value : scalarText(value);
+		return text ? [{ key, label, value: text, ...(multiline ? { multiline: true } : {}) }] : [];
 	});
 }
 

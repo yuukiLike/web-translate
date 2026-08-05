@@ -43,11 +43,12 @@ function isRetryableHttpStatus(status) {
 	return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
 
-export function createObservedFetch(onRequestEvent) {
+export function createObservedFetch(onRequestEvent, options = {}) {
 	const nativeFetch = globalThis.fetch;
 	if (typeof nativeFetch !== "function") {
 		throw new Error("The Fetch API is unavailable");
 	}
+	const captureRequestBody = options.captureRequestBody === true;
 	return async (input, init) => {
 		requestSequence += 1;
 		const requestId = `provider-request-${Date.now()}-${requestSequence}`;
@@ -60,6 +61,9 @@ export function createObservedFetch(onRequestEvent) {
 			endpoint,
 			method,
 			status: "started",
+			...(captureRequestBody && typeof init?.body === "string"
+				? { requestBody: init.body }
+				: {}),
 		});
 		try {
 			const response = await nativeFetch.call(globalThis, input, init);

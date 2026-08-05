@@ -207,6 +207,11 @@
 	outline-offset: 3px;
 }
 
+.switch-field:has(input:disabled) {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
 .catalog-status {
 	margin: 0;
 	color: var(--ink-soft);

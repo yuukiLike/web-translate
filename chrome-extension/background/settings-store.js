@@ -1,6 +1,12 @@
 import { createSerialTaskQueue } from "./utilities.js";
 
-export function createSettingsStore({ chrome, core, providerCatalog, onDebugLoggingChanged }) {
+export function createSettingsStore({
+	chrome,
+	core,
+	providerCatalog,
+	onDebugLoggingChanged,
+	onDebugRequestPayloadChanged = () => {},
+}) {
 	const writeQueue = createSerialTaskQueue();
 	let ready;
 
@@ -19,7 +25,7 @@ export function createSettingsStore({ chrome, core, providerCatalog, onDebugLogg
 		}
 		await ensureStoredSettings();
 		const settings = await getSettings();
-		onDebugLoggingChanged(settings.debugLogging);
+		await notifyDebugSettings(settings);
 		return settings;
 	}
 
@@ -40,7 +46,7 @@ export function createSettingsStore({ chrome, core, providerCatalog, onDebugLogg
 	function save(settings) {
 		return writeQueue.run(async () => {
 			await chrome.storage.local.set({ [core.SETTINGS_KEY]: settings });
-			onDebugLoggingChanged(settings.debugLogging);
+			await notifyDebugSettings(settings);
 			return settings;
 		});
 	}
@@ -48,11 +54,33 @@ export function createSettingsStore({ chrome, core, providerCatalog, onDebugLogg
 	function updateDebugLogging(enabled) {
 		return writeQueue.run(async () => {
 			const settings = await getSettings();
-			const updated = core.normalizeSettings({ ...settings, debugLogging: enabled });
+			const updated = core.normalizeSettings({
+				...settings,
+				debugLogging: enabled,
+				...(enabled ? {} : { debugRequestPayload: false }),
+			});
 			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
-			onDebugLoggingChanged(updated.debugLogging);
+			await notifyDebugSettings(updated);
 			return updated;
 		});
+	}
+
+	function updateDebugRequestPayload(enabled) {
+		return writeQueue.run(async () => {
+			const settings = await getSettings();
+			const updated = core.normalizeSettings({
+				...settings,
+				debugRequestPayload: enabled,
+			});
+			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
+			await notifyDebugSettings(updated);
+			return updated;
+		});
+	}
+
+	async function notifyDebugSettings(settings) {
+		onDebugLoggingChanged(settings.debugLogging);
+		await onDebugRequestPayloadChanged(settings.debugRequestPayload);
 	}
 
 	function assertProviderConfigured(settings) {
@@ -109,5 +137,6 @@ export function createSettingsStore({ chrome, core, providerCatalog, onDebugLogg
 		isExtensionPageUrl,
 		save,
 		updateDebugLogging,
+		updateDebugRequestPayload,
 	};
 }

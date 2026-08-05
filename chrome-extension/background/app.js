@@ -29,6 +29,7 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		core,
 		providerCatalog,
 		onDebugLoggingChanged: debug.setEnabled,
+		onDebugRequestPayloadChanged: debug.setRequestPayloadEnabled,
 	});
 	const cacheStore = createCacheStore({ chrome, core });
 	const usageStore = createUsageStore({ chrome, core });
@@ -91,7 +92,7 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 			const settings = await settingsStore.initialize();
 			await Promise.all([
 				cacheStore.initialize(),
-				debug.initialize(settings.debugLogging),
+				debug.initialize(settings.debugLogging, settings.debugRequestPayload),
 			]);
 			startup.resolve();
 			void cacheStore.queueMaintenance().catch(() => {});
@@ -111,10 +112,6 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 				}
 			})
 			.catch(() => {});
-	}
-
-	function onActionClicked(tab) {
-		void startup.promise.then(() => actionUi.toggleTranslation(tab)).catch(() => {});
 	}
 
 	function onContextMenuClicked(info) {
@@ -140,7 +137,6 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 	}
 
 	return {
-		onActionClicked,
 		onConnect,
 		onContextMenuClicked,
 		onInstalled,

@@ -16,6 +16,7 @@ export async function generateTranslation(request) {
 		messages,
 		abortSignal,
 		onRequestEvent,
+		captureRequestBody,
 	} = request;
 	const { provider, model } =
 		providerId === "custom"
@@ -26,7 +27,9 @@ export async function generateTranslation(request) {
 		provider,
 		apiKey,
 		model.id,
-		createObservedFetch(onRequestEvent),
+		createObservedFetch(onRequestEvent, {
+			captureRequestBody: provider.id === "deepseek" && captureRequestBody === true,
+		}),
 	);
 	const result = await generateText({
 		model: languageModel,

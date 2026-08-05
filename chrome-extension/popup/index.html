@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>一键双语翻译</title>
+		<link rel="stylesheet" href="popup.css" />
+	</head>
+	<body>
+		<main class="popup">
+			<header class="brand">
+				<img src="../assets/icons/icon.svg" alt="" />
+				<span class="brand-copy">
+					<strong>一键双语翻译</strong>
+					<small>当前网页 · 中英双语对照</small>
+				</span>
+				<span id="extension-version" class="version">v—</span>
+			</header>
+
+			<section class="panel" aria-label="网页翻译操作">
+				<div class="summary">
+					<div>
+						<span>翻译服务</span>
+						<strong id="current-provider">正在读取…</strong>
+						<small id="current-model">—</small>
+					</div>
+					<div>
+						<span>目标语言</span>
+						<strong id="target-language">—</strong>
+					</div>
+				</div>
+
+				<button id="toggle-translation" class="main-action" type="button" disabled>
+					<span class="symbol" aria-hidden="true">译</span>
+					<strong>翻译 / 恢复当前网页</strong>
+					<span class="arrow" aria-hidden="true">→</span>
+				</button>
+				<output id="popup-status" class="status" role="status" aria-live="polite">
+					正在读取当前页面…
+				</output>
+
+				<nav class="actions" aria-label="扩展入口">
+					<button id="open-settings" class="secondary-action" type="button">
+						<span aria-hidden="true">⚙</span>
+						设置
+					</button>
+					<button id="open-debug" class="secondary-action" type="button">
+						<span aria-hidden="true">◇</span>
+						调试日志
+						<small id="debug-state" class="debug-state">—</small>
+					</button>
+				</nav>
+			</section>
+			<p class="privacy-note">API Key 只保存在本机扩展存储中</p>
+		</main>
+		<script src="popup.js"></script>
+	</body>
+</html>

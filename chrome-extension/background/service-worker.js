@@ -11,7 +11,6 @@ const app = createBackgroundApp({
 });
 
 chrome.runtime.onInstalled.addListener(app.onInstalled);
-chrome.action.onClicked.addListener(app.onActionClicked);
 chrome.contextMenus.onClicked.addListener(app.onContextMenuClicked);
 chrome.runtime.onMessage.addListener(app.onMessage);
 chrome.runtime.onConnect.addListener(app.onConnect);

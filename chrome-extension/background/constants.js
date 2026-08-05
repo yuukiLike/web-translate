@@ -26,6 +26,8 @@ export const STORAGE_KEYS = Object.freeze({
 export const DEBUG_LIMITS = Object.freeze({
 	maxEvents: 300,
 	maxBytes: 512_000,
+	maxRequestMessages: 32,
+	maxRequestPayloadBytes: 32_768,
 });
 
 export const DEBUG_PORT_NAME = "debug-events-v1";

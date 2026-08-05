@@ -8,6 +8,7 @@ import {
 	backgroundCore,
 	createChromeHarness,
 	createConfiguredSettings,
+	createExtensionSender,
 	createProviderRuntimeFake,
 	createWebpageSender,
 	sendAppMessage,
@@ -25,15 +26,14 @@ function createApp(harness, providerRuntime = createProviderRuntimeFake()) {
 	};
 }
 
-// 验证入口在启动异步初始化前同步注册全部六类 MV3 监听器。
-test("Service Worker 入口同步注册六类监听器", async () => {
+// 验证入口在启动异步初始化前同步注册全部五类 MV3 监听器，Popup 模式不再注册 action 点击事件。
+test("Service Worker 入口同步注册五类监听器", async () => {
 	const source = await readFile(
 		new URL("../../chrome-extension/background/service-worker.js", import.meta.url),
 		"utf8",
 	);
 	const registrations = [
 		"chrome.runtime.onInstalled.addListener(app.onInstalled)",
-		"chrome.action.onClicked.addListener(app.onActionClicked)",
 		"chrome.contextMenus.onClicked.addListener(app.onContextMenuClicked)",
 		"chrome.runtime.onMessage.addListener(app.onMessage)",
 		"chrome.runtime.onConnect.addListener(app.onConnect)",
@@ -46,7 +46,81 @@ test("Service Worker 入口同步注册六类监听器", async () => {
 		assert.ok(registrationIndex >= 0, `缺少监听器：${registration}`);
 		assert.ok(registrationIndex < startIndex, `监听器注册晚于启动：${registration}`);
 	}
-	assert.equal(source.match(/\.addListener\(/gu)?.length, 6);
+	assert.doesNotMatch(source, /chrome\.action\.onClicked/u);
+	assert.equal(source.match(/\.addListener\(/gu)?.length, 5);
+});
+
+// 验证 Popup 新消息只接受扩展页面，并始终查询前台标签后按 CSS、运行时脚本顺序注入。
+test("Popup 消息安全查询并切换当前标签页", async () => {
+	const harness = createChromeHarness();
+	const { app } = createApp(harness);
+	await app.start();
+
+	for (const type of ["GET_POPUP_STATE", "TOGGLE_ACTIVE_TAB"]) {
+		assert.deepEqual(await sendAppMessage(app, { type }, createWebpageSender()), {
+			ok: false,
+			error: "网页脚本无权读取敏感设置",
+		});
+	}
+	assert.deepEqual(harness.tabQueries, []);
+
+	const popupSender = createExtensionSender("popup/index.html");
+	const state = await sendAppMessage(app, { type: "GET_POPUP_STATE" }, popupSender);
+	assert.equal(state.ok, true);
+	assert.equal(state.version, "0.4.0");
+	assert.equal(state.providerLabel, "DeepSeek");
+	assert.equal(state.model, "deepseek-v4-flash");
+	assert.equal(state.targetLanguage, "自动判断");
+	assert.equal(state.configured, true);
+	assert.equal(state.canTranslate, true);
+	assert.deepEqual(await sendAppMessage(app, { type: "TOGGLE_ACTIVE_TAB" }, popupSender), {
+		ok: true,
+		status: "triggered",
+	});
+
+	assert.deepEqual(harness.tabQueries, [
+		{ active: true, lastFocusedWindow: true },
+		{ active: true, lastFocusedWindow: true },
+	]);
+	assert.deepEqual(harness.scriptExecutions, [
+		{
+			type: "css",
+			details: { target: { tabId: 7 }, files: ["content/content.css"] },
+		},
+		{
+			type: "script",
+			details: {
+				target: { tabId: 7 },
+				files: [
+					"generated/provider-catalog.js",
+					"generated/core.js",
+					"generated/content-script.js",
+				],
+			},
+		},
+	]);
+});
+
+// 验证 Popup 的目标语言文案严格映射真实设置字段 targetMode，避免显示不存在的旧字段。
+test("Popup 正确展示全部目标语言模式", async () => {
+	for (const [targetMode, expectedLabel] of [
+		["auto", "自动判断"],
+		["zh", "译为中文"],
+		["en", "译为英文"],
+	]) {
+		const harness = createChromeHarness({
+			settings: createConfiguredSettings({ targetMode }),
+		});
+		const { app } = createApp(harness);
+		await app.start();
+		const state = await sendAppMessage(
+			app,
+			{ type: "GET_POPUP_STATE" },
+			createExtensionSender("popup/index.html"),
+		);
+		assert.equal(state.ok, true);
+		assert.equal(state.targetLanguage, expectedLabel);
+	}
 });
 
 // 验证从启动任务、翻译、缓存命中、状态完成到取消的完整后台消息主链。

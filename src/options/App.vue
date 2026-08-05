@@ -23,6 +23,7 @@ const {
 	ready,
 	save,
 	saveDebug,
+	saveDebugRequestPayload,
 	selectedProvider,
 	selectedTarget,
 	status,
@@ -199,14 +200,16 @@ function show(nextView) {
 
 			<DebugPanel
 				v-else
-				v-model:enabled="draft.debugLogging"
+					v-model:enabled="draft.debugLogging"
+					v-model:request-payload="draft.debugRequestPayload"
 				:busy="busy"
 				:connection="debugConnection"
 				:requests="debugRequests"
 				:rows="debugRows"
 				:status="status"
 				@clear="clearDebug"
-				@save="saveDebug"
+					@save="saveDebug"
+					@save-request-payload="saveDebugRequestPayload"
 				@test="testProvider"
 			/>
 		</main>

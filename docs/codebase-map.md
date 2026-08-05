@@ -5,8 +5,8 @@
 ## 先记住三条规则
 
 1. 日常开发主要修改 `src/**`、`chrome-extension/background/**`、配置文件和测试。
-2. `chrome-extension/generated/*.js` 与 `chrome-extension/options/options.{js,css}` 是生成文件。不要手工编辑；修改对应源码后重新构建。
-3. `chrome-extension/background/service-worker.js` 不是巨型业务文件。它只有 20 行，只负责导入 runtime、创建后台应用并同步注册 Chrome 监听器。
+2. `chrome-extension/generated/*.js`、`chrome-extension/options/options.{js,css}` 与 `chrome-extension/popup/popup.{js,css}` 是生成文件。不要手工编辑；修改对应源码后重新构建。`chrome-extension/popup/index.html` 是手写 HTML 壳。
+3. `chrome-extension/background/service-worker.js` 不是巨型业务文件。它只负责导入 runtime、创建后台应用并同步注册 Chrome 监听器；工具栏点击由 Manifest 打开的 popup 接管，后台不注册 `chrome.action.onClicked`。
 
 ## 总体依赖方向
 
@@ -22,10 +22,14 @@
 src/options/ ─→ scripts/build-options.mjs
               └─→ chrome-extension/options/options.js + options.css
 
+src/popup/ ─→ scripts/build-popup.mjs
+            └─→ chrome-extension/popup/popup.js + popup.css
+
 chrome-extension/manifest.json
   ├─→ background/service-worker.js
+  ├─→ popup/index.html
   ├─→ options/index.html
-  └─→ 用户点击后动态注入 content.css + 三个 generated 文件
+  └─→ popup 发送 TOGGLE_ACTIVE_TAB，后台动态注入 content.css + 三个 generated 文件
 ```
 
 依赖只应沿箭头向右走。`src/core/` 不依赖 Chrome API；`src/content/` 只通过 `RuntimeClient` 向后台发消息；网页脚本永远不能直接读取设置或 API Key。测试可以直接导入手写模块，但产品源码不应反向依赖测试。
@@ -46,11 +50,14 @@ chrome-extension/manifest.json
 
 | 文件或目录 | 职责 | 是否手工维护 |
 | --- | --- | --- |
-| `manifest.json` | 声明 Manifest V3、权限、固定 API host、Service Worker、快捷键和设置页。 | 是 |
+| `manifest.json` | 声明 Manifest V3、权限、固定 API host、Service Worker、action popup、快捷键和设置页。 | 是 |
 | `assets/icons/icon.svg` | 主图标的可编辑矢量源。 | 是 |
 | `assets/icons/icon-small.svg` | 小尺寸图标的可编辑矢量源。 | 是 |
 | `assets/icons/icon-{16,32,48,128}.png` | Manifest 实际引用的固定尺寸导出图。 | 由图标源导出后审查 |
 | `content/content.css` | 注入网页的译文与状态提示样式。 | 是 |
+| `popup/index.html` | action popup 的手写 HTML 壳，提供固定的“翻译 / 恢复当前网页”、设置和调试日志入口。 | 是 |
+| `popup/popup.js` | `src/popup/` 编译后的交互 bundle。 | 否 |
+| `popup/popup.css` | `src/popup/popup.css` 编译后的样式。 | 否 |
 | `options/index.html` | 设置页 HTML 壳，按顺序加载目录、核心和 Vue bundle。 | 是 |
 | `options/options.js` | `src/options/` 编译后的 Vue JavaScript。 | 否 |
 | `options/options.css` | `src/options/` 合并压缩后的 CSS。 | 否 |
@@ -65,10 +72,10 @@ chrome-extension/manifest.json
 
 | 文件 | 单一职责 |
 | --- | --- |
-| `service-worker.js` | 20 行装配入口：导入三个生成 runtime 与 `app.js`、创建应用、同步注册六类监听器并启动。Manifest V3 要求监听器在入口求值时注册，这部分不应延迟到异步初始化之后。 |
-| `app.js` | 组合全部后台服务，管理启动就绪 Promise，把 Chrome 事件适配为应用方法，并在标签页关闭时通知任务存储清理资源。 |
-| `action-ui.js` | 管理工具栏点击、脚本注入、徽标、title 与图标右键菜单；为每个标签页保存最新 Badge 修订，慢写入结束后会重放最新状态。 |
-| `message-router.js` | 按消息类型路由内容脚本和设置页请求；先校验来源，再调用具体服务。 |
+| `service-worker.js` | 极薄装配入口：导入三个生成 runtime 与 `app.js`、创建应用、同步注册安装、右键菜单、消息、Port 和标签页关闭监听器并启动。Manifest V3 要求监听器在入口求值时注册；这里不再注册 `action.onClicked`。 |
+| `app.js` | 组合全部后台服务，管理启动就绪 Promise，把安装、菜单、消息、Port 和标签页关闭事件适配为应用方法。popup 的主动作通过消息进入，不再需要 action 点击适配器。 |
+| `action-ui.js` | 管理 popup 触发后的脚本注入、徽标、title 与图标右键菜单；为每个标签页保存最新 Badge 修订，慢写入结束后会重放最新状态。 |
+| `message-router.js` | 按消息类型路由 popup、内容脚本和设置页请求；先校验来源，再调用具体服务。 |
 | `validation.js` | 校验 runId、语言方向、段落 ID、单段长度、批次数量和总字符数。 |
 | `settings-store.js` | 初始化受信任存储访问级别，规范化/保存设置，检查 Key、模型和自定义域名权限。 |
 | `run-store.js` | 编排任务启动、替换、取消和标签页关闭；把内存活动、启动 token、在途清理与持久状态组合成同一标签页串行生命周期。 |
@@ -85,8 +92,8 @@ chrome-extension/manifest.json
 | `provider-service.js` | 在模型 Provider、自定义 Provider、Azure 与 DeepL 之间选择正确翻译器，并提供连接测试。 |
 | `json-client.js` | 为 REST Provider 统一实现超时、JSON 大小限制、安全错误、最多三次尝试和 `Retry-After`。 |
 | `request-errors.js` | 把网络与 SDK 错误转成安全错误码，判断是否可重试并提供可取消等待。 |
-| `debug-metadata.js` | 生成不含正文和凭据的 Provider/请求上下文，并把 endpoint 限制为安全 origin 与路径。 |
-| `debug-store.js` | 用字段白名单保存有界 session 事件，通过 Port 推送快照、增量事件和重置。 |
+| `debug-metadata.js` | 生成不含凭据的 Provider/请求上下文，并把 endpoint 限制为安全 origin 与路径。用户开启调试时，DeepSeek 事件可附带受控请求正文投影。 |
+| `debug-store.js` | 用字段白名单保存有界 session 事件；DeepSeek 的瞬时 `requestBody` 会被重建为固定字段的 `requestPayload` 安全投影。通过 Port 推送快照、增量事件和重置；不保存 Key、请求头或响应体。 |
 | `constants.js` | 集中维护缓存、消息、网络、调试、状态稳定窗口和菜单 ID 的限制。 |
 | `utilities.js` | 提供数字规范化、ID、存储大小估算、运行键和自动回收的按键串行任务队列等后台通用能力。 |
 | `providers/model-translator.js` | 构造防提示词注入的 JSON 翻译任务，调用 Provider runtime，控制模型层重试并校验完成原因。 |
@@ -156,7 +163,7 @@ chrome-extension/manifest.json
 | `provider/catalog.js` | 从本地 snapshot 和 allowlist 查找固定 Provider/模型，并校验自定义 endpoint。 |
 | `provider/validation.js` | 在任何 fetch 前校验 API Key、提示、消息和最大输出 token。 |
 | `provider/model.js` | 显式创建四家 SDK 模型，并设置关闭或最低推理参数。 |
-| `provider/observed-fetch.js` | 包装 fetch，只发出方法、无查询 endpoint、状态、耗时和重试标记等安全事件。 |
+| `provider/observed-fetch.js` | 包装 fetch，发出方法、无查询 endpoint、状态、耗时和重试标记；DeepSeek 在调试开启时还提供实际 HTTP body，交由后台收窄为固定字段投影。 |
 | `provider/generate-translation.js` | 组合目录、校验、模型和观测 fetch，调用 `generateText()` 且关闭 SDK 内部重试。 |
 | `provider/result.js` | 把不同 SDK 返回规范化为统一文本、完成原因、响应身份和 token 用量。 |
 
@@ -173,7 +180,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `ProviderPicker.vue` | 展示三项推荐服务和可展开的其他 Provider。 |
 | `ProviderFields.vue` | 按 Provider 类型渲染 Key、区域、Base URL、模型和本地模型元数据。 |
 | `UsagePanel.vue` | 展示当月用量并提供清空翻译缓存入口。 |
-| `DebugPanel.vue` | 展示请求优先的脱敏轨迹、筛选、跟随、复制和清空操作。 |
+| `DebugPanel.vue` | 展示请求优先的受控轨迹、DeepSeek 请求正文投影、筛选、跟随、复制和清空操作。 |
 | `Mark.vue` | 产品的内联 SVG 标志。 |
 
 ### 状态与数据
@@ -207,6 +214,16 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `styles/debug-events.css` | 请求/事件列表、详情字段和状态样式。 |
 | `styles/responsive.css` | 700px、520px、480px 等响应式调整和减少动态效果。 |
 
+## `src/popup/`：工具栏弹窗源码
+
+popup 是短生命周期的受信任扩展页面，不持有翻译任务，也不读取 API Key。它只展示当前配置摘要并把明确的用户动作交给后台。
+
+| 文件 | 职责 |
+| --- | --- |
+| `main.js` | popup bundle 入口：注入 Chrome API、document 和关闭函数，创建应用并加载状态。 |
+| `popup-app.js` | 发送 `GET_POPUP_STATE` / `TOGGLE_ACTIVE_TAB`，控制忙碌与错误提示；设置使用 `openOptionsPage()`，调试打开 `options/index.html#debug`。 |
+| `popup.css` | 维护 350px popup 的既有视觉、按钮、状态和减少动态效果样式。 |
+
 ## Provider 配置、数据与 Schema
 
 | 文件 | 职责 |
@@ -223,6 +240,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `validate-provider-config.mjs` | 用 AJV 校验两个 JSON Schema，再检查来源 SHA、Provider 集合、SDK、URL 和默认模型等跨文件不变量。 |
 | `build-extension-runtime.mjs` | 生成目录脚本，并用 esbuild 分别打包核心、内容脚本和 Provider runtime；`--check` 只比较，不写文件。 |
 | `build-options.mjs` | 编译 Vue SFC 与 CSS，拒绝外部依赖和动态代码；`--check` 验证提交产物未过期。 |
+| `build-popup.mjs` | 从 `src/popup/main.js` 打包 `popup.js` 与 `popup.css`，拒绝外部依赖和动态代码；`--check` 验证提交产物未过期。 |
 | `check-javascript.mjs` | 递归查找手写 JavaScript，并逐个运行 Node 语法检查。 |
 
 ## `test/`：按风险分层的自动验证
@@ -250,7 +268,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 
 | 文件 | 职责 |
 | --- | --- |
-| `background-app.test.mjs` | 验证监听器注册、主消息链、敏感来源边界、旧消息拒绝和后台重启状态。 |
+| `background-app.test.mjs` | 验证监听器注册、popup 状态/主动作消息、敏感来源边界、旧消息拒绝和后台重启状态。 |
 | `background-cancellation.test.mjs` | 验证缓存读取取消、启动中取消、旧任务替换和取消持久化等全批次生命周期。 |
 | `background-cleanup-races.test.mjs` | 验证持久化回退的慢 snapshot/current 删除、关闭标签页清理与重复同 runId START 都不能误删新任务的快照或 current 指针。 |
 | `background-race-regressions.test.mjs` | 对抗验证反序启动、取消与 Badge/storage 竞态、标签页关闭和旧快照清理失败。 |
@@ -267,6 +285,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | --- | --- |
 | `background-cache.test.mjs` | 缓存命中、站点隔离、清空代次和任务快照恢复。 |
 | `background-debug-metadata.test.mjs` | 验证自定义服务的真实 adapter 标签和默认推理策略不会被调试元数据误报。 |
+| `background-debug-store.test.mjs` | 验证 DeepSeek `requestBody` 只保存为有界 `requestPayload`，并拒绝 Key、Authorization、请求头和响应体。 |
 | `background-run-lifecycle.test.mjs` | 对抗验证 501 次取消、删除失败后的取消终态、标签页清理失败、旧字符串兼容与后台重启。 |
 | `background-status-races.test.mjs` | 验证冷 Worker 的反序状态恢复、多个取消墓碑，以及慢旧 Badge 写入结束后重放最新状态。 |
 | `background-status.test.mjs` | 验证完成稳定窗口、settling 失效、旧任务忽略和取消覆盖。 |
@@ -276,6 +295,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `core-settings.test.mjs` | 默认值、枚举、并发、模型 allowlist、自定义 URL、公开设置和错误提示。 |
 | `core-text.test.mjs` | 语言判断、正文过滤、规范化、长文切分、批次顺序和模型 JSON ID。 |
 | `options-data.test.mjs` | 模型目录、用量、调试脱敏和请求生命周期合并。 |
+| `provider-observed-fetch.test.mjs` | 验证只有显式启用时才采集瞬时请求 body，且常规请求事件仍保持安全元数据边界。 |
 
 ## `docs/`：不同读者的入口
 
@@ -284,17 +304,17 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `README.md` | 文档索引、适用读者和推荐阅读顺序。 |
 | `codebase-map.md` | 当前文件；解释目录、文件、依赖、生成边界和调用链。 |
 | `chrome-extension-basics.md` | 加载扩展并理解 Manifest V3 运行上下文、权限和 DevTools。 |
-| `debugging.md` | 使用脱敏事件和三类 DevTools 排查运行问题。 |
-| `provider-catalog.md` | 解释固定 snapshot、allowlist、模型 SDK 和目录更新流程。 |
+| `debugging.md` | 查看受控事件与 DeepSeek 请求正文投影，并用三类 DevTools 排查运行问题。 |
+| `provider-catalog.md` | 解释固定 snapshot、allowlist、模型 SDK、DeepSeek 三层请求转换和目录更新流程。 |
 
 ## 从点击图标到看到译文
 
 下面是主路径。任何一步失败，都可以用文件名快速确定应查网页 DevTools、后台 DevTools 还是测试。
 
-1. 用户点击工具栏图标或快捷键，Chrome 调用 `service-worker.js` 顶层注册的 `app.onActionClicked`。
-2. `app.js` 等待安全存储初始化完成，再把标签页交给 `action-ui.js`。
-3. `action-ui.js` 先通过 `settings-store.js` 检查 Provider、Key、模型和权限。失败时显示 `SET` 或 `ERR`，不会注入脚本。
-4. 检查通过后，它注入 `content.css`、`provider-catalog.js`、`core.js` 和 `content-script.js` 四个包内文件。
+1. 用户点击工具栏图标或快捷键，Chrome 根据 Manifest 打开 action popup；Service Worker 不接收 `action.onClicked`。
+2. popup 加载时发送 `GET_POPUP_STATE`，展示版本、Provider、模型、目标语言、调试开关与当前页可用性；主按钮的文案固定为“翻译 / 恢复当前网页”，不推测页面当前处于翻译还是原文状态。
+3. 用户点击主按钮后，popup 发送 `TOGGLE_ACTIVE_TAB`。`message-router.js` 验证消息来自受信任扩展页面，查询当前标签页，等待安全存储初始化完成，再把标签页交给 `action-ui.js`。设置按钮调用 `openOptionsPage()`；调试按钮打开 `options/index.html#debug`。
+4. `action-ui.js` 先通过 `settings-store.js` 检查 Provider、Key、模型和权限。失败时显示 `SET` 或 `ERR`，不会注入脚本；检查通过后注入 `content.css`、`provider-catalog.js`、`core.js` 和 `content-script.js`。
 5. `src/content/main.js` 的生成代码发现没有控制器，于是 `controller.js` 创建一个带唯一 runId 的 `TranslationRun`，再由 `runtime-client.js` 发送 `START_RUN`。
 6. `message-router.js` 验证消息来自网页并创建 START token；`settings-store.js` 返回公开设置；`run-store.js` 固定本次设置、缓存代次和站点来源快照，`run-persistence.js` 将 current-run 提交为 active；`status-controller.js` 再标记当前任务。无论启动成功还是失败，token 都会在 `finally` 释放。
 7. `translation-run.js` 组装元素索引、扫描器、计划器、运行缓存、渲染器和两个 DOM 监听器，把 `document.body` 放入 `root-queue.js`。
@@ -308,7 +328,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 15. `cloud-translator.js` 写入运行缓存并回填所有去重目标；`dom/renderer.js` 确认原文未变化，再用 `textContent` 插入译文；`progress-tracker.js` 只增加已完成数。
 16. `status-reporter.js` 等待 DOM 和计数稳定后发送完成状态；`status-controller.js` 先按消息到达顺序分配修订，再做后台稳定窗口检查；`action-ui.js` 在慢 Badge API 返回后重放最新修订，因此旧完成或旧进度都不能覆盖新状态。
 17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。它们只把受影响根节点放回队列；已有译文优先从运行缓存恢复。
-18. 用户再次点击图标时，重复注入会命中已有控制器。`TranslationRun.stop()` 停止监听器、清理当前 runId 的 DOM、清空运行缓存并发送取消与关闭状态。后台先尝试把 current-run 持久化为 cancelled；若存储写失败，则至少删除 current 指针或快照，并保留当前 Worker 的取消屏障。在途旧删除结束前，同一 runId 不能复用。
+18. 用户再次打开 popup 并点击恢复时，后台重复注入内容脚本，已有控制器收到 toggle。`TranslationRun.stop()` 停止监听器、清理当前 runId 的 DOM、清空运行缓存并发送取消与关闭状态。后台先尝试把 current-run 持久化为 cancelled；若存储写失败，则至少删除 current 指针或快照，并保留当前 Worker 的取消屏障。在途旧删除结束前，同一 runId 不能复用。
 19. 用户直接关闭标签页时，`tabs.onRemoved` 调用 `app.onTabRemoved()`；`run-store.js` 立即中止该标签页的活动请求并建立 removed-tab 屏障，再处理持久终态与 session 快照。所有可能迟到的清理结束前不会释放 tabId，避免复用标签页的新任务被旧清理误删。
 
 ## 修改代码时从哪里开始
@@ -320,6 +340,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | 进度抖动或旧状态 | `src/content/progress-tracker.js`、`src/content/status-reporter.js`、`chrome-extension/background/status-controller.js` | content service、background status 与内容脚本集成测试 |
 | DOM 识别或插入位置 | `src/content/dom/scanner.js`、`renderer.js` | content DOM harness 与内容脚本集成测试 |
 | Provider 请求、重试 | `provider-service.js`、`providers/`、`src/provider/` | Provider runtime 集成测试和调试文档 |
+| popup 主动作或入口 | `src/popup/`、`message-router.js`、`action-ui.js` | Manifest、`background-app.test.mjs`、`npm run check:popup` 和 Chrome 手工验证 |
 | 设置或调试界面逻辑 | `src/options/useOptions.js`、`useDebug.js`、对应 Vue 组件 | options data 单元测试与 options page 集成测试 |
 | 设置页视觉样式 | `DESIGN.md`、`src/options/styles/` | 先保持现有视觉决策，再验证 700/520/480px 断点 |
 | 构建产物过期 | 对应 `src/` 源码与 `scripts/build-*.mjs` | 运行 `npm run build:chrome`，不要手改生成文件 |
@@ -330,4 +351,4 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 npm run check
 ```
 
-它依次验证 runtime 和设置页生成产物、全部手写 JavaScript 语法，以及 contract、unit、integration 三层测试。检查不调用真实 Provider，也不需要 API Key。
+它依次验证 runtime、设置页和 popup 生成产物、全部手写 JavaScript 语法，以及 contract、unit、integration 三层测试。检查不调用真实 Provider，也不需要 API Key。

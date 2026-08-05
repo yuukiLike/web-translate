@@ -50,6 +50,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			translateDynamicContent: true,
 			concurrency: 2,
 			debugLogging: false,
+			debugRequestPayload: false,
 			azure: { apiKey: "", region: "" },
 			deepl: { apiKey: "" },
 			deepseek: createDefaultModelSettings("deepseek"),
@@ -87,6 +88,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		const deepl = isRecord(settings.deepl) ? settings.deepl : {};
 		const provider = safeString(settings.provider);
 		const targetMode = safeString(settings.targetMode);
+		const debugLogging = settings.debugLogging === true;
 		return {
 			provider: providerIds.has(provider) ? provider : defaults.provider,
 			targetMode: TARGET_MODES.has(targetMode) ? targetMode : defaults.targetMode,
@@ -95,10 +97,8 @@ export function createSettingsApi(catalog, providerDefinitions) {
 					? settings.translateDynamicContent
 					: defaults.translateDynamicContent,
 			concurrency: clampInteger(settings.concurrency, defaults.concurrency, 1, 4),
-			debugLogging:
-				typeof settings.debugLogging === "boolean"
-					? settings.debugLogging
-					: defaults.debugLogging,
+			debugLogging,
+			debugRequestPayload: debugLogging && settings.debugRequestPayload === true,
 			azure: {
 				apiKey: safeString(azure.apiKey, "", MAXIMUM_API_KEY_LENGTH),
 				region: safeString(azure.region, "", 100),

@@ -48,8 +48,8 @@ export class StatusReporter {
 
 		this.progress.markReported();
 		if (total === 0) {
-			this.view.show("未找到需要翻译的正文", {
-				label: "打开设置",
+			this.view.show("当前页面没有需要翻译的外语正文", {
+				label: "调整语言设置",
 				onClick: () => void this.runtime.openOptions(),
 			});
 			return;

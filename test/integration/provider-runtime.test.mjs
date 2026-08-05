@@ -18,6 +18,7 @@ const safeEventFields = new Set([
 	"httpStatus",
 	"method",
 	"requestId",
+	"requestBody",
 	"retryable",
 	"status",
 ]);
@@ -39,7 +40,10 @@ function assertSafeRequestEvents(events, apiKey, endpoint) {
 	assert.ok(
 		plainEvents.every((event) => Object.keys(event).every((key) => safeEventFields.has(key))),
 	);
+	assert.equal(plainEvents.some((event) => Object.hasOwn(event, "headers")), false);
+	assert.equal(plainEvents.some((event) => Object.hasOwn(event, "authorization")), false);
 	assert.equal(JSON.stringify(plainEvents).includes(apiKey), false);
+	return plainEvents;
 }
 
 // 非法 Provider 或跨 Provider 模型必须在任何网络请求发生前被拒绝。
@@ -65,8 +69,8 @@ test("运行时在 fetch 前拒绝非法 Provider 与模型", async () => {
 	assert.equal(fetchCount, 0);
 });
 
-// DeepSeek 必须使用官方接口、关闭思考，并只暴露脱敏事件与完整结果元数据。
-test("DeepSeek 请求关闭思考并返回安全元数据", async () => {
+// DeepSeek 必须使用官方接口、关闭思考，并只在请求开始事件暴露实际正文。
+test("DeepSeek 请求关闭思考并捕获实际请求正文", async () => {
 	const apiKey = "test-deepseek-secret";
 	const events = [];
 	const recorder = createRequestRecorder(() =>
@@ -88,6 +92,7 @@ test("DeepSeek 请求关闭思考并返回安全元数据", async () => {
 		createTranslationRequest("deepseek", "deepseek-v4-flash", {
 			apiKey,
 			maxOutputTokens: 100,
+			captureRequestBody: true,
 			onRequestEvent: (event) => events.push(event),
 		}),
 	);
@@ -116,11 +121,19 @@ test("DeepSeek 请求关闭思考并返回安全元数据", async () => {
 		},
 		warningCount: 0,
 	});
-	assertSafeRequestEvents(events, apiKey, "https://api.deepseek.com/chat/completions");
+	const plainEvents = assertSafeRequestEvents(
+		events,
+		apiKey,
+		"https://api.deepseek.com/chat/completions",
+	);
+	assert.equal(plainEvents[0].requestBody, recorder.requests[0].init.body);
+	assert.deepEqual(JSON.parse(plainEvents[0].requestBody), body);
+	assert.equal(Object.hasOwn(plainEvents[1], "requestBody"), false);
 });
 
 // OpenAI 必须调用官方 Responses API，并显式把推理强度降为 none。
 test("OpenAI 使用官方 Responses API 并禁用推理", async () => {
+	const events = [];
 	const recorder = createRequestRecorder(() =>
 		createJsonResponse({
 			id: "resp_mock",
@@ -143,7 +156,9 @@ test("OpenAI 使用官方 Responses API 并禁用推理", async () => {
 	);
 	const { runtime } = await loadProviderRuntime(recorder.fetchImplementation);
 	const result = await runtime.generateTranslation(
-		createTranslationRequest("openai", "gpt-5.6-luna"),
+		createTranslationRequest("openai", "gpt-5.6-luna", {
+			onRequestEvent: (event) => events.push(event),
+		}),
 	);
 	const body = parseRequestBody(recorder.requests);
 
@@ -153,6 +168,12 @@ test("OpenAI 使用官方 Responses API 并禁用推理", async () => {
 	assert.equal(result.text, "译文");
 	assert.equal(result.responseId, "resp_mock");
 	assert.equal(result.responseModel, "gpt-5.6-luna");
+	const plainEvents = assertSafeRequestEvents(
+		events,
+		"test-openai-api-key",
+		"https://api.openai.com/v1/responses",
+	);
+	assert.equal(Object.hasOwn(plainEvents[0], "requestBody"), false);
 });
 
 // 自定义 OpenAI-compatible 服务必须走 Chat Completions，兼容不实现 Responses API 的代理。

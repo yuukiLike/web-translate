@@ -55,6 +55,35 @@ test("调试事件格式化不会泄露敏感字段", () => {
 	assert.equal(JSON.stringify(row).includes("must-not-render"), false);
 });
 
+// DeepSeek 请求正文必须多行显示安全投影和截断状态，嵌套敏感字段仍不得进入视图。
+test("调试事件格式化 DeepSeek 请求正文", () => {
+	const [row] = createDebugRows([
+		{
+			seq: 8,
+			timestamp: "2026-08-04T08:00:01.000Z",
+			eventType: "sdk.request-start",
+			provider: "deepseek",
+			requestPayload: {
+				model: "deepseek-v4-flash",
+				max_tokens: 800,
+				messages: [{ role: "user", content: "第一行\n第二行网页原文" }],
+				thinking: { type: "disabled", secret: "must-not-render" },
+				apiKey: "sk-must-not-render",
+				headers: { Authorization: "Bearer must-not-render" },
+			},
+			requestPayloadTruncated: true,
+		},
+	]);
+	const payload = row.fields.find((field) => field.key === "requestPayload");
+	const truncated = row.fields.find((field) => field.key === "requestPayloadTruncated");
+
+	assert.equal(payload.multiline, true);
+	assert.match(payload.value, /第一行\\n第二行网页原文/u);
+	assert.match(payload.value, /"max_tokens": 800/u);
+	assert.doesNotMatch(payload.value, /apiKey|Authorization|must-not-render/u);
+	assert.equal(truncated.value, "是");
+});
+
 // 验证成对请求事件会合并成可检索的请求记录，且搜索文本不含 secret query。
 test("调试请求视图正确关联开始与结束事件", () => {
 	const [request] = createDebugRequests([

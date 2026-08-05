@@ -153,6 +153,7 @@ export function createFallbackSettings(catalog) {
 		translateDynamicContent: true,
 		concurrency: 2,
 		debugLogging: false,
+		debugRequestPayload: false,
 		azure: { apiKey: "", region: "" },
 		deepl: { apiKey: "" },
 		deepseek: { apiKey: "", model: defaultModelId(catalog, "deepseek") },

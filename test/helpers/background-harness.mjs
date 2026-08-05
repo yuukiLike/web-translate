@@ -86,9 +86,12 @@ export function createChromeHarness(options = {}) {
 	const actionTitles = [];
 	const contextMenuItems = new Map();
 	const createdTabs = [];
+	const activeTabs = options.activeTabs ?? [
+		{ id: 7, incognito: false, url: "https://page.example/article" },
+	];
 	const scriptExecutions = [];
+	const tabQueries = [];
 	const events = {
-		onActionClicked: createChromeEvent(),
 		onConnect: createChromeEvent(),
 		onContextMenuClicked: createChromeEvent(),
 		onInstalled: createChromeEvent(),
@@ -99,7 +102,6 @@ export function createChromeHarness(options = {}) {
 
 	const chrome = {
 		action: {
-			onClicked: events.onActionClicked,
 			async setBadgeText(details) {
 				badgeTexts.push(details.text);
 			},
@@ -152,6 +154,10 @@ export function createChromeHarness(options = {}) {
 		storage: { local, session },
 		tabs: {
 			onRemoved: events.onTabRemoved,
+			async query(details) {
+				tabQueries.push(structuredClone(details));
+				return structuredClone(activeTabs);
+			},
 			async create(details) {
 				createdTabs.push(structuredClone(details));
 				return { id: createdTabs.length, ...structuredClone(details) };
@@ -172,6 +178,7 @@ export function createChromeHarness(options = {}) {
 		},
 		scriptExecutions,
 		session,
+		tabQueries,
 	};
 }
 
@@ -187,8 +194,8 @@ export function createWebpageSender(options = {}) {
 	};
 }
 
-export function createExtensionSender() {
-	return { url: `${extensionOrigin}options/index.html` };
+export function createExtensionSender(path = "options/index.html") {
+	return { url: `${extensionOrigin}${path}` };
 }
 
 export function createProviderRuntimeFake() {
@@ -200,7 +207,26 @@ export function createProviderRuntimeFake() {
 				providerId: request.providerId,
 				modelId: request.modelId,
 				messages: request.messages,
+				captureRequestBody: request.captureRequestBody === true,
 			}));
+			if (request.captureRequestBody === true && typeof request.onRequestEvent === "function") {
+				request.onRequestEvent({
+					eventType: "request-start",
+					requestId: "provider-request-test",
+					endpoint: "https://api.deepseek.com/chat/completions",
+					method: "POST",
+					status: "started",
+					requestBody: JSON.stringify({
+						model: request.modelId,
+						max_tokens: request.maxOutputTokens,
+						messages: [
+							{ role: "system", content: request.instructions },
+							...request.messages,
+						],
+						thinking: { type: "disabled" },
+					}),
+				});
+			}
 			const payload = JSON.parse(request.messages[0].content);
 			return {
 				text: JSON.stringify({

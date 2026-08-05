@@ -23,13 +23,18 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 		}
 		const providerId = settings.provider;
 		const providerSettings = settings[providerId];
+		const incognito = debugMetadataFields.incognito === true;
+		const requestPayloadAllowed =
+			settings.debugLogging === true &&
+			settings.debugRequestPayload === true &&
+			!incognito;
 		const requestDebug = debugMetadata.createRequestContext(
 			settings,
 			"translate",
 			sourceLanguage,
 			targetLanguage,
 			segments,
-			debugMetadataFields,
+			{ ...debugMetadataFields, incognito, requestPayloadAllowed },
 		);
 		const result = await generateWithRetry(
 			{
@@ -39,6 +44,7 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 				...(providerId === "custom" ? { baseUrl: providerSettings.baseUrl } : {}),
 				...createTranslationPrompt(sourceLanguage, targetLanguage, segments),
 				maxOutputTokens: getMaximumOutputTokens(segments),
+				captureRequestBody: requestPayloadAllowed,
 			},
 			signal,
 			requestDebug,

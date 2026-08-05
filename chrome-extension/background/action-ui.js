@@ -8,7 +8,7 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 		await chrome.contextMenus.removeAll();
 		chrome.contextMenus.create({
 			id: ACTION_MENU_IDS.debug,
-			title: "开发调试模式",
+			title: getDebugMenuTitle(settings),
 			type: "checkbox",
 			checked: settings.debugLogging,
 			contexts: ["action"],
@@ -28,13 +28,18 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 	}
 
 	async function updateState(settings) {
-		const debugState = settings.debugLogging ? "调试已开启" : "调试已关闭";
+		const debugState = settings.debugLogging
+			? settings.debugRequestPayload
+				? "调试已开启（含 DeepSeek 正文）"
+				: "调试已开启（不含网页正文）"
+			: "调试已关闭";
 		await Promise.allSettled([
 			chrome.action.setTitle({
-				title: `翻译/恢复当前网页 · v${extensionVersion} · ${debugState}`,
+				title: `打开翻译面板 · v${extensionVersion} · ${debugState}`,
 			}),
 			chrome.contextMenus.update(ACTION_MENU_IDS.debug, {
 				checked: settings.debugLogging,
+				title: getDebugMenuTitle(settings),
 			}),
 			chrome.contextMenus.update(ACTION_MENU_IDS.version, {
 				title: `当前版本 v${extensionVersion}`,
@@ -56,11 +61,12 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 	}
 
 	async function toggleTranslation(tab) {
-		if (!tab.id || !isInjectableUrl(tab.url)) {
-			if (tab.id) {
-				await setBadge(tab.id, "ERR", "#a33a32", "此页面不允许扩展注入脚本");
+		const availability = getTabAvailability(tab);
+		if (!availability.available) {
+			if (tab?.id) {
+				await setBadge(tab.id, "ERR", "#a33a32", availability.reason);
 			}
-			return;
+			return { status: "unavailable", error: availability.reason };
 		}
 		try {
 			const settings = await settingsStore.getSettings();
@@ -68,9 +74,10 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 				settingsStore.assertProviderConfigured(settings);
 				await settingsStore.assertProviderPermission(settings);
 			} catch (error) {
-				await setBadge(tab.id, "SET", "#9a6700", getErrorMessage(error));
+				const message = getErrorMessage(error);
+				await setBadge(tab.id, "SET", "#9a6700", message);
 				await chrome.runtime.openOptionsPage();
-				return;
+				return { status: "settings-required", error: message };
 			}
 			await chrome.scripting.insertCSS({
 				target: { tabId: tab.id },
@@ -84,9 +91,22 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 					"generated/content-script.js",
 				],
 			});
+			return { status: "triggered" };
 		} catch (error) {
-			await setBadge(tab.id, "ERR", "#a33a32", getErrorMessage(error));
+			const message = getErrorMessage(error);
+			await setBadge(tab.id, "ERR", "#a33a32", message);
+			return { status: "error", error: message };
 		}
+	}
+
+	function getTabAvailability(tab) {
+		if (!tab || !Number.isInteger(tab.id)) {
+			return { available: false, reason: "未找到当前标签页" };
+		}
+		if (!isInjectableUrl(tab.url)) {
+			return { available: false, reason: "此页面不支持网页翻译" };
+		}
+		return { available: true, reason: "" };
 	}
 
 	async function updateTabStatus(tabId, message) {
@@ -128,7 +148,7 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 					title: typeof message.error === "string" ? message.error : "翻译失败",
 				};
 			default:
-				return { text: "", color: "#285f9e", title: "翻译/恢复当前网页" };
+				return { text: "", color: "#285f9e", title: "打开翻译面板" };
 		}
 	}
 
@@ -141,6 +161,7 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 	}
 
 	return {
+		getTabAvailability,
 		handleMenuClick,
 		initialize,
 		removeTab,
@@ -148,6 +169,12 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 		updateState,
 		updateTabStatus,
 	};
+}
+
+function getDebugMenuTitle(settings) {
+	return settings.debugRequestPayload
+		? "开发调试事件（含 DeepSeek 正文）"
+		: "开发调试事件（不含网页正文）";
 }
 
 function isInjectableUrl(url) {

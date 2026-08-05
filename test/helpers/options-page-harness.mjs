@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-
 import { Window } from "happy-dom";
-
 const catalogUrl = new URL(
 	"../../chrome-extension/generated/provider-catalog.js",
 	import.meta.url,
@@ -228,7 +226,21 @@ export async function createOptionsPageHarness() {
 						return { ok: true, settings: structuredClone(settings) };
 					case "SET_DEBUG_LOGGING":
 						settings = core.normalizeSettings({ ...settings, debugLogging: message.enabled });
-						return { ok: true, debugLogging: settings.debugLogging };
+						return {
+							ok: true,
+							debugLogging: settings.debugLogging,
+							debugRequestPayload: settings.debugRequestPayload,
+						};
+					case "SET_DEBUG_REQUEST_PAYLOAD":
+						settings = core.normalizeSettings({
+							...settings,
+							debugRequestPayload: message.enabled,
+						});
+						return {
+							ok: true,
+							debugLogging: settings.debugLogging,
+							debugRequestPayload: settings.debugRequestPayload,
+						};
 					case "TEST_PROVIDER":
 						return { ok: true, message: "OpenAI 连接成功" };
 					case "GET_DEBUG_LOGS":

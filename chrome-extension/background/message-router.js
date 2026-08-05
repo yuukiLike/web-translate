@@ -21,6 +21,10 @@ export function createMessageRouter({
 			throw new Error("无效消息");
 		}
 		switch (message.type) {
+			case "GET_POPUP_STATE":
+				return await getPopupState(sender);
+			case "TOGGLE_ACTIVE_TAB":
+				return await toggleActiveTab(sender);
 			case "START_RUN":
 				return await startRun(message, sender);
 			case "GET_OPTIONS_STATE":
@@ -29,6 +33,8 @@ export function createMessageRouter({
 				return await saveSettings(message, sender);
 			case "SET_DEBUG_LOGGING":
 				return await setDebugLogging(message, sender);
+			case "SET_DEBUG_REQUEST_PAYLOAD":
+				return await setDebugRequestPayload(message, sender);
 			case "TEST_PROVIDER":
 				return await testProvider(sender);
 			case "GET_DEBUG_LOGS":
@@ -49,6 +55,32 @@ export function createMessageRouter({
 			default:
 				throw new Error("未知消息类型");
 		}
+	}
+
+	async function getPopupState(sender) {
+		settingsStore.assertExtensionPage(sender);
+		const [settings, tab] = await Promise.all([settingsStore.getSettings(), getActiveTab()]);
+		const availability = actionUi.getTabAvailability(tab);
+		return {
+			version: extensionVersion,
+			providerLabel: core.getProviderLabel(settings),
+			model: core.getProviderModel(settings),
+			targetLanguage: getTargetModeLabel(settings.targetMode),
+			debugLogging: settings.debugLogging,
+			configured: !core.getProviderConfigurationError(settings),
+			canTranslate: availability.available,
+			unavailableReason: availability.reason,
+		};
+	}
+
+	async function toggleActiveTab(sender) {
+		settingsStore.assertExtensionPage(sender);
+		return await actionUi.toggleTranslation(await getActiveTab());
+	}
+
+	async function getActiveTab() {
+		const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+		return tabs[0];
 	}
 
 	async function startRun(message, sender) {
@@ -140,7 +172,23 @@ export function createMessageRouter({
 			extensionVersion,
 			status: "completed",
 		});
-		return { debugLogging: settings.debugLogging };
+		return {
+			debugLogging: settings.debugLogging,
+			debugRequestPayload: settings.debugRequestPayload,
+		};
+	}
+
+	async function setDebugRequestPayload(message, sender) {
+		settingsStore.assertExtensionPage(sender);
+		if (typeof message.enabled !== "boolean") {
+			throw new Error("请求正文调试开关无效");
+		}
+		const settings = await settingsStore.updateDebugRequestPayload(message.enabled);
+		await actionUi.updateState(settings);
+		return {
+			debugLogging: settings.debugLogging,
+			debugRequestPayload: settings.debugRequestPayload,
+		};
 	}
 
 	async function testProvider(sender) {
@@ -181,6 +229,7 @@ export function createMessageRouter({
 				!sender.tab.incognito,
 				batchState,
 				controller.signal,
+				{ incognito: sender.tab.incognito === true },
 			);
 		} catch (error) {
 			batchTranslator.recordFailure(snapshot, request, tabId, batchState, error);
@@ -222,4 +271,15 @@ export function createMessageRouter({
 	}
 
 	return { handleMessage };
+}
+
+function getTargetModeLabel(targetMode) {
+	switch (targetMode) {
+		case "zh":
+			return "译为中文";
+		case "en":
+			return "译为英文";
+		default:
+			return "自动判断";
+	}
 }

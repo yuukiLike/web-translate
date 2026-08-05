@@ -126,16 +126,27 @@ test("保存并测试按固定消息顺序执行", async () => {
 test("调试事件安全展示并完整管理 Port 生命周期", async () => {
 	const page = await createOptionsPageHarness();
 	try {
-		clickByText(page.document, ".tabs button", "调试");
-		await settle();
-		const debugToggle = page.document.querySelector("#debug-logging");
-		debugToggle.checked = true;
+			clickByText(page.document, ".tabs button", "调试");
+			await settle();
+			const debugToggle = page.document.querySelector("#debug-logging");
+			const payloadToggle = page.document.querySelector("#debug-request-payload");
+			assert.equal(payloadToggle.disabled, true);
+			assert.equal(payloadToggle.checked, false);
+			debugToggle.checked = true;
 		debugToggle.dispatchEvent(new page.window.Event("change", { bubbles: true }));
 		await waitFor(() => page.ports.length === 1, "调试 Port 未连接");
 		await waitFor(
 			() => page.calls.some((message) => message.type === "SET_DEBUG_LOGGING"),
-			"调试开关未保存",
-		);
+				"调试开关未保存",
+			);
+			assert.equal(payloadToggle.disabled, false);
+			payloadToggle.checked = true;
+			payloadToggle.dispatchEvent(new page.window.Event("change", { bubbles: true }));
+			await waitFor(
+				() => page.calls.some((message) => message.type === "SET_DEBUG_REQUEST_PAYLOAD"),
+				"请求正文开关未独立保存",
+			);
+			assert.equal(payloadToggle.checked, true);
 		assert.equal(page.timers.heartbeatDelay, 20_000);
 		page.timers.runHeartbeat();
 		assert.deepEqual(page.ports[0].messages, [{ type: "DEBUG_PING" }]);
@@ -150,6 +161,22 @@ test("调试事件安全展示并完整管理 Port 生命周期", async () => {
 					endpoint: "https://api.example.com/v1/chat?api_key=secret#fragment",
 					requestBody: "must-not-render",
 				},
+				{
+					seq: 2,
+					timestamp: "2026-08-04T08:00:01.000Z",
+					eventType: "sdk.request-start",
+					provider: "deepseek",
+					requestId: "provider-request-1",
+					requestPayload: {
+						model: "deepseek-v4-flash",
+						max_tokens: 800,
+						messages: [{ role: "user", content: "第一行\n第二行网页原文" }],
+						thinking: { type: "disabled", secret: "must-not-render" },
+						apiKey: "sk-must-not-render",
+						headers: { Authorization: "Bearer must-not-render" },
+					},
+					requestPayloadTruncated: true,
+				},
 			],
 		});
 		await settle();
@@ -161,14 +188,25 @@ test("调试事件安全展示并完整管理 Port 生命周期", async () => {
 		);
 		assert.equal(page.document.querySelector("#debug-events img"), null);
 		assert.match(page.document.querySelector(".debug-event-meta").textContent, /api\.example\.com\/v1\/chat/u);
+		const payload = page.document.querySelector('[data-field="requestPayload"] dd');
+		assert.match(payload.textContent, /第一行\\n第二行网页原文/u);
+		assert.match(payload.textContent, /"max_tokens": 800/u);
 		assert.doesNotMatch(
 			page.document.querySelector("#debug-events").textContent,
-			/api_key=secret|must-not-render/u,
+			/api_key=secret|apiKey|Authorization|must-not-render/u,
 		);
+			assert.match(
+				page.document.querySelector(".debug-head > div > p:last-child").textContent,
+				/另行授权.*无痕窗口永不记录.*API Key/u,
+			);
 		page.document.querySelector("#copy-debug-logs").click();
 		await settle();
 		assert.match(page.copiedText, /api\.example\.com\/v1\/chat/u);
-		assert.doesNotMatch(page.copiedText, /api_key=secret|must-not-render/u);
+		assert.match(page.copiedText, /第一行\\\\n第二行网页原文/u);
+		assert.doesNotMatch(
+			page.copiedText,
+			/api_key=secret|apiKey|Authorization|must-not-render/u,
+		);
 
 		page.ports[0].drop();
 		page.timers.runReconnect();

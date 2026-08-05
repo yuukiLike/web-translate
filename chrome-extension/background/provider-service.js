@@ -68,6 +68,7 @@ export function createProviderService({
 				"zh",
 				[{ id: "test", text: "hello" }],
 				controller.signal,
+				{ incognito: false },
 			);
 		} else {
 			await restTranslators.translateWithAzure(

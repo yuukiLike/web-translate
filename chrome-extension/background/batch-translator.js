@@ -10,7 +10,15 @@ export function createBatchTranslator({
 	settingsStore,
 	debug,
 }) {
-	async function translate(snapshot, request, tabId, usePersistentCache, batchState, signal) {
+	async function translate(
+		snapshot,
+		request,
+		tabId,
+		usePersistentCache,
+		batchState,
+		signal,
+		privacy = {},
+	) {
 		assertNotAborted(signal);
 		const settings = snapshot.settings;
 		settingsStore.assertProviderConfigured(settings);
@@ -18,6 +26,7 @@ export function createBatchTranslator({
 			settings,
 			request,
 			tabId,
+			incognito: privacy.incognito === true,
 			...batchState,
 			sourceCharacters: sumSegmentCharacters(request.segments),
 		};
@@ -116,14 +125,14 @@ export function createBatchTranslator({
 	}
 
 	async function translateMissing(context, missingSegments, signal) {
-		const { settings, request, tabId, batchIndex, queueDepth } = context;
+		const { settings, request, tabId, batchIndex, queueDepth, incognito } = context;
 		const providerResult = await providerService.translate(
 			settings,
 			request.sourceLanguage,
 			request.targetLanguage,
 			missingSegments,
 			signal,
-			{ tabId, runId: request.runId, batchIndex, queueDepth },
+			{ tabId, runId: request.runId, batchIndex, queueDepth, incognito },
 		);
 		assertNotAborted(signal);
 		if (providerResult.translations.length !== missingSegments.length) {

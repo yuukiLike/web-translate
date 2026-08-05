@@ -28,6 +28,30 @@ test("自动模式跳过纯中文正文", async () => {
 	}
 });
 
+// 验证整页只有中文时使用中性说明，并提供明确的语言设置入口而不是报错。
+test("纯中文页面显示合适的无需翻译提示", async () => {
+	const harness = createContentHarness();
+	try {
+		harness.addArticle("这是一篇完全由中文组成的文章，不需要发送到翻译服务。");
+		harness.start();
+
+		await waitFor(
+			() => harness.statusText() === "当前页面没有需要翻译的外语正文",
+			"纯中文页面没有显示无需翻译提示",
+		);
+		const action = harness.document.querySelector(".bt-status__action");
+		assert.equal(action?.textContent, "调整语言设置");
+		assert.equal(harness.translationRequests.length, 0);
+		action.click();
+		await waitFor(
+			() => harness.messages.some((message) => message.type === "OPEN_OPTIONS"),
+			"语言设置入口没有打开设置页",
+		);
+	} finally {
+		harness.dispose();
+	}
+});
+
 // 验证用户明确选择译为英文时，中文正文仍会按 zh -> en 方向翻译。
 test("显式英文模式可以翻译中文正文", async () => {
 	const harness = createContentHarness({ targetMode: "en" });
