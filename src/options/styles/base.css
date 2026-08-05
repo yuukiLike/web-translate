@@ -1,0 +1,89 @@
+:root {
+	color-scheme: light;
+	font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	font-synthesis: none;
+	--paper: #f3f5ed;
+	--surface: #fffefb;
+	--surface-soft: #f8f9f4;
+	--ink: #17231b;
+	--ink-soft: #58655d;
+	--pine: #244936;
+	--pine-dark: #183126;
+	--leaf: #4d7354;
+	--leaf-light: #91b56e;
+	--seed: #dce9aa;
+	--line: #d9dfd3;
+	--line-strong: #b9c5b6;
+	--danger: #a43f35;
+	--danger-soft: #faece8;
+	background: var(--paper);
+	color: var(--ink);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	min-width: 320px;
+	scroll-behavior: smooth;
+}
+
+body {
+	min-width: 320px;
+	margin: 0;
+	background: var(--paper);
+	font-size: 16px;
+	-webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+	font: inherit;
+}
+
+button,
+a,
+input,
+select,
+summary {
+	-webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+summary {
+	cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+	outline: 3px solid rgba(77, 115, 84, 0.22);
+	outline-offset: 3px;
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.52;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd {
+	margin-top: 0;
+}
+
+a {
+	color: var(--pine);
+}
+
+code {
+	font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}

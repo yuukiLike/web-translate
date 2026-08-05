@@ -1,0 +1,260 @@
+@keyframes grow-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.88);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@media (max-width: 700px) {
+	.shell {
+		width: min(calc(100% - 24px), 720px);
+	}
+
+	.topbar {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 8px;
+	}
+
+	.tabs {
+		order: 3;
+		grid-column: 1 / -1;
+		height: 42px;
+		margin-top: -10px;
+	}
+
+	.tabs button {
+		padding-inline: 10px;
+	}
+
+	main {
+		padding-top: 38px;
+	}
+
+	.intro {
+		grid-template-columns: 1fr;
+		gap: 22px;
+	}
+
+	.bilingual-sample {
+		max-width: 230px;
+	}
+
+	.setup,
+	.debug-page {
+		padding-inline: 20px;
+	}
+
+	.fold {
+		margin-inline: -20px;
+	}
+
+	.fold > summary {
+		padding-inline: 20px;
+	}
+
+	.fold-body,
+	.catalog-status {
+		padding-inline: 20px;
+	}
+
+	.debug-head {
+		grid-template-columns: 1fr;
+		gap: 20px;
+	}
+
+	.debug-head-actions,
+	.switch-field {
+		max-width: 260px;
+	}
+
+	.debug-path {
+		flex-wrap: wrap;
+	}
+
+	.debug-path small {
+		width: 100%;
+		margin-left: 0;
+	}
+
+	.debug-controls {
+		grid-template-columns: 1fr;
+	}
+
+	.debug-modes {
+		justify-self: start;
+	}
+
+	.debug-event > summary {
+		grid-template-columns: 7px 64px minmax(0, 1fr) auto;
+	}
+
+	.debug-event-meta {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin-left: 0;
+	}
+
+	.submit-row {
+		grid-template-columns: 1fr auto;
+	}
+
+	.primary {
+		width: 100%;
+	}
+
+	#status {
+		grid-column: 1 / -1;
+	}
+
+	.usage-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.usage-provider {
+		grid-column: 1 / -1;
+	}
+
+	.debug-event {
+		grid-template-columns: 70px minmax(0, 1fr);
+	}
+
+	.debug-event-meta {
+		grid-column: 1 / -1;
+	}
+}
+
+@media (max-width: 520px) {
+	.provider-grid {
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+
+	.provider-card,
+	.provider-more {
+		min-height: 60px;
+	}
+}
+
+@media (max-width: 480px) {
+	.brand-copy small,
+	.version {
+		display: none;
+	}
+
+	.intro h1 {
+		font-size: 31px;
+	}
+
+	.setup-head {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.debug-summary {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.debug-summary > span {
+		border-bottom: 1px solid var(--line);
+	}
+
+	.debug-summary > span:nth-child(2) {
+		border-right: 0;
+	}
+
+	.debug-summary > span:nth-child(n + 3) {
+		border-bottom: 0;
+	}
+
+	.debug-summary > span:nth-child(3) {
+		padding-left: 0;
+	}
+
+	.debug-modes {
+		width: 100%;
+	}
+
+	.debug-modes button {
+		flex: 1;
+	}
+
+	.debug-toolbar {
+		align-items: flex-start;
+		flex-direction: column;
+		padding-block: 8px;
+	}
+
+	.debug-event > summary {
+		grid-template-columns: 7px minmax(0, 1fr) auto;
+		gap: 7px;
+	}
+
+	.debug-event-time {
+		grid-column: 2;
+	}
+
+	.debug-event-main {
+		grid-column: 2 / -1;
+	}
+
+	.debug-event > summary > b {
+		grid-column: 3;
+		grid-row: 1;
+	}
+
+	.debug-event-main code {
+		display: none;
+	}
+
+	.debug-event-meta {
+		grid-template-columns: 1fr;
+	}
+
+	.debug-event-meta div[data-field] {
+		grid-column: 1;
+	}
+
+	.fold > summary {
+		grid-template-columns: minmax(0, 1fr) 20px;
+		gap: 10px;
+	}
+
+	.fold > summary span {
+		grid-column: 1 / -1;
+		grid-row: 2;
+		padding-bottom: 12px;
+		text-align: left;
+		white-space: normal;
+	}
+
+	.fold > summary::after {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	.behavior-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.toggle-row {
+		grid-column: auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+	}
+}

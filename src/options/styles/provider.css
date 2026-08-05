@@ -1,0 +1,231 @@
+.provider-picker {
+	min-width: 0;
+	margin: 0 0 14px;
+	padding: 0;
+	border: 0;
+}
+
+.provider-picker legend {
+	margin-bottom: 7px;
+	padding: 0;
+	color: #334139;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.provider-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px 12px;
+}
+
+.provider-grid-more {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--line);
+}
+
+.provider-choice {
+	position: relative;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.provider-choice input {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	opacity: 0;
+}
+
+.provider-card,
+.provider-more {
+	display: grid;
+	width: 100%;
+	min-height: 66px;
+	gap: 6px;
+	align-content: center;
+	padding: 10px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: #fff;
+	color: var(--ink);
+	text-align: left;
+	transition: border-color 130ms ease-out, background-color 130ms ease-out, box-shadow 130ms ease-out;
+}
+
+.provider-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	min-width: 0;
+}
+
+.provider-card strong,
+.provider-more strong {
+	overflow: hidden;
+	font-size: 14px;
+	font-weight: 730;
+	letter-spacing: -0.01em;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.provider-card > small,
+.provider-more > small {
+	overflow: hidden;
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 560;
+	line-height: 1.35;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.provider-default {
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: var(--surface-soft);
+	color: var(--leaf);
+	font-size: 10px;
+	font-weight: 730;
+}
+
+.provider-choice:hover .provider-card,
+.provider-more:hover {
+	border-color: #8d9e8c;
+	background: #fbfcf7;
+}
+
+.provider-choice input:checked + .provider-card,
+.provider-more[data-current="true"] {
+	border-color: var(--leaf);
+	background: #f3f7e5;
+	box-shadow: inset 0 0 0 1px var(--leaf);
+}
+
+.provider-choice input:checked + .provider-card::after {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+	width: 8px;
+	height: 4px;
+	border-bottom: 2px solid var(--pine);
+	border-left: 2px solid var(--pine);
+	content: "";
+	transform: rotate(-45deg);
+}
+
+.provider-choice input:checked + .provider-card .provider-default {
+	display: none;
+}
+
+.provider-choice input:focus-visible + .provider-card,
+.provider-more:focus-visible {
+	outline: 3px solid rgba(77, 115, 84, 0.22);
+	outline-offset: 3px;
+}
+
+.provider-more-arrow {
+	width: 8px;
+	height: 8px;
+	margin-right: 3px;
+	border-right: 1.5px solid var(--leaf);
+	border-bottom: 1.5px solid var(--leaf);
+	transform: rotate(45deg) translateY(-2px);
+	transition: transform 130ms ease-out;
+}
+
+.provider-more[aria-expanded="true"] .provider-more-arrow {
+	transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.provider-fields {
+	display: grid;
+	gap: 14px;
+}
+
+.provider-note {
+	margin: -4px 0 0;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.55;
+}
+
+.model-fold {
+	border-top: 1px solid var(--line);
+	border-bottom: 1px solid var(--line);
+}
+
+.model-fold summary,
+.fold summary {
+	list-style: none;
+}
+
+.model-fold summary::-webkit-details-marker,
+.fold summary::-webkit-details-marker {
+	display: none;
+}
+
+.model-fold summary {
+	position: relative;
+	display: grid;
+	grid-template-columns: 74px minmax(0, 1fr) 16px;
+	gap: 10px;
+	align-items: center;
+	min-height: 48px;
+	color: var(--ink-soft);
+	font-size: 12px;
+}
+
+.model-fold summary strong {
+	overflow: hidden;
+	color: var(--ink);
+	font-size: 12px;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-fold summary::after,
+.fold summary::after {
+	color: var(--leaf);
+	content: "+";
+	font-size: 18px;
+	font-weight: 500;
+	line-height: 1;
+	text-align: center;
+}
+
+.model-fold[open] summary::after,
+.fold[open] summary::after {
+	content: "−";
+}
+
+.model-body {
+	display: grid;
+	gap: 10px;
+	padding: 2px 0 17px;
+}
+
+.model-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	align-items: center;
+	color: var(--ink-soft);
+	font-size: 11px;
+	line-height: 1.5;
+}
+
+.model-meta code {
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: var(--surface-soft);
+	color: var(--pine);
+	font-size: 11px;
+}

@@ -1,8 +1,8 @@
 # 一键双语翻译
 
-同一仓库包含 Chrome Manifest V3 扩展和 Raycast 本地扩展。Chrome 版一键把网页转换为行间双语对照；Raycast 版在浏览器之外翻译任意应用的选区、剪贴板或手动输入文字。
+这是一个 Chrome Manifest V3 扩展，一键把当前网页转换为行间双语对照。
 
-当前版本：Chrome `0.4.0`，Raycast `0.1.0`。
+当前版本：Chrome `0.4.0`。
 
 ## Chrome 当前能力
 
@@ -52,26 +52,6 @@
 4. 再点击扩展图标。
 
 设置页顶部、工具栏悬停 title 和图标右键菜单都会显示 Chrome 当前实际加载的版本。
-
-## Raycast 版本
-
-Raycast 版位于 `raycast-extension/`，复用同一份固定 models.dev snapshot 和 Provider allowlist。它提供：
-
-- 手动输入后显示中英双语结果
-- 读取任意前台应用选区，没有选区时回退到剪贴板
-- 一键复制译文，或把译文直接粘贴回原应用
-- DeepSeek、OpenAI、Google、Anthropic、Azure Translator 和 DeepL
-- 90 天本地缓存和不含正文、译文、Key 的脱敏诊断面板
-
-本地安装：
-
-```bash
-cd raycast-extension
-npm install --ignore-scripts
-npm run dev
-```
-
-完整安装、快捷键、Provider 配置、调试和开发说明见 [Raycast 扩展文档](raycast-extension/README.md)。Chrome 与 Raycast 的 API Key 都只保存在各自的本地设置中，不会自动互相复制。
 
 ## Provider 推荐
 
@@ -154,26 +134,35 @@ models.dev 固定 commit
 
 ```text
 网页 DOM
-  → chrome-extension/content/content-script.js：TreeWalker 筛选、去重、分批、监听新增 DOM
-  → chrome-extension/background/service-worker.js：固定任务设置、缓存、限流/重试、Provider 调用
+  → chrome-extension/generated/content-script.js：由 src/content/ 构建，负责扫描、去重、调度与增量监听
+  → chrome-extension/background/service-worker.js：20 行装配入口，只注册 Chrome 事件
+  → chrome-extension/background/app.js：组装后台服务与消息路由
+  → cache-store / batch-translator / provider-service：缓存、批次、限流/重试与 Provider 调用
   → Provider API：返回译文和用量
-  → chrome-extension/background/service-worker.js：校验结束原因、JSON、段落 ID、数量和长度
-  → chrome-extension/content/content-script.js：通过 textContent 把译文插入原文下方
+  → 后台模块：校验结束原因、JSON、段落 ID、数量和长度
+  → 生成的内容脚本：通过 textContent 把译文插入原文下方
 ```
 
 主要文件：
 
 - `chrome-extension/manifest.json`：Chrome 可直接加载的 Manifest V3 入口
-- `chrome-extension/background/service-worker.js`：API Key、任务、缓存、重试、用量和安全调试事件
-- `chrome-extension/content/`：DOM 遍历、视口优先、增量监听、双语渲染与页面样式
-- `chrome-extension/shared/core.js`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验
-- `chrome-extension/generated/`：只读模型目录与 Provider runtime 生成产物
+- `chrome-extension/background/service-worker.js`：20 行后台装配入口；实际职责拆在同目录的小模块中
+- `src/content/`：DOM 遍历、视口优先、增量监听、运行缓存、双语渲染与进度状态源码
+- `src/core/`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验源码
+- `src/provider/`：Vercel AI SDK Provider 选择、输入校验、请求观测与结果规范化源码
+- `chrome-extension/generated/`：由构建脚本生成的目录、核心、内容脚本和 Provider runtime；不要手工编辑
 - `chrome-extension/options/`：编译后的 Vue 设置页，也是 Chrome 的 Options page
-- `src/provider-runtime.js`：四个固定模型 Provider 与自定义 OpenAI-compatible 调用的统一源代码
 - `src/options/`：Vue 设置页源码
-- `raycast-extension/`：选区、剪贴板和手动文本翻译的 Raycast 版本
 
-第一次开发 Chrome 插件建议阅读 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
+第一次开发建议先读 [文档入口](docs/README.md)，再读 [代码地图](docs/codebase-map.md) 和 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
+
+## 架构与文档导航
+
+- [docs/README.md](docs/README.md)：每份文档解决什么问题，以及推荐阅读顺序
+- [docs/codebase-map.md](docs/codebase-map.md)：逐目录、逐手写文件理解职责、依赖方向和完整调用链
+- [docs/chrome-extension-basics.md](docs/chrome-extension-basics.md)：从加载扩展到理解 Manifest V3 运行上下文
+- [docs/debugging.md](docs/debugging.md)：用脱敏事件和三类 DevTools 定位故障
+- [docs/provider-catalog.md](docs/provider-catalog.md)：固定模型目录、allowlist、Provider 构建与安全边界
 
 ## 性能与成本策略
 
@@ -219,7 +208,7 @@ npm run build:chrome
 npm run check
 ```
 
-`npm run build:chrome` 会生成 `chrome-extension/generated/` 与 `chrome-extension/options/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 Provider 或 Vue 设置页 bundle。
+`npm run build:chrome` 会从 `src/core/`、`src/content/`、`src/provider/` 与 `src/options/` 生成 `chrome-extension/generated/` 和 `chrome-extension/options/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 runtime 或 Vue 设置页 bundle。
 
 ## 官方资料
 

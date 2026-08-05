@@ -1,0 +1,213 @@
+.shell {
+	width: min(calc(100% - 32px), 720px);
+	margin: 0 auto;
+	padding-bottom: 72px;
+}
+
+.topbar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 22px;
+	align-items: center;
+	min-height: 76px;
+	border-bottom: 1px solid var(--line);
+}
+
+.brand {
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--ink);
+	text-align: left;
+}
+
+.mark-wrap {
+	display: grid;
+	width: 38px;
+	height: 38px;
+	flex: 0 0 auto;
+	place-items: center;
+	border-radius: 10px 15px 10px 10px;
+	background: var(--seed);
+}
+
+.mark {
+	width: 28px;
+	height: 28px;
+	overflow: visible;
+}
+
+.mark-leaf,
+.mark-stem,
+.mark-sign {
+	fill: var(--pine);
+}
+
+.mark-leaf-right {
+	fill: var(--leaf);
+}
+
+.mark-sign-fill {
+	fill: var(--seed);
+}
+
+.mark-sign-stroke {
+	fill: none;
+	stroke: var(--seed);
+	stroke-linecap: round;
+	stroke-width: 2.2;
+}
+
+.brand-copy {
+	min-width: 0;
+}
+
+.brand-copy strong,
+.brand-copy small {
+	display: block;
+}
+
+.brand-copy strong {
+	font-size: 15px;
+	font-weight: 760;
+	letter-spacing: -0.02em;
+}
+
+.brand-copy small {
+	margin-top: 1px;
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 660;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.tabs {
+	display: flex;
+	align-items: stretch;
+	height: 76px;
+}
+
+.tabs button {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 3px 12px 0;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	background: transparent;
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.tabs button:hover {
+	color: var(--ink);
+}
+
+.tabs button[aria-pressed="true"] {
+	border-bottom-color: var(--pine);
+	color: var(--pine);
+}
+
+.tabs i {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--leaf-light);
+	box-shadow: 0 0 0 3px rgba(145, 181, 110, 0.18);
+}
+
+.version {
+	padding: 4px 7px;
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	background: rgba(255, 254, 251, 0.62);
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 650;
+}
+
+main {
+	padding-top: 38px;
+}
+
+.intro {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 190px;
+	gap: 42px;
+	align-items: end;
+	margin-bottom: 22px;
+}
+
+.kicker,
+.step {
+	margin-bottom: 10px;
+	color: var(--leaf);
+	font-size: 11px;
+	font-weight: 760;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.intro h1,
+.debug-head h1,
+.fatal h1 {
+	margin-bottom: 11px;
+	font-family: "Avenir Next", "PingFang SC", sans-serif;
+	font-size: clamp(30px, 5.4vw, 40px);
+	font-weight: 730;
+	letter-spacing: -0.045em;
+	line-height: 1.18;
+	text-wrap: balance;
+}
+
+.intro > div:first-child > p:last-child,
+.debug-head > div > p:last-child,
+.fatal p {
+	margin-bottom: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+	line-height: 1.7;
+}
+
+.bilingual-sample {
+	position: relative;
+	display: grid;
+	gap: 7px;
+	padding: 14px 0 14px 18px;
+	border-left: 2px solid var(--pine);
+}
+
+.bilingual-sample::before {
+	position: absolute;
+	top: -5px;
+	left: -2px;
+	width: 13px;
+	height: 9px;
+	border-radius: 12px 0 12px 0;
+	background: var(--leaf-light);
+	content: "";
+	transform: rotate(-18deg);
+}
+
+.bilingual-sample span,
+.bilingual-sample strong {
+	display: block;
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.bilingual-sample span {
+	color: var(--ink-soft);
+}
+
+.bilingual-sample strong {
+	color: var(--pine);
+	font-weight: 720;
+}

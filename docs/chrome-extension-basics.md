@@ -92,7 +92,7 @@ Chrome 会把 `chrome-extension/` 根部的 `manifest.json` 当作扩展入口�
 4. 等待徽标显示 `OK`。
 5. 再次左键点击同一个图标。当前运行插入的译文和状态节点会被移除，页面恢复原状。
 
-这里没有弹窗。项目没有声明 `action.default_popup`，因此左键触发 `chrome.action.onClicked`。后台先注入 `content/content.css`，再按顺序注入 `generated/provider-catalog.js`、`shared/core.js` 和 `content/content-script.js`。第二次注入时，页面中已有的内容脚本控制器会执行“停止并恢复”。模型 SDK 的 `generated/provider-runtime.js` 只由 Service Worker 加载，不会进入网页内容脚本。
+这里没有弹窗。项目没有声明 `action.default_popup`，因此左键触发 `chrome.action.onClicked`。后台先注入 `content/content.css`，再按顺序注入 `generated/provider-catalog.js`、`generated/core.js` 和 `generated/content-script.js`。后两个文件分别由 `src/core/` 与 `src/content/` 构建。第二次注入时，页面中已有的内容脚本控制器会执行“停止并恢复”。模型 SDK 的 `generated/provider-runtime.js` 只由 Service Worker 加载，不会进入网页内容脚本。
 
 也可以使用快捷键触发相同动作：
 
@@ -197,18 +197,20 @@ Service Worker 没有页面 DOM，也不是永久进程。Chrome 会在 action �
 - 不能把必须长期存在的数据只放在全局变量中。当前项目把设置、缓存和用量放进 `storage.local`，把运行快照、缓存代次和调试事件放进 `storage.session`。
 - 内存对象仍可用于当前活跃周期，例如进行中的 `AbortController`；但设计不能假定它永远存在。
 
-当前后台还承担配置与模型 allowlist 检查、输入验证、批处理、缓存、超时、重试、用量统计和 Provider 响应校验。Azure Translator 与 DeepL 使用后台中的专用 REST 调用；DeepSeek、OpenAI、Google 和 Anthropic 通过打包到 `generated/provider-runtime.js` 的 Vercel AI SDK 适配器调用固定官方 API；自定义 OpenAI-compatible 服务复用同一包内运行时，并且必须先获得对应 origin 的可选权限。把跨域请求放在这里，而不是内容脚本里，可以让 API Key 留在扩展受信任上下文，并由 host permission 控制访问目标。
+`service-worker.js` 本身只有 20 行：导入生成产物，调用 `createBackgroundApp()`，同步注册六类 Chrome 监听器，再启动应用。第六类 `tabs.onRemoved` 在标签页关闭时中止活动请求并清理任务快照。配置与 allowlist 检查、输入验证、批处理、缓存、超时、重试、用量统计和 Provider 响应校验分别位于 `chrome-extension/background/` 的小模块中，由 `app.js` 装配。这样入口一眼可读，同时仍满足监听器必须在顶层同步注册的 Manifest V3 要求。
+
+Azure Translator 与 DeepL 使用 `providers/rest-translators.js`；DeepSeek、OpenAI、Google 和 Anthropic 通过打包到 `generated/provider-runtime.js` 的 Vercel AI SDK 适配器调用固定官方 API；自定义 OpenAI-compatible 服务复用同一包内运行时，并且必须先获得对应 origin 的可选权限。把跨域请求放在后台，而不是内容脚本里，可以让 API Key 留在扩展受信任上下文，并由 host permission 控制访问目标。
 
 ### 2.5 Content script：能碰 DOM，但处在隔离世界
 
-内容脚本运行在网页上下文中，可以读取和修改共享 DOM，但它的 JavaScript 全局环境与网页自身脚本隔离。网页脚本不能直接读取 `content/content-script.js` 中的局部变量；两者仍然会看到对同一 DOM 的修改。
+内容脚本运行在网页上下文中，可以读取和修改共享 DOM，但它的 JavaScript 全局环境与网页自身脚本隔离。网页脚本不能直接读取 `generated/content-script.js` 中的模块状态；两者仍然会看到对同一 DOM 的修改。
 
 本项目使用 `chrome.scripting` 动态注入：
 
 1. `content/content.css` 定义译文和状态节点样式。
 2. `generated/provider-catalog.js` 在隔离世界中提供冻结的本地 Provider 与模型目录。
-3. `shared/core.js` 基于该目录建立设置和纯函数工具。
-4. `content/content-script.js` 遍历文本节点、选择翻译单元、发送批次并插入译文。
+3. `generated/core.js` 基于该目录建立设置和纯函数工具；源码位于 `src/core/`。
+4. `generated/content-script.js` 遍历文本节点、选择翻译单元、发送批次并插入译文；源码位于 `src/content/`。
 
 注入目标只给出 `tabId`，因此默认只处理主 frame。当前实现也不穿越 Shadow DOM。这解释了为什么 iframe 和某些 Web Component 内容不会被完整翻译。
 
@@ -274,7 +276,7 @@ Manifest V3 扩展页的默认 Content Security Policy 等价于：
 script-src 'self'; object-src 'self';
 ```
 
-因此 `options/index.html` 只加载包内的 `generated/provider-catalog.js`、`shared/core.js` 和 `options/options.js`；Service Worker 也只导入包内代码。Vue、Vercel AI SDK 及 Provider 适配器在开发阶段由 esbuild 打包成本地文件，运行时不会从 npm 或 CDN 加载代码。不要改成 CDN 脚本、`eval()` 或把网络响应当 JavaScript 执行。
+因此 `options/index.html` 只加载包内的 `generated/provider-catalog.js`、`generated/core.js` 和 `options/options.js`；Service Worker 也只导入包内代码。Vue、Vercel AI SDK 及 Provider 适配器在开发阶段由 esbuild 打包成本地文件，运行时不会从 npm 或 CDN 加载代码。不要改成 CDN 脚本、`eval()` 或把网络响应当 JavaScript 执行。
 
 固定模型 snapshot 与 allowlist 是包内数据，构建前由 JSON Schema 和交叉约束校验，并被生成到本地目录脚本中。扩展运行时不请求 Models.dev，也不维护远程目录缓存；网络只用于向当前 Provider 发送翻译或连接测试。Provider 返回值仍会经过结构、ID、数量和长度校验。
 
@@ -306,9 +308,9 @@ npm run build:chrome
 | 修改文件 | 需要重新加载扩展 | 还需要刷新页面 |
 | --- | --- | --- |
 | `chrome-extension/manifest.json` | 是 | 视测试目标而定 |
-| `chrome-extension/background/service-worker.js` | 是 | 通常重新触发动作即可；为避免旧上下文干扰，建议刷新测试网页 |
-| `chrome-extension/content/` | 是 | 是。旧内容脚本已进入页面，必须刷新宿主网页再点击图标 |
-| `chrome-extension/generated/provider-catalog.js`、`chrome-extension/shared/core.js` | 是 | 是。它们同时被 Service Worker、内容脚本和设置页使用 |
+| `chrome-extension/background/*.js` | 是 | 通常重新触发动作即可；为避免旧上下文干扰，建议刷新测试网页 |
+| `src/content/`、`src/core/`、`src/provider/` | 先运行 `npm run build:runtime`，再重新加载 | 是。旧生成脚本已进入页面，必须刷新宿主网页再点击图标 |
+| `chrome-extension/generated/provider-catalog.js`、`chrome-extension/generated/core.js`、`chrome-extension/generated/content-script.js` | 是；只能通过构建更新 | 是。它们被 Service Worker、内容脚本或设置页加载 |
 | `chrome-extension/generated/provider-runtime.js` | 是 | 建议刷新测试网页；它只在 Service Worker 中执行 |
 | `chrome-extension/options/` | Chrome 官方流程不要求重新加载整个扩展 | 重新构建后刷新设置页标签 |
 
@@ -370,7 +372,7 @@ npm run build:chrome
 
 1. 在已经触发过翻译的普通网页上打开网页 DevTools。
 2. 在 Console 顶部的执行上下文下拉框中，从 `top` 切换到该扩展的内容脚本上下文。
-3. 在 Sources 中找到注入的 `content/content-script.js` 并设置断点。
+3. 在 Sources 中找到注入的 `generated/content-script.js` 并设置断点；定位源码职责时对照 `src/content/`。
 4. 在 Elements 中检查：
    - 原文节点上的 `data-bt-source`。
    - 扩展插入的 `.bt-translation[data-bt-owned="true"]`。
@@ -438,14 +440,17 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | [`config/provider-allowlist.json`](../config/provider-allowlist.json) | 构建输入 | Provider allowlist | 固定四个 SDK 包、官方 API Base URL、默认模型和默认 Provider |
 | [`schemas/model-catalog.schema.json`](../schemas/model-catalog.schema.json)、[`schemas/provider-allowlist.schema.json`](../schemas/provider-allowlist.schema.json) | Node 开发环境 | JSON Schema | 约束 snapshot 与 allowlist 的结构和允许值 |
 | [`scripts/validate-provider-config.mjs`](../scripts/validate-provider-config.mjs) | Node 开发环境 | 构建前校验 | 用 schema 和交叉约束校验四个 Provider、来源 commit、SDK 包、官方 Base URL 与默认模型 |
-| [`scripts/build-provider-runtime.mjs`](../scripts/build-provider-runtime.mjs) | Node 开发环境 | 生成与打包 | 生成本地目录脚本，并用 esbuild 将 Provider SDK 运行时打包为 Chrome 140 可执行代码 |
-| [`src/provider-runtime.js`](../src/provider-runtime.js) | 构建输入 | Vercel AI SDK 适配层 | 创建四家固定模型和自定义 OpenAI-compatible 模型，采集 SDK HTTP 与响应元数据 |
+| [`scripts/build-extension-runtime.mjs`](../scripts/build-extension-runtime.mjs) | Node 开发环境 | 生成与打包 | 校验目录，并由 `src/core/`、`src/content/`、`src/provider/` 生成四个 Chrome runtime 文件 |
+| [`src/provider/`](../src/provider/) | 构建输入 | Vercel AI SDK 适配层 | 创建固定模型和自定义 OpenAI-compatible 模型，校验输入并采集安全请求元数据 |
 | [`src/options/`](../src/options/) | 构建输入 | Vue 设置页源码 | 最短配置路径、Provider 字段、用量与调试界面 |
 | [`chrome-extension/generated/provider-catalog.js`](../chrome-extension/generated/provider-catalog.js) | Worker、内容脚本、设置页都会加载 | 包内生成数据 | 提供深度冻结的固定 Provider 和模型目录；不要手工编辑 |
+| [`chrome-extension/generated/core.js`](../chrome-extension/generated/core.js) | Worker、内容脚本、设置页都会加载 | 包内生成代码 | `src/core/` 的浏览器 bundle；不要手工编辑 |
+| [`chrome-extension/generated/content-script.js`](../chrome-extension/generated/content-script.js) | 网页中的隔离世界 | 动态 content script | `src/content/` 的浏览器 bundle；不要手工编辑 |
 | [`chrome-extension/generated/provider-runtime.js`](../chrome-extension/generated/provider-runtime.js) | Extension Service Worker | 包内生成代码 | 包含 Vercel AI SDK 与 Provider 适配器；不要手工编辑，也不注入网页 |
-| [`chrome-extension/background/service-worker.js`](../chrome-extension/background/service-worker.js) | Extension Service Worker | `background.service_worker`、事件、跨域请求 | 左键入口、右键菜单、消息路由、allowlist 检查、Key、缓存、Provider 请求、重试、用量和脱敏事件 |
-| [`chrome-extension/shared/core.js`](../chrome-extension/shared/core.js) | Worker、内容脚本、设置页都会加载 | 包内共享代码 | 设置规范化、Provider 定义、语言判断、分批、缓存签名和模型 JSON 校验 |
-| [`chrome-extension/content/content-script.js`](../chrome-extension/content/content-script.js) | 网页中的隔离世界 | 动态 content script | 扫描 DOM、视口优先调度、监听动态内容、发消息、用 `textContent` 插入和移除译文 |
+| [`chrome-extension/background/service-worker.js`](../chrome-extension/background/service-worker.js) | Extension Service Worker | `background.service_worker` | 20 行装配入口：导入 runtime、创建应用、同步注册六类监听器 |
+| [`chrome-extension/background/`](../chrome-extension/background/) | Extension Service Worker | 后台业务模块 | 消息、Key、任务、缓存、Provider、重试、用量、徽标和脱敏事件 |
+| [`src/core/`](../src/core/) | 构建输入 | 共享核心源码 | 设置规范化、Provider 定义、语言判断、分批、缓存签名和模型 JSON 校验 |
+| [`src/content/`](../src/content/) | 构建输入 | 内容脚本源码 | 扫描 DOM、视口优先调度、监听动态内容、发消息、运行缓存与双语渲染 |
 | [`chrome-extension/content/content.css`](../chrome-extension/content/content.css) | 注入到当前网页 | `scripting.insertCSS()` | 译文和状态节点样式；使用 `data-bt-owned` 限定扩展节点 |
 | [`chrome-extension/options/index.html`](../chrome-extension/options/index.html) | `chrome-extension://` 页面 | Options page | 加载包内目录、共享核心和 Vue bundle |
 | [`chrome-extension/options/options.js`](../chrome-extension/options/options.js) | 受信任扩展页面 | Vue bundle、消息、Port | 保存设置、测试连接并渲染用量和脱敏事件；不要手工编辑 |
@@ -471,8 +476,8 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | 权限 | 当前代码使用位置 | 为什么需要 |
 | --- | --- | --- |
 | `activeTab` | action 或快捷键触发后 | 临时访问当前标签页，不申请所有网页的永久权限 |
-| `scripting` | `toggleTranslation()` | 动态注入 `content/content.css`、`generated/provider-catalog.js`、`shared/core.js` 和 `content/content-script.js` |
-| `contextMenus` | `initializeActionUi()` | 创建仅出现在扩展图标右键菜单中的调试和版本项 |
+| `scripting` | `toggleTranslation()` | 动态注入 `content/content.css`、`generated/provider-catalog.js`、`generated/core.js` 和 `generated/content-script.js` |
+| `contextMenus` | `createActionUi().initialize()` | 创建仅出现在扩展图标右键菜单中的调试和版本项 |
 | `storage` | 后台与设置页 | 保存设置、Key、缓存、用量、运行快照和调试事件 |
 
 ### 4.4 Host permissions 速查
@@ -492,16 +497,16 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 
 | 来源 | 消息或连接 | 用途 |
 | --- | --- | --- |
-| `content/content-script.js` | `START_RUN` | 建立任务快照，只取回非敏感公开设置 |
-| `content/content-script.js` | `TRANSLATE_BATCH` | 发送已筛选和分批的文本，接收 ID 对齐的译文 |
-| `content/content-script.js` | `CANCEL_RUN` | 第二次点击时取消请求并清理任务 |
-| `content/content-script.js` | `STATUS` | 更新当前标签页徽标和 title |
-| `content/content-script.js` | `OPEN_OPTIONS` | 从网页状态提示打开设置页 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `START_RUN` | 建立任务快照，只取回非敏感公开设置 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `TRANSLATE_BATCH` | 发送已筛选和分批的文本，接收 ID 对齐的译文 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `CANCEL_RUN` | 第二次点击时取消请求并清理任务 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `STATUS` | 更新当前标签页徽标和 title |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `OPEN_OPTIONS` | 从网页状态提示打开设置页 |
 | `options/options.js` | `GET_OPTIONS_STATE`、`SAVE_SETTINGS`、`TEST_PROVIDER` | 管理完整设置、用量和连接测试 |
 | `options/options.js` | `GET_DEBUG_LOGS`、`CLEAR_DEBUG_LOGS` | 读取或清空脱敏事件 |
 | `options/options.js` | Port `debug-events-v1` | 接收实时事件、快照与重置通知 |
 
-后台还保留 `CACHE_LOOKUP` 和 `CACHE_STORE` 消息处理接口；当前主要翻译路径在 `TRANSLATE_BATCH` 内部完成持久缓存查找与写入。
+持久缓存不暴露独立消息接口。`TRANSLATE_BATCH` 由后台在一次受控流程中完成缓存查找、缺失段落请求、结果校验与缓存写入。
 
 ---
 

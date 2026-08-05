@@ -95,10 +95,10 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `extensionVersion` | Chrome 实际加载的 Manifest 版本 |
 | `catalogSourceSha` | 本地 models.dev snapshot 的完整 commit SHA |
 | `provider` | 当前显式 Provider ID |
-| `providerAdapter` | 实际适配器，如 `@ai-sdk/openai`、`@ai-sdk/openai-compatible-custom` 或 `deepl-rest` |
+| `providerAdapter` | 实际适配器，如 `@ai-sdk/openai`、`@ai-sdk/openai:chat-custom` 或 `deepl-rest` |
 | `apiHost` | 固定 Provider 的 allowlist 主机，或已获 Chrome 可选权限的自定义 API 主机；不含 Key、查询参数或正文 |
 | `model` | 设置中选择且已通过 allowlist 的模型 ID |
-| `inferencePolicy` | 翻译请求采用的低推理策略，例如 `reasoning-none` 或 `thinking-minimal` |
+| `inferencePolicy` | 翻译请求采用的推理策略，例如 `reasoning-none`、`thinking-minimal` 或自定义服务的 `provider-default` |
 | `configuredConcurrency` | 设置值经过 Provider 上限裁剪后的并发数 |
 
 这组字段适合排查“代码已更新但 Chrome 仍加载旧扩展”“设置页选择与实际请求不一致”以及“模型目录没有重新生成”。
@@ -203,7 +203,7 @@ Chrome Network、Console 和 Extension Storage 是原始诊断面，不会自动
 - 重新加载/停用/更新扩展或重启浏览器后会清空。
 - 关闭调试只停止新增事件；“清空事件”才会删除已有记录。
 
-后台 `createSafeDebugEvent()` 只复制明确列在 `DEBUG_STRING_FIELDS`、`DEBUG_NUMBER_FIELDS` 和 `DEBUG_BOOLEAN_FIELDS` 中的字段。添加调试字段时，应先回答：
+后台 `chrome-extension/background/debug-store.js` 的安全事件转换只复制明确列在 `constants.js` 中的 `DEBUG_STRING_FIELDS`、`DEBUG_NUMBER_FIELDS` 和 `DEBUG_BOOLEAN_FIELDS`。添加调试字段时，应先回答：
 
 1. 它是否可能包含 API Key、Cookie、Authorization、query token 或账户标识？
 2. 它是否可能包含网页原文、译文、提示词、请求体或响应体？
@@ -215,6 +215,8 @@ Chrome Network、Console 和 Extension Storage 是原始诊断面，不会自动
 
 ## 相关文档
 
+- [文档入口](./README.md)
+- [代码地图](./codebase-map.md)
 - [Chrome 扩展开发入门](./chrome-extension-basics.md)
 - [固定模型目录与 Provider 架构](./provider-catalog.md)
 - [Chrome 官方：Debug extensions](https://developer.chrome.com/docs/extensions/get-started/tutorial/debug)

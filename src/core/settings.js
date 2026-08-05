@@ -1,0 +1,193 @@
+import {
+	MAXIMUM_API_KEY_LENGTH,
+	MAXIMUM_CUSTOM_BASE_URL_LENGTH,
+	MODEL_PROVIDER_IDS,
+	TARGET_MODES,
+} from "./constants.js";
+import { clampInteger, isRecord, safeString } from "./value-utils.js";
+
+function isLocalHttpHost(hostname) {
+	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+export function normalizeCustomBaseUrl(value) {
+	const input = safeString(value, "", MAXIMUM_CUSTOM_BASE_URL_LENGTH);
+	if (!input) {
+		return "";
+	}
+	try {
+		const url = new URL(input);
+		if (url.protocol !== "https:" && url.protocol !== "http:") {
+			return "";
+		}
+		if (url.protocol === "http:" && !isLocalHttpHost(url.hostname)) {
+			return "";
+		}
+		if (url.username || url.password) {
+			return "";
+		}
+		const path = url.pathname.replace(/\/+$/u, "");
+		return `${url.origin}${path === "/" ? "" : path}`;
+	} catch {
+		return "";
+	}
+}
+
+export function createSettingsApi(catalog, providerDefinitions) {
+	const providerIds = new Set(Object.keys(providerDefinitions));
+
+	function createDefaultModelSettings(providerId) {
+		return {
+			apiKey: "",
+			model: catalog.providers[providerId].defaultModelId,
+		};
+	}
+
+	function createDefaultSettings() {
+		return {
+			provider: catalog.defaultProviderId,
+			targetMode: "auto",
+			translateDynamicContent: true,
+			concurrency: 2,
+			debugLogging: false,
+			azure: { apiKey: "", region: "" },
+			deepl: { apiKey: "" },
+			deepseek: createDefaultModelSettings("deepseek"),
+			openai: createDefaultModelSettings("openai"),
+			google: createDefaultModelSettings("google"),
+			anthropic: createDefaultModelSettings("anthropic"),
+			custom: { apiKey: "", baseUrl: "", model: "" },
+		};
+	}
+
+	function normalizeModelSettings(value, providerId, defaults) {
+		const input = isRecord(value) ? value : {};
+		const requestedModel = safeString(input.model, defaults.model, 300) || defaults.model;
+		return {
+			apiKey: safeString(input.apiKey, "", MAXIMUM_API_KEY_LENGTH),
+			model: Object.hasOwn(catalog.providers[providerId].models, requestedModel)
+				? requestedModel
+				: defaults.model,
+		};
+	}
+
+	function normalizeCustomSettings(value, defaults) {
+		const input = isRecord(value) ? value : {};
+		return {
+			apiKey: safeString(input.apiKey, "", MAXIMUM_API_KEY_LENGTH),
+			baseUrl: normalizeCustomBaseUrl(input.baseUrl) || defaults.baseUrl,
+			model: safeString(input.model, defaults.model, 300),
+		};
+	}
+
+	function normalizeSettings(input) {
+		const defaults = createDefaultSettings();
+		const settings = isRecord(input) ? input : {};
+		const azure = isRecord(settings.azure) ? settings.azure : {};
+		const deepl = isRecord(settings.deepl) ? settings.deepl : {};
+		const provider = safeString(settings.provider);
+		const targetMode = safeString(settings.targetMode);
+		return {
+			provider: providerIds.has(provider) ? provider : defaults.provider,
+			targetMode: TARGET_MODES.has(targetMode) ? targetMode : defaults.targetMode,
+			translateDynamicContent:
+				typeof settings.translateDynamicContent === "boolean"
+					? settings.translateDynamicContent
+					: defaults.translateDynamicContent,
+			concurrency: clampInteger(settings.concurrency, defaults.concurrency, 1, 4),
+			debugLogging:
+				typeof settings.debugLogging === "boolean"
+					? settings.debugLogging
+					: defaults.debugLogging,
+			azure: {
+				apiKey: safeString(azure.apiKey, "", MAXIMUM_API_KEY_LENGTH),
+				region: safeString(azure.region, "", 100),
+			},
+			deepl: { apiKey: safeString(deepl.apiKey, "", MAXIMUM_API_KEY_LENGTH) },
+			deepseek: normalizeModelSettings(settings.deepseek, "deepseek", defaults.deepseek),
+			openai: normalizeModelSettings(settings.openai, "openai", defaults.openai),
+			google: normalizeModelSettings(settings.google, "google", defaults.google),
+			anthropic: normalizeModelSettings(settings.anthropic, "anthropic", defaults.anthropic),
+			custom: normalizeCustomSettings(settings.custom, defaults.custom),
+		};
+	}
+
+	function getProviderLabel(providerOrSettings, settingsInput) {
+		const settings = isRecord(providerOrSettings)
+			? normalizeSettings(providerOrSettings)
+			: normalizeSettings(settingsInput);
+		const provider = isRecord(providerOrSettings)
+			? settings.provider
+			: safeString(providerOrSettings);
+		return providerDefinitions[provider]?.label ?? "未知翻译服务";
+	}
+
+	function getProviderMaximumConcurrency(providerOrSettings) {
+		const provider = isRecord(providerOrSettings)
+			? normalizeSettings(providerOrSettings).provider
+			: safeString(providerOrSettings);
+		return providerDefinitions[provider]?.maximumConcurrency ?? 4;
+	}
+
+	function getProviderConfigurationError(settings) {
+		const normalized = normalizeSettings(settings);
+		const configKey = providerDefinitions[normalized.provider].configKey;
+		if (!normalized[configKey].apiKey) {
+			return `请先填写 ${getProviderLabel(normalized)} API Key`;
+		}
+		if (normalized.provider === "custom" && !normalized.custom.baseUrl) {
+			return "请填写有效的自定义 Base URL（仅 https，本地可用 http）";
+		}
+		if (normalized.provider === "custom" && !normalized.custom.model) {
+			return "请填写自定义模型 ID";
+		}
+		return null;
+	}
+
+	function getCustomApiOrigin(baseUrl) {
+		const normalized = normalizeCustomBaseUrl(baseUrl);
+		if (!normalized) {
+			return "";
+		}
+		return new URL(normalized).origin;
+	}
+
+	function getProviderModel(settings) {
+		const normalized = normalizeSettings(settings);
+		if (MODEL_PROVIDER_IDS.includes(normalized.provider)) {
+			return normalized[normalized.provider].model;
+		}
+		return normalized.provider === "custom" ? normalized.custom.model : "";
+	}
+
+	function getProviderLimits(provider) {
+		const limits = providerDefinitions[provider]?.limits;
+		return limits ? { ...limits } : { maximumCharacters: 12_000, maximumItems: 40 };
+	}
+
+	function publicSettings(settings) {
+		const normalized = normalizeSettings(settings);
+		return {
+			provider: normalized.provider,
+			targetMode: normalized.targetMode,
+			translateDynamicContent: normalized.translateDynamicContent,
+			concurrency: normalized.concurrency,
+		};
+	}
+
+	return {
+		createDefaultSettings,
+		getCustomApiOrigin,
+		getProviderConfigurationError,
+		getProviderLabel,
+		getProviderLimits,
+		getProviderMaximumConcurrency,
+		getProviderModel,
+		normalizeSettings,
+		publicSettings,
+	};
+}
+
+export function usesChatTranslation(provider) {
+	return MODEL_PROVIDER_IDS.includes(provider) || provider === "custom";
+}

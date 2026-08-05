@@ -1,0 +1,228 @@
+.submit-row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 10px 13px;
+	align-items: center;
+	margin-top: 18px;
+}
+
+.primary {
+	min-height: 46px;
+	padding: 10px 18px;
+	border: 1px solid var(--pine-dark);
+	border-radius: 6px 14px 6px 6px;
+	background: var(--pine);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 740;
+	transition: background-color 130ms ease-out, transform 80ms ease-out;
+}
+
+.primary:hover:not(:disabled) {
+	background: var(--pine-dark);
+}
+
+.primary:active:not(:disabled) {
+	transform: translateY(1px);
+}
+
+.text-button {
+	min-height: 44px;
+	padding: 8px 3px;
+	border: 0;
+	background: transparent;
+	color: var(--pine);
+	font-size: 12px;
+	font-weight: 700;
+	text-decoration: underline;
+	text-decoration-color: transparent;
+	text-underline-offset: 3px;
+}
+
+.text-button:hover {
+	text-decoration-color: currentColor;
+}
+
+#status {
+	min-height: 18px;
+	color: #3d7048;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+#status[data-error="true"] {
+	color: var(--danger);
+}
+
+.local-note {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 13px 0 25px;
+	color: var(--ink-soft);
+	font-size: 11px;
+	line-height: 1.5;
+}
+
+.local-note > span {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--leaf-light);
+}
+
+.fold {
+	margin: 0 -34px;
+	border-top: 1px solid var(--line);
+}
+
+.fold > summary {
+	display: grid;
+	grid-template-columns: minmax(120px, auto) minmax(0, 1fr) 20px;
+	gap: 20px;
+	align-items: center;
+	min-height: 62px;
+	padding: 0 34px;
+}
+
+.fold > summary:hover {
+	background: var(--surface-soft);
+}
+
+.fold > summary strong {
+	font-size: 13px;
+	font-weight: 720;
+}
+
+.fold > summary span {
+	overflow: hidden;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.5;
+	text-align: right;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fold-body,
+.catalog-status {
+	padding: 2px 34px 25px;
+}
+
+.behavior-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 110px;
+	gap: 16px;
+}
+
+.toggle-row,
+.switch-field {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	min-height: 64px;
+	padding: 10px 13px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface-soft);
+	cursor: pointer;
+}
+
+.behavior-grid .toggle-row {
+	grid-column: 1 / -1;
+}
+
+.toggle-row strong,
+.toggle-row small,
+.switch-field strong,
+.switch-field small {
+	display: block;
+}
+
+.toggle-row strong,
+.switch-field strong {
+	font-size: 12px;
+	font-weight: 720;
+}
+
+.toggle-row small,
+.switch-field small {
+	margin-top: 3px;
+	color: var(--ink-soft);
+	font-size: 11px;
+	line-height: 1.45;
+}
+
+.toggle-row input,
+.switch-field input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+}
+
+.toggle-row i,
+.switch-field i {
+	position: relative;
+	width: 40px;
+	height: 23px;
+	flex: 0 0 auto;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: #d6ddd4;
+	transition: background-color 130ms ease-out, border-color 130ms ease-out;
+}
+
+.toggle-row i::after,
+.switch-field i::after {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 15px;
+	height: 15px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(23, 35, 27, 0.2);
+	content: "";
+	transition: transform 130ms ease-out;
+}
+
+.toggle-row input:checked + i,
+.switch-field input:checked + i {
+	border-color: var(--pine);
+	background: var(--pine);
+}
+
+.toggle-row input:checked + i::after,
+.switch-field input:checked + i::after {
+	transform: translateX(17px);
+}
+
+.toggle-row input:focus-visible + i,
+.switch-field input:focus-visible + i {
+	outline: 3px solid rgba(77, 115, 84, 0.22);
+	outline-offset: 3px;
+}
+
+.catalog-status {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.6;
+}
+
+.catalog-status code {
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: var(--surface-soft);
+	color: var(--pine);
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.catalog-status[data-error="true"] {
+	color: var(--danger);
+}

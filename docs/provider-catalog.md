@@ -52,14 +52,15 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 | `config/provider-allowlist.json`                      | 可实际调用的 Provider、SDK 包、官方 API 和默认模型 | 是，安全敏感   |
 | `schemas/provider-allowlist.schema.json`              | allowlist 结构约束                                 | 是             |
 | `scripts/validate-provider-config.mjs`                | schema 与跨文件不变量校验                          | 是             |
-| `src/provider-runtime.js`                             | 四个固定 Provider 与自定义 OpenAI-compatible 调用层 | 是             |
-| `scripts/build-provider-runtime.mjs`                  | 校验后生成浏览器脚本并打包 SDK                     | 是             |
+| `src/provider-runtime.js`                             | 把 `generateTranslation` 暴露为浏览器全局入口       | 是             |
+| `src/provider/`                                       | Provider 选择、输入校验、SDK 调用、请求观测与结果规范化 | 是          |
+| `scripts/build-extension-runtime.mjs`                 | 校验后生成目录、核心、内容脚本并打包 SDK             | 是             |
 | `chrome-extension/generated/provider-catalog.js`      | 设置页、内容脚本和后台使用的只读目录               | 否，生成文件   |
+| `chrome-extension/generated/core.js`                  | `src/core/` 的浏览器 bundle                        | 否，生成文件   |
+| `chrome-extension/generated/content-script.js`        | `src/content/` 的浏览器 bundle                     | 否，生成文件   |
 | `chrome-extension/generated/provider-runtime.js`      | Service Worker 使用的压缩 Provider bundle          | 否，生成文件   |
 | `src/options/`                                        | Vue 设置页源码                                     | 是             |
 | `chrome-extension/options/`                           | Chrome 直接加载的设置页 bundle                     | 否，生成文件   |
-| `raycast-extension/scripts/sync-catalog.mjs`          | 从同一 snapshot 和 allowlist 生成 Raycast 类型目录 | 是             |
-| `raycast-extension/src/generated/provider-catalog.ts` | Raycast Provider、模型、成本与 snapshot 常量       | 否，生成文件   |
 
 安装扩展的普通用户不需要运行 npm，也不会下载本地翻译模型。仓库已经包含 `chrome-extension/generated/` 和 `chrome-extension/options/` 产物，Chrome 可以直接“加载已解压的扩展程序”并选择 `chrome-extension/`。npm 依赖只用于开发者更新目录、重新打包 SDK 或构建 Vue 设置页。
 
@@ -121,10 +122,9 @@ npm install --ignore-scripts
 ```bash
 node scripts/validate-provider-config.mjs
 npm run build:chrome
-node raycast-extension/scripts/sync-catalog.mjs
 ```
 
-Chrome 构建会再次执行校验，生成 `chrome-extension/generated/` 中的目录和 SDK runtime，并把 `src/options/` 编译到 `chrome-extension/options/`。Raycast 生成器只消费已经通过校验的同一组输入，并再次确认 allowlist 默认模型真实存在。任何 schema、跨文件不变量或生成目录映射失败都会阻止写出新产物。
+Chrome 构建会再次执行校验，把 `src/core/`、`src/content/` 与 `src/provider/` 生成到 `chrome-extension/generated/`，并把 `src/options/` 编译到 `chrome-extension/options/`。任何 schema、跨文件不变量或生成目录映射失败都会阻止写出新产物。
 
 ### 5. 运行完整离线检查
 
@@ -132,7 +132,7 @@ Chrome 构建会再次执行校验，生成 `chrome-extension/generated/` 中的
 npm run check
 ```
 
-`npm run check` 会在内存中按同一配置重新生成 Chrome 目录脚本、SDK runtime 和 Vue 设置页，同时检查 Raycast TypeScript 目录；只要任一已提交生成产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。Chrome 生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
+`npm run check` 会在内存中按同一配置重新生成 Chrome 目录、共享核心、内容脚本、SDK runtime 和 Vue 设置页；只要任一已提交生成产物与 snapshot、allowlist、源码或构建配置不一致，检查就会失败。Chrome 生产 bundle 在任何 SDK schema 解析前预设 Zod `jitless`，避免 Manifest V3 CSP 环境触发动态 `Function` 能力探测。
 
 测试不会调用真实 Provider，也不需要 API Key。它会验证 schema、allowlist、生成的全局目录、非法 Provider 拒绝、四家 SDK 的官方 endpoint 与低推理请求参数、调试脱敏和 DOM 增量翻译契约。
 
@@ -168,8 +168,6 @@ globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
 
 SDK 内部重试固定为 `0`。扩展后台统一处理超时、最多三次尝试和 `Retry-After`，避免 SDK 与业务层叠加重试造成额外成本。DeepSeek 关闭 thinking；OpenAI 和 Anthropic 使用 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking。
 
-Raycast 版不导入 Chrome 的 IIFE/global bundle，而是从 `src/generated/provider-catalog.ts` 读取同一组固定 Provider 和模型，再由 `raycast-extension/src/lib/` 中的 TypeScript adapter 显式创建 SDK Provider。两端共享安全边界和模型选择，但使用各自的本地缓存实现，API Key 也分别保存在各自的本地安全设置中。
-
 ## 安全与隐私边界
 
 - Provider 代码随扩展打包；不从 CDN 或目录站点下载 JavaScript。
@@ -180,6 +178,8 @@ Raycast 版不导入 Chrome 的 IIFE/global bundle，而是从 `src/generated/pr
 - 生成 bundle 是代码依赖，应和源文件、lockfile 一起审查。
 
 ## 官方资料
+
+项目内部阅读入口：[文档索引](./README.md) · [代码地图](./codebase-map.md) · [调试指南](./debugging.md)
 
 - [models.dev 数据与源码](https://github.com/anomalyco/models.dev)
 - [Vercel AI SDK：生成文本](https://ai-sdk.dev/docs/ai-sdk-core/generating-text)
