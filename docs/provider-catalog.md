@@ -26,6 +26,12 @@
 
 Azure Translator 和 DeepL 仍然可用，但它们是专用翻译 API，不属于本地模型 snapshot，也不经过 Vercel AI SDK。
 
+## 价格 snapshot
+
+Catalog 中的 `cost` 是可审查的价格元数据，用于模型目录展示，不是 Provider 的实时账单接口。它可以包含输入、输出、缓存读写和上下文 tier 等不同计价字段；具体语义取决于 Provider，不能把某一家服务的平面价格直接套给另一家。
+
+设置页会为需要自行提供 Key 的收费服务标注“付费 API”，并显示一行计费提示：标有“付费 API”的服务会按用量计费，实际费用以服务商账单为准。
+
 ## 为什么采用固定 snapshot
 
 运行时动态读取“所有模型”看似方便，但会引入几个不确定因素：目录字段可能变化、模型可能被下线、API 地址可能被错误或恶意改写、同一个扩展版本在不同日期会出现不同配置。
@@ -110,6 +116,8 @@ models.dev 在这里仍然是上游数据源，但不是运行时依赖。当前
 
 如果 Provider、官方 API 或默认模型改变，再审查并更新 `config/provider-allowlist.json` 以及校验器中的固定映射。不要只为了让校验通过而放宽 schema 或 URL 约束。
 
+修改任何 `cost` 字段时，应对照 Provider 官方价目核对单位、输入/输出方向、缓存规则和上下文 tier，并更新目录展示测试。价格字段通过 schema 只表示“结构合法”，不表示数值仍然有效或不同 Provider 的账单语义相同。
+
 ### 3. 安装精确依赖
 
 使用 Node.js 24，从项目目录执行；同目录的 `.nvmrc` 记录当前版本：
@@ -152,7 +160,7 @@ npm run check
 
 ## Provider runtime 的统一接口
 
-Chrome 后台只调用一个本地全局接口：
+Chrome 后台通过下面这个本地全局接口调用模型 Provider：
 
 ```js
 globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
@@ -280,5 +288,9 @@ SDK 内部重试固定为 `0`。扩展后台统一处理超时、最多三次尝
 - [Vercel AI SDK：Google Provider](https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai)
 - [Vercel AI SDK：Anthropic Provider](https://ai-sdk.dev/providers/ai-sdk-providers/anthropic)
 - [DeepSeek API 更新记录](https://api-docs.deepseek.com/updates/)
+- [DeepSeek 限速说明](https://api-docs.deepseek.com/zh-cn/quick_start/rate_limit)
+- [DeepSeek 计费 FAQ](https://api-docs.deepseek.com/faq)
+- [DeepSeek 余额查询](https://api-docs.deepseek.com/api/get-user-balance/)
+- [DeepSeek 定价与扣费规则](https://api-docs.deepseek.com/quick_start/pricing)
 - [OpenAI 模型目录](https://developers.openai.com/api/docs/models)
 - [Gemini API 定价](https://ai.google.dev/gemini-api/docs/pricing)

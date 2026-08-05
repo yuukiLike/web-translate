@@ -7,6 +7,27 @@ function metric(label, value) {
 	return { label, value };
 }
 
+function tokenCount(value) {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function tokenUsageText(usage) {
+	const input = tokenCount(usage.inputTokens);
+	const output = tokenCount(usage.outputTokens);
+	const apiCalls = tokenCount(usage.apiCalls) ?? 0;
+	const missingCalls = tokenCount(usage.tokenUsageMissingCalls) ?? 0;
+	if (input === undefined && output === undefined) {
+		return apiCalls > 0 ? "未知" : "0 / 0";
+	}
+	if (input === 0 && output === 0 && apiCalls > 0) {
+		return "未知";
+	}
+	const value = `${input === undefined ? "未知" : formatNumber(input)} / ${
+		output === undefined ? "未知" : formatNumber(output)
+	}`;
+	return missingCalls > 0 ? `${value}（部分未知）` : value;
+}
+
 export function createUsageRows(allUsage, monthKey, getProviderName) {
 	if (!isRecord(allUsage)) {
 		return [];
@@ -19,9 +40,7 @@ export function createUsageRows(allUsage, monthKey, getProviderName) {
 		const usage = isRecord(value) ? value : {};
 		let finalMetric = metric("计费字符", formatNumber(usage.billedCharacters));
 		if (TOKEN_USAGE_PROVIDERS.has(id)) {
-			const input = formatNumber(usage.inputTokens);
-			const output = formatNumber(usage.outputTokens);
-			finalMetric = metric("输入 / 输出 token", `${input} / ${output}`);
+			finalMetric = metric("输入 / 输出 token", tokenUsageText(usage));
 		}
 		let name = id;
 		if (typeof getProviderName === "function") {

@@ -21,7 +21,6 @@ const {
 	fatal,
 	providers,
 	ready,
-	save,
 	saveDebug,
 	saveDebugRequestPayload,
 	selectedProvider,
@@ -107,7 +106,6 @@ function show(nextView) {
 						</div>
 						<span v-if="connected" class="connected"><i aria-hidden="true"></i>连接可用</span>
 					</div>
-
 
 					<ProviderPicker v-model="draft.provider" :providers="providers" />
 

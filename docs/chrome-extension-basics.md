@@ -79,10 +79,11 @@ Chrome 会把 `chrome-extension/` 根部的 `manifest.json` 当作扩展入口�
 1. 在“服务”中选择 DeepSeek、OpenAI、Google Gemini、Anthropic、Azure Translator、DeepL 或自定义 OpenAI-compatible 服务。DeepSeek 是默认项。
 2. 只在密码输入框中填写你自己的 API Key。
 3. 固定模型 Provider 默认使用本地 allowlist 模型，通常无需展开模型选项。只有选择“自定义”时才需要填写 Base URL 和模型 ID；保存或测试时 Chrome 会为该 API origin 请求可选访问权限。
-4. 点击“保存并测试”。
-5. 等待页面显示“连接成功”。
+4. 服务卡片上的“付费 API”标签表示该服务会按用量计费；设置页下方的小字会提示实际费用以服务商账单为准。
+5. 点击“保存并测试”。连接测试会向当前 Provider 发起一次很小的真实请求。
+6. 等待页面显示“连接成功”。
 
-不要在本文、源代码或聊天中使用真实 Key 作为示例。若没有有效 Key，popup 的翻译按钮不会执行翻译；扩展会显示 `SET` 徽标并打开设置页。
+不要在本文、源代码或聊天中使用真实 Key 作为示例，也不要把开发者共同付费的共享 Key 打进扩展。若没有有效 Key，popup 的翻译按钮不会执行翻译；扩展会显示 `SET` 徽标并打开设置页。标有“付费 API”的服务按用量计费，实际费用以服务商账单为准。
 
 ### 步骤 4：从 popup 翻译，再次打开恢复
 
@@ -235,6 +236,7 @@ action popup 是短生命周期入口。`chrome-extension/popup/index.html` 是�
 
 - 读取和保存 Provider、API Key、模型、翻译方向及并发数。
 - 从包内 `generated/provider-catalog.js` 呈现固定 Provider、模型、成本和上下文信息。
+- 用“付费 API”标签标出按量计费的服务，并显示一行以服务商账单为准的计费提示。
 - 测试连接、读取用量和清理缓存。
 - 通过长连接 Port 接收受控实时调试事件；“记录事件”默认只有元数据，用户另行开启“DeepSeek 请求正文”后，普通窗口的 DeepSeek 请求才可包含 `model`、`max_tokens`、`messages` 和 `thinking` 投影。
 
@@ -457,7 +459,7 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | [`scripts/build-extension-runtime.mjs`](../scripts/build-extension-runtime.mjs) | Node 开发环境 | 生成与打包 | 校验目录，并由 `src/core/`、`src/content/`、`src/provider/` 生成四个 Chrome runtime 文件 |
 | [`scripts/build-popup.mjs`](../scripts/build-popup.mjs) | Node 开发环境 | popup 打包 | 从 `src/popup/main.js` 生成 `popup/popup.js` 与 `popup/popup.css`；`--check` 拒绝缺失或过期产物 |
 | [`src/provider/`](../src/provider/) | 构建输入 | Vercel AI SDK 适配层 | 创建固定模型和自定义 OpenAI-compatible 模型，校验输入并采集请求事件；DeepSeek 可提供实际 body 供后台收窄投影 |
-| [`src/options/`](../src/options/) | 构建输入 | Vue 设置页源码 | 最短配置路径、Provider 字段、用量与调试界面 |
+| [`src/options/`](../src/options/) | 构建输入 | Vue 设置页源码 | 最短配置路径、Provider 字段、付费 API 标签、用量与调试界面 |
 | [`src/popup/`](../src/popup/) | 构建输入 | action popup 源码 | 读取 popup 状态、发送主动作消息，并打开设置或调试页面 |
 | [`chrome-extension/generated/provider-catalog.js`](../chrome-extension/generated/provider-catalog.js) | Worker、内容脚本、设置页都会加载 | 包内生成数据 | 提供深度冻结的固定 Provider 和模型目录；不要手工编辑 |
 | [`chrome-extension/generated/core.js`](../chrome-extension/generated/core.js) | Worker、内容脚本、设置页都会加载 | 包内生成代码 | `src/core/` 的浏览器 bundle；不要手工编辑 |
@@ -594,6 +596,10 @@ snapshot、allowlist、schema 或 SDK bundle 构建失败
 - Key 只保存在本机 `chrome.storage.local`。当前后台用 `setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })` 阻止内容脚本直接读取。
 - 浏览器端 BYOK 不能替代服务端密钥保险箱。若面向其他用户并由开发者承担费用，应使用带鉴权、配额和速率限制的后端代理。
 - 不要把设置页 Storage、Service Worker Network Headers、Payload、Response、Copy as cURL 或 HAR 交给第三方。
+
+#### 计费边界
+
+- 标有“付费 API”的服务按用量计费，实际费用以服务商账单为准；连接测试也会调用当前选中的服务。
 
 #### 权限边界
 

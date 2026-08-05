@@ -65,6 +65,17 @@
 	min-width: 0;
 }
 
+.provider-choice input:checked + .provider-card .provider-card-head {
+	padding-right: 18px;
+}
+
+.provider-tags {
+	display: flex;
+	flex: none;
+	gap: 5px;
+	align-items: center;
+}
+
 .provider-card strong,
 .provider-more strong {
 	overflow: hidden;
@@ -86,13 +97,21 @@
 	white-space: nowrap;
 }
 
-.provider-default {
+.provider-paid {
 	padding: 2px 5px;
 	border-radius: 4px;
-	background: var(--surface-soft);
-	color: var(--leaf);
+	background: #fff3d9;
+	color: #785b1b;
 	font-size: 10px;
 	font-weight: 730;
+	white-space: nowrap;
+}
+
+.provider-billing-note {
+	margin: 9px 0 0;
+	color: var(--ink-soft);
+	font-size: 11px;
+	line-height: 1.5;
 }
 
 .provider-choice:hover .provider-card,
@@ -118,10 +137,6 @@
 	border-left: 2px solid var(--pine);
 	content: "";
 	transform: rotate(-45deg);
-}
-
-.provider-choice input:checked + .provider-card .provider-default {
-	display: none;
 }
 
 .provider-choice input:focus-visible + .provider-card,

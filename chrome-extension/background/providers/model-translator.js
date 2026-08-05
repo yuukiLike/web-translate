@@ -7,7 +7,7 @@ import {
 	getSafeErrorCode,
 	isRetryableError,
 } from "../request-errors.js";
-import { createIdentifier, numberOrUndefined, numberOrZero } from "../utilities.js";
+import { createIdentifier, numberOrUndefined } from "../utilities.js";
 
 export function createModelTranslator({ core, providerRuntime, debug, debugMetadata }) {
 	async function translate(
@@ -59,6 +59,9 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 					: `${core.getProviderLabel(settings)} 未完整返回译文`,
 			);
 		}
+		const inputTokens = numberOrUndefined(result.usage?.inputTokens);
+		const cachedInputTokens = numberOrUndefined(result.usage?.cacheReadTokens);
+		const outputTokens = numberOrUndefined(result.usage?.outputTokens);
 		debug.recordRequest(requestDebug, {
 			eventType: "model.response.validated",
 			responseId: result.responseId,
@@ -66,9 +69,9 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 			finishReason: result.finishReason,
 			rawFinishReason: result.rawFinishReason,
 			warningCount: result.warningCount,
-			inputTokens: numberOrUndefined(result.usage?.inputTokens),
-			outputTokens: numberOrUndefined(result.usage?.outputTokens),
-			cacheReadTokens: numberOrUndefined(result.usage?.cacheReadTokens),
+			inputTokens,
+			outputTokens,
+			cacheReadTokens: cachedInputTokens,
 			cacheWriteTokens: numberOrUndefined(result.usage?.cacheWriteTokens),
 			noCacheTokens: numberOrUndefined(result.usage?.noCacheTokens),
 			status: "completed",
@@ -79,9 +82,11 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 				segments.map((segment) => segment.id),
 			),
 			usage: {
-				inputTokens: numberOrZero(result.usage?.inputTokens),
-				cachedInputTokens: numberOrZero(result.usage?.cacheReadTokens),
-				outputTokens: numberOrZero(result.usage?.outputTokens),
+				inputTokens,
+				cachedInputTokens,
+				outputTokens,
+				tokenUsageMissingCalls:
+					inputTokens === undefined || outputTokens === undefined ? 1 : 0,
 			},
 		};
 	}

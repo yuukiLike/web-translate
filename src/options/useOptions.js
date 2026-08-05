@@ -163,24 +163,6 @@ export function useOptions() {
 		}
 	}
 
-	async function save() {
-		busy.value = "save";
-		setStatus("正在保存设置…");
-		try {
-			const settings = settingsForSave();
-			await ensureCustomHostPermission(settings);
-			const response = await sendMessage({ type: "SAVE_SETTINGS", settings });
-			acceptSavedSettings(response.settings);
-			setStatus("设置已保存");
-			return true;
-		} catch (error) {
-			setStatus(errorText(error), true);
-			return false;
-		} finally {
-			busy.value = "";
-		}
-	}
-
 	async function testProvider() {
 		busy.value = "test";
 		connected.value = false;
@@ -256,7 +238,6 @@ export function useOptions() {
 		status,
 		busy,
 		connected,
-		save,
 		saveDebug: debugSettings.saveLogging,
 		saveDebugRequestPayload: debugSettings.saveRequestPayload,
 		testProvider,

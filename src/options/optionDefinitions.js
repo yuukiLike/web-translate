@@ -5,9 +5,10 @@ export const PROVIDERS = Object.freeze([
 		id: "deepseek",
 		name: "DeepSeek",
 		cue: "默认 · 低成本",
-		note: "关闭思考模式，适合日常双语翻译。",
+		note: "关闭思考模式，适合日常双语翻译。感谢梁圣。",
 		kind: "model",
 		recommended: true,
+		paid: true,
 	}),
 	Object.freeze({
 		id: "openai",
@@ -16,6 +17,7 @@ export const PROVIDERS = Object.freeze([
 		note: "官方 API，响应稳定。",
 		kind: "model",
 		recommended: true,
+		paid: true,
 	}),
 	Object.freeze({
 		id: "google",
@@ -32,6 +34,7 @@ export const PROVIDERS = Object.freeze([
 		note: "适合偏好 Claude 的场景。",
 		kind: "model",
 		recommended: false,
+		paid: true,
 	}),
 	Object.freeze({
 		id: "azure",

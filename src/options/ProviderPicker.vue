@@ -62,7 +62,9 @@ function selectProvider(providerId) {
 				<span class="provider-card">
 					<span class="provider-card-head">
 						<strong>{{ provider.name }}</strong>
-						<small v-if="provider.id === 'deepseek'" class="provider-default">默认</small>
+						<span class="provider-tags">
+							<small v-if="provider.paid" class="provider-paid">付费 API</small>
+						</span>
 					</span>
 					<small>{{ provider.cue }}</small>
 				</span>
@@ -79,7 +81,10 @@ function selectProvider(providerId) {
 			>
 				<span class="provider-card-head">
 					<strong>{{ moreTitle }}</strong>
-					<i class="provider-more-arrow" aria-hidden="true"></i>
+					<span class="provider-tags">
+						<small v-if="!expanded && selectedOtherProvider?.paid" class="provider-paid">付费 API</small>
+						<i class="provider-more-arrow" aria-hidden="true"></i>
+					</span>
 				</span>
 				<small>{{ moreCue }}</small>
 			</button>
@@ -96,10 +101,15 @@ function selectProvider(providerId) {
 					@change="selectProvider(provider.id)"
 				/>
 				<span class="provider-card">
-					<span class="provider-card-head"><strong>{{ provider.name }}</strong></span>
+					<span class="provider-card-head">
+						<strong>{{ provider.name }}</strong>
+						<small v-if="provider.paid && (expanded || provider.id !== selected)" class="provider-paid">付费 API</small>
+					</span>
 					<small>{{ provider.cue }}</small>
 				</span>
 			</label>
 		</div>
+
+		<p class="provider-billing-note">标有“付费 API”的服务会按用量计费，实际费用以服务商账单为准。</p>
 	</fieldset>
 </template>

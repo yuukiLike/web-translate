@@ -56,7 +56,7 @@ test("设置页只使用本地预编译资产和安全 CSP", async () => {
 	assert.doesNotMatch(optionsScript, /\beval\s*\(|\bnew\s+Function\s*\(|\bimport\s*\(/u);
 });
 
-// 首屏关键锚点和唯一主操作按钮必须保持稳定，切换服务时不能丢失未保存草稿。
+// 首屏关键锚点和唯一连接主操作必须保持稳定，切换服务时不能丢失未保存草稿。
 test("首屏契约稳定且 Provider 切换保留草稿", async () => {
 	const page = await createOptionsPageHarness();
 	try {
@@ -78,7 +78,17 @@ test("首屏契约稳定且 Provider 切换保留草稿", async () => {
 		assert.equal(page.document.querySelectorAll("[data-provider-fields]").length, 1);
 		assert.equal(page.document.querySelectorAll(".primary").length, 1);
 		assert.equal(page.document.querySelector("#save"), null);
-		assert.equal(page.document.querySelector("#test-provider").textContent.trim(), "保存并测试");
+		assert.equal(
+			page.document.querySelector("#test-provider").textContent.trim(),
+			"保存并测试",
+		);
+		assert.equal(page.document.querySelector("#cost-protection"), null);
+		assert.equal(page.document.querySelectorAll(".provider-paid").length, 3);
+		assert.match(page.document.querySelector(".provider-note").textContent, /感谢梁圣/u);
+		assert.equal(
+			page.document.querySelector(".provider-billing-note").textContent,
+			"标有“付费 API”的服务会按用量计费，实际费用以服务商账单为准。",
+		);
 		assert.equal(page.document.querySelector("#extension-version").textContent, "v0.4.0");
 		assert.equal(
 			page.document.querySelectorAll("#provider > .provider-grid:first-of-type .provider-choice")
@@ -93,6 +103,22 @@ test("首屏契约稳定且 Provider 切换保留草稿", async () => {
 		await chooseProvider(page.window, page.document, "deepseek");
 		await chooseProvider(page.window, page.document, "openai");
 		assert.equal(page.document.querySelector("#openai-api-key").value, "openai-draft-key");
+	} finally {
+		page.cleanup();
+	}
+});
+
+// 折叠后的当前付费服务仍须展示标签，同时不重复生成额外的付费标签。
+test("折叠后的 Anthropic 保留付费标签", async () => {
+	const page = await createOptionsPageHarness();
+	try {
+		page.document.querySelector("#provider-more").click();
+		await settle();
+		await chooseProvider(page.window, page.document, "anthropic");
+		page.document.querySelector("#provider-more").click();
+		await settle();
+		assert.equal(page.document.querySelector("#provider-more").textContent.includes("付费 API"), true);
+		assert.equal(page.document.querySelectorAll(".provider-paid").length, 3);
 	} finally {
 		page.cleanup();
 	}

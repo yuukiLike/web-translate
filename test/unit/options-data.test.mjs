@@ -37,6 +37,35 @@ test("用量视图区分字符与 token 计费", () => {
 	assert.equal(rows[1].metrics.at(-1).value, "9 / 4");
 });
 
+// 模型服务未返回 usage 时必须显示未知；部分请求缺失时也不能把已记录 token 冒充完整总量。
+test("用量视图标明未知和部分未知 token", () => {
+	const rows = createUsageRows(
+		{
+			"2026-08": {
+				deepseek: { apiCalls: 1, charactersSubmitted: 12, tokenUsageMissingCalls: 1 },
+				openai: {
+					apiCalls: 2,
+					inputTokens: 9,
+					outputTokens: 4,
+					tokenUsageMissingCalls: 1,
+				},
+			},
+		},
+		"2026-08",
+	);
+	assert.equal(rows[0].metrics.at(-1).value, "未知");
+	assert.equal(rows[1].metrics.at(-1).value, "9 / 4（部分未知）");
+});
+
+// 全部来自持久缓存且没有发起 API 请求时，token 用量应明确显示为零而不是未知。
+test("零次模型调用显示零 token 用量", () => {
+	const [row] = createUsageRows(
+		{ "2026-08": { deepseek: { apiCalls: 0, cachedCharacters: 12 } } },
+		"2026-08",
+	);
+	assert.equal(row.metrics.at(-1).value, "0 / 0");
+});
+
 // 验证调试事件仅展示白名单字段，并移除 URL 中的凭据、查询参数和片段。
 test("调试事件格式化不会泄露敏感字段", () => {
 	const [row] = createDebugRows([

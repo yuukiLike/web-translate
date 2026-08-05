@@ -75,7 +75,7 @@ chrome-extension/manifest.json
 | `service-worker.js` | 极薄装配入口：导入三个生成 runtime 与 `app.js`、创建应用、同步注册安装、右键菜单、消息、Port 和标签页关闭监听器并启动。Manifest V3 要求监听器在入口求值时注册；这里不再注册 `action.onClicked`。 |
 | `app.js` | 组合全部后台服务，管理启动就绪 Promise，把安装、菜单、消息、Port 和标签页关闭事件适配为应用方法。popup 的主动作通过消息进入，不再需要 action 点击适配器。 |
 | `action-ui.js` | 管理 popup 触发后的脚本注入、徽标、title 与图标右键菜单；为每个标签页保存最新 Badge 修订，慢写入结束后会重放最新状态。 |
-| `message-router.js` | 按消息类型路由 popup、内容脚本和设置页请求；先校验来源，再调用具体服务。 |
+| `message-router.js` | 按消息类型路由 popup、内容脚本和设置页请求；先校验来源，再调用具体服务；设置页状态同时返回设置与用量。 |
 | `validation.js` | 校验 runId、语言方向、段落 ID、单段长度、批次数量和总字符数。 |
 | `settings-store.js` | 初始化受信任存储访问级别，规范化/保存设置，检查 Key、模型和自定义域名权限。 |
 | `run-store.js` | 编排任务启动、替换、取消和标签页关闭；把内存活动、启动 token、在途清理与持久状态组合成同一标签页串行生命周期。 |
@@ -87,16 +87,17 @@ chrome-extension/manifest.json
 | `run-state.js` | 集中定义任务取消/失效错误，并从 active/cancelled current-run 中选择可公开的 runId。 |
 | `status-controller.js` | 用 `tabId + runId` 取消墓碑、消息到达修订和完成稳定窗口拒绝旧状态；核心生命周期不等待非关键 Badge I/O。 |
 | `cache-store.js` | 实现 90 天、750 条、约 7.5 MB 的站点隔离持久缓存，以及代次清空和维护。 |
-| `usage-store.js` | 按月份和 Provider 累加 API 次数、字符与 token，最多保留 12 个月。 |
+| `usage-store.js` | 按月份和 Provider 累加 API 次数、字符与 token，保留 Provider 未返回 token 的次数，最多保存 12 个月供设置页展示普通用量统计。 |
 | `batch-translator.js` | 组织一次批次的缓存命中、缺失翻译、输出校验、用量与缓存写入；在缓存读取、Provider 和持久化阶段都检查取消信号。 |
 | `provider-service.js` | 在模型 Provider、自定义 Provider、Azure 与 DeepL 之间选择正确翻译器，并提供连接测试。 |
 | `json-client.js` | 为 REST Provider 统一实现超时、JSON 大小限制、安全错误、最多三次尝试和 `Retry-After`。 |
 | `request-errors.js` | 把网络与 SDK 错误转成安全错误码，判断是否可重试并提供可取消等待。 |
 | `debug-metadata.js` | 生成不含凭据的 Provider/请求上下文，并把 endpoint 限制为安全 origin 与路径。用户开启调试时，DeepSeek 事件可附带受控请求正文投影。 |
-| `debug-store.js` | 用字段白名单保存有界 session 事件；DeepSeek 的瞬时 `requestBody` 会被重建为固定字段的 `requestPayload` 安全投影。通过 Port 推送快照、增量事件和重置；不保存 Key、请求头或响应体。 |
-| `constants.js` | 集中维护缓存、消息、网络、调试、状态稳定窗口和菜单 ID 的限制。 |
+| `debug-store.js` | 用字段白名单保存有界 session 事件，通过 Port 推送快照、增量事件和重置；不保存 Key、请求头或响应体。 |
+| `request-payload-sanitizer.js` | 把 DeepSeek 的瞬时 `requestBody` 重建为有字段、条数和容量上限的 `requestPayload` 安全投影。 |
+| `constants.js` | 集中维护缓存、消息、网络、调试字段、状态稳定窗口和菜单 ID 的限制。 |
 | `utilities.js` | 提供数字规范化、ID、存储大小估算、运行键和自动回收的按键串行任务队列等后台通用能力。 |
-| `providers/model-translator.js` | 构造防提示词注入的 JSON 翻译任务，调用 Provider runtime，控制模型层重试并校验完成原因。 |
+| `providers/model-translator.js` | 构造防提示词注入的 JSON 翻译任务，控制模型层超时与重试，并校验完成原因。 |
 | `providers/rest-translators.js` | 构造 Azure 与 DeepL 的固定 REST 请求，并验证各自响应结构和计费字符。 |
 
 ## `src/core/`：无 Chrome API 的共享核心
@@ -107,8 +108,8 @@ chrome-extension/manifest.json
 | --- | --- |
 | `main.js` | 把 `createCore()` 的冻结结果安装到 `globalThis.BilingualTranslatorCore`。 |
 | `create-core.js` | 聚合并冻结核心公开接口，是其他层可用能力的白名单。 |
-| `constants.js` | 定义存储键、缓存协议版本、API Key 长度、模型 Provider 列表和目标模式。 |
-| `settings.js` | 生成默认设置，规范化各 Provider 设置，校验自定义 URL，返回不含凭据的公开任务设置。 |
+| `constants.js` | 定义设置、用量与缓存存储键、缓存协议版本、API Key 长度、模型 Provider 列表和目标模式。 |
+| `settings.js` | 生成默认设置，规范化各 Provider，校验自定义 URL，返回不含凭据的公开任务设置。 |
 | `provider-definitions.js` | 定义每种 Provider 的标签、字符/段落限制、最大并发和调用类型。 |
 | `text.js` | 规范化正文、判断中英文方向、过滤无需翻译文本、切分长文、分批和计算稳定哈希。 |
 | `cache.js` | 生成包含站点、Provider、模型、协议、方向和原文的缓存键，并选择 DeepL Free/Pro host。 |
@@ -177,7 +178,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | --- | --- |
 | `main.js` | 创建 Vue 应用并挂载到 `#app`。 |
 | `App.vue` | 设置页外壳、配置/调试导航和各组件编排。 |
-| `ProviderPicker.vue` | 展示三项推荐服务和可展开的其他 Provider。 |
+| `ProviderPicker.vue` | 展示三项推荐服务、可展开的其他 Provider、“付费 API”标签和一行计费提示。 |
 | `ProviderFields.vue` | 按 Provider 类型渲染 Key、区域、Base URL、模型和本地模型元数据。 |
 | `UsagePanel.vue` | 展示当月用量并提供清空翻译缓存入口。 |
 | `DebugPanel.vue` | 展示请求优先的受控轨迹、DeepSeek 请求正文投影、筛选、跟随、复制和清空操作。 |
@@ -189,10 +190,11 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | --- | --- |
 | `useOptions.js` | 设置页主状态：加载、规范化、保存、测试、自定义权限、缓存清理和 storage 同步。 |
 | `useDebug.js` | 调试 Port 的连接、心跳、重连、快照同步和组件卸载清理。 |
+| `useDebugSettings.js` | 独立保存调试元数据与请求正文开关，并在失败时恢复已保存状态。 |
 | `optionsRuntime.js` | 检查核心/runtime 完整性并统一设置页消息响应错误。 |
 | `optionDefinitions.js` | 维护 Provider 与翻译方向的展示定义。 |
 | `catalogData.js` | 把冻结目录转换为模型下拉、价格、上下文和 fallback 设置。 |
-| `usageData.js` | 把月度存储转换为字符或 token 用量行。 |
+| `usageData.js` | 把月度存储转换为字符或 token 用量行；未返回的 token 显示为“未知”或“部分未知”。 |
 | `debugConstants.js` | 定义调试事件中文名和请求开始/结束/失败集合。 |
 | `debugFormat.js` | 安全格式化端点、主机、字段、时间、状态、摘要和搜索文本。 |
 | `debugRows.js` | 把事件转换为 UI 行，并按 requestId 与 attempt 合并请求生命周期。 |
@@ -203,7 +205,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 
 | 文件 | 职责 |
 | --- | --- |
-| `options.css` | 样式入口，只按层次导入下面九个文件。 |
+| `options.css` | 样式入口，只按层次导入设置页分区样式。 |
 | `styles/base.css` | 变量、字体、重置与基础元素。 |
 | `styles/shell.css` | 页面外壳、顶部导航、品牌和主内容布局。 |
 | `styles/setup.css` | 首屏介绍、配置表面和隐私区。 |
@@ -262,6 +264,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `catalog-fixture.mjs` | 提供最小且合法的 Provider 目录测试数据。 |
 | `content-dom-harness.mjs` | 用 happy-dom 加载生成内容脚本，模拟布局、runtime 消息与 DOM 变化。 |
 | `options-page-harness.mjs` | 加载设置页产物，模拟扩展 API、调试 Port 和用户交互。 |
+| `popup-page-harness.mjs` | 用 happy-dom 加载 popup 产物，模拟 runtime 消息、当前页状态和页面跳转。 |
 | `provider-runtime-harness.mjs` | 模拟 fetch 并加载 Provider runtime，用于检查真实 SDK 请求形状。 |
 
 ### `test/integration/`
@@ -275,9 +278,10 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `background-rollback-regressions.test.mjs` | 验证半提交回滚同步修正持久与内存指针，并等待慢 current 删除后再恢复旧任务；恢复失败则保持 fail-closed。 |
 | `background-stale-read-failures.test.mjs` | 验证批次已读到旧快照后，取消或关闭标签页即使只能删除持久快照，当前 Worker 的内存屏障仍阻止调用 Provider。 |
 | `background-storage-failures.test.mjs` | 验证 cancelled 写入失败时的删除兜底，以及 Badge API 挂起不能锁死取消、重启或后续任务。 |
+| `background-usage.test.mjs` | 验证 Provider 缺少 usage 时，后台保留未知语义而不是持久化成零 token。 |
 | `content-script.test.mjs` | 验证中文过滤、显式中译英、动态 DOM、运行缓存、重复注入和稳定进度。 |
-| `options-page.test.mjs` | 验证本地资产/CSP、首屏契约、Provider 草稿、保存测试顺序和调试 Port 生命周期。 |
-| `provider-runtime.test.mjs` | 验证非法 Provider 预先拒绝，以及四家官方 SDK endpoint 和低推理参数。 |
+| `options-page.test.mjs` | 验证本地资产/CSP、首屏契约、Provider 草稿、付费 API 标签与计费提示、保存测试顺序和调试 Port 生命周期。 |
+| `provider-runtime.test.mjs` | 验证非法 Provider 预先拒绝、四家官方 SDK endpoint/低推理参数，以及缺失 usage 不会伪装成零 token。 |
 
 ### `test/unit/`
 
@@ -304,7 +308,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `README.md` | 文档索引、适用读者和推荐阅读顺序。 |
 | `codebase-map.md` | 当前文件；解释目录、文件、依赖、生成边界和调用链。 |
 | `chrome-extension-basics.md` | 加载扩展并理解 Manifest V3 运行上下文、权限和 DevTools。 |
-| `debugging.md` | 查看受控事件与 DeepSeek 请求正文投影，并用三类 DevTools 排查运行问题。 |
+| `debugging.md` | 查看受控请求事件与 DeepSeek 请求正文投影，并用三类 DevTools 排查运行问题。 |
 | `provider-catalog.md` | 解释固定 snapshot、allowlist、模型 SDK、DeepSeek 三层请求转换和目录更新流程。 |
 
 ## 从点击图标到看到译文
@@ -324,7 +328,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 11. `message-router.js` 再次验证 runId、方向、段落数量、ID 和字符数，并从 `run-store.js` 取回启动时的固定快照。
 12. `batch-translator.js` 先调用 `cache-store.js`。缓存键包含站点、Provider、模型、协议、语言方向和原文，因此不会跨语义误用。
 13. 全命中时后台直接返回。未命中时 `provider-service.js` 选择 `model-translator.js` 或 `rest-translators.js`；请求层统一处理取消、超时、有限重试和安全调试事件。
-14. Provider 响应通过完成原因、JSON、ID、数量和译文长度校验后，后台记录用量，写入持久缓存，再把 ID 对齐的结果返回内容脚本。
+14. Provider 响应通过完成原因、JSON、ID、数量和译文长度校验后，后台记录普通用量统计，写入持久缓存，再把 ID 对齐的结果返回内容脚本。
 15. `cloud-translator.js` 写入运行缓存并回填所有去重目标；`dom/renderer.js` 确认原文未变化，再用 `textContent` 插入译文；`progress-tracker.js` 只增加已完成数。
 16. `status-reporter.js` 等待 DOM 和计数稳定后发送完成状态；`status-controller.js` 先按消息到达顺序分配修订，再做后台稳定窗口检查；`action-ui.js` 在慢 Badge API 返回后重放最新修订，因此旧完成或旧进度都不能覆盖新状态。
 17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。它们只把受影响根节点放回队列；已有译文优先从运行缓存恢复。
@@ -340,6 +344,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | 进度抖动或旧状态 | `src/content/progress-tracker.js`、`src/content/status-reporter.js`、`chrome-extension/background/status-controller.js` | content service、background status 与内容脚本集成测试 |
 | DOM 识别或插入位置 | `src/content/dom/scanner.js`、`renderer.js` | content DOM harness 与内容脚本集成测试 |
 | Provider 请求、重试 | `provider-service.js`、`providers/`、`src/provider/` | Provider runtime 集成测试和调试文档 |
+| Provider 标签或价格展示 | `src/options/ProviderPicker.vue`、`catalogData.js`、`data/models-dev-subset.json` | options data 单元测试、options page 集成测试和 `docs/provider-catalog.md` |
 | popup 主动作或入口 | `src/popup/`、`message-router.js`、`action-ui.js` | Manifest、`background-app.test.mjs`、`npm run check:popup` 和 Chrome 手工验证 |
 | 设置或调试界面逻辑 | `src/options/useOptions.js`、`useDebug.js`、对应 Vue 组件 | options data 单元测试与 options page 集成测试 |
 | 设置页视觉样式 | `DESIGN.md`、`src/options/styles/` | 先保持现有视觉决策，再验证 700/520/480px 断点 |

@@ -198,7 +198,7 @@ export function createExtensionSender(path = "options/index.html") {
 	return { url: `${extensionOrigin}${path}` };
 }
 
-export function createProviderRuntimeFake() {
+export function createProviderRuntimeFake(options = {}) {
 	const requests = [];
 	return {
 		requests,
@@ -228,7 +228,7 @@ export function createProviderRuntimeFake() {
 				});
 			}
 			const payload = JSON.parse(request.messages[0].content);
-			return {
+			const result = {
 				text: JSON.stringify({
 					translations: payload.segments.map((segment) => ({
 						id: segment.id,
@@ -236,8 +236,11 @@ export function createProviderRuntimeFake() {
 					})),
 				}),
 				finishReason: "stop",
-				usage: { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 },
 			};
+			if (options.omitUsage !== true) {
+				result.usage = { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 };
+			}
+			return result;
 		},
 	};
 }

@@ -131,6 +131,26 @@ test("DeepSeek 请求关闭思考并捕获实际请求正文", async () => {
 	assert.equal(Object.hasOwn(plainEvents[1], "requestBody"), false);
 });
 
+// DeepSeek 响应缺少 usage 时必须保留“未知”，不能伪装成零 token 造成错误用量统计。
+test("DeepSeek 缺少 usage 时保留未知 token 用量", async () => {
+	const recorder = createRequestRecorder(() =>
+		createJsonResponse({
+			id: "response-without-usage",
+			created: 1,
+			model: "deepseek-v4-flash",
+			choices: [{ message: { role: "assistant", content: "译文" }, finish_reason: "stop" }],
+		}),
+	);
+	const { runtime } = await loadProviderRuntime(recorder.fetchImplementation);
+	const result = await runtime.generateTranslation(
+		createTranslationRequest("deepseek", "deepseek-v4-flash"),
+	);
+
+	assert.equal(result.usage.inputTokens, undefined);
+	assert.equal(result.usage.outputTokens, undefined);
+	assert.equal(result.usage.cacheReadTokens, 0);
+});
+
 // OpenAI 必须调用官方 Responses API，并显式把推理强度降为 none。
 test("OpenAI 使用官方 Responses API 并禁用推理", async () => {
 	const events = [];

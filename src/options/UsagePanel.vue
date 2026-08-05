@@ -14,7 +14,7 @@ defineEmits(["clear"]);
 <template>
 	<div id="usage-section" class="fold-body usage-section">
 		<div class="usage-head">
-			<p>缓存命中不会再次请求 API；模型服务按实际 token 记录。</p>
+			<p>缓存命中不会再次请求 API；模型服务未返回 token 时显示未知。</p>
 			<button id="clear-cache" class="text-button" type="button" @click="$emit('clear')">清空缓存</button>
 		</div>
 		<div id="usage" class="usage-list">

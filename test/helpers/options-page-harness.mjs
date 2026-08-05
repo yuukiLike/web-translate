@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import { Window } from "happy-dom";
-const catalogUrl = new URL(
-	"../../chrome-extension/generated/provider-catalog.js",
-	import.meta.url,
-);
+import { settle, waitFor } from "./popup-page-harness.mjs";
+const catalogUrl = new URL("../../chrome-extension/generated/provider-catalog.js", import.meta.url);
 const coreUrl = new URL("../../chrome-extension/generated/core.js", import.meta.url);
 const optionsUrl = new URL("../../chrome-extension/options/options.js", import.meta.url);
 let optionsImportId = 0;
-
+export { settle, waitFor };
 function createEventHub() {
 	const listeners = new Set();
 	return {
@@ -22,12 +20,8 @@ function createEventHub() {
 				listener(...arguments_);
 			}
 		},
-		get size() {
-			return listeners.size;
-		},
 	};
 }
-
 function createPort() {
 	const onMessage = createEventHub();
 	const onDisconnect = createEventHub();
@@ -138,23 +132,6 @@ function installControlledTimers() {
 		},
 	};
 }
-
-export async function settle() {
-	await Promise.resolve();
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	await Promise.resolve();
-}
-
-export async function waitFor(predicate, message) {
-	for (let attempt = 0; attempt < 60; attempt += 1) {
-		if (predicate()) {
-			return;
-		}
-		await settle();
-	}
-	assert.fail(message);
-}
-
 export function clickByText(document, selector, text) {
 	const element = [...document.querySelectorAll(selector)].find((candidate) =>
 		candidate.textContent.includes(text),
@@ -163,7 +140,6 @@ export function clickByText(document, selector, text) {
 	element.click();
 	return element;
 }
-
 export function inputValue(window, input, value) {
 	input.value = value;
 	input.dispatchEvent(new window.Event("input", { bubbles: true }));
@@ -220,7 +196,11 @@ export async function createOptionsPageHarness() {
 				calls.push(structuredClone(message));
 				switch (message.type) {
 					case "GET_OPTIONS_STATE":
-						return { ok: true, settings: structuredClone(settings), usage };
+						return {
+							ok: true,
+							settings: structuredClone(settings),
+							usage,
+						};
 					case "SAVE_SETTINGS":
 						settings = core.normalizeSettings(message.settings);
 						return { ok: true, settings: structuredClone(settings) };
