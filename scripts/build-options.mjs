@@ -8,9 +8,10 @@ import { build } from "esbuild";
 
 const applicationRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const optionsSourceDirectory = resolve(applicationRoot, "src/options");
+const optionsOutputDirectory = resolve(applicationRoot, "chrome-extension/options");
 const expectedOutputPaths = new Map([
-	[resolve(applicationRoot, "options.js"), "options.js"],
-	[resolve(applicationRoot, "options.css"), "options.css"],
+	[resolve(optionsOutputDirectory, "options.js"), "options.js"],
+	[resolve(optionsOutputDirectory, "options.css"), "options.css"],
 ]);
 const commandArguments = process.argv.slice(2);
 
@@ -216,7 +217,7 @@ async function createOptionsOutputs() {
 		logLevel: "warning",
 		metafile: true,
 		minify: true,
-		outdir: applicationRoot,
+		outdir: optionsOutputDirectory,
 		packages: "bundle",
 		platform: "browser",
 		plugins: [createVueSfcPlugin()],
@@ -245,7 +246,9 @@ async function createOptionsOutputs() {
 		}
 	}
 
-	assertSafeJavaScript(generatedOutputs.get(resolve(applicationRoot, "options.js")).toString("utf8"));
+	assertSafeJavaScript(
+		generatedOutputs.get(resolve(optionsOutputDirectory, "options.js")).toString("utf8"),
+	);
 	return generatedOutputs;
 }
 

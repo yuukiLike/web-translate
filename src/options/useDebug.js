@@ -1,6 +1,12 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 
-import { createDebugRows, errorText, isRecord, normalizeDebugEvents } from "./data.js";
+import {
+	createDebugRequests,
+	createDebugRows,
+	errorText,
+	isRecord,
+	normalizeDebugEvents,
+} from "./data.js";
 
 const DEBUG_PORT_NAME = "debug-events-v1";
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -9,6 +15,7 @@ const RECONNECT_DELAY_MS = 1_000;
 export function useDebug({ enabled, saved, runtime, sendMessage }) {
 	const events = ref([]);
 	const rows = computed(() => createDebugRows(events.value));
+	const requests = computed(() => createDebugRequests(events.value));
 	const connection = reactive({ text: "调试已关闭", state: "off" });
 	let port;
 	let reconnectTimer;
@@ -147,11 +154,7 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 				setConnection("事件已清空", "off");
 				return true;
 			}
-			if (saved.value) {
-				setConnection("事件已清空，实时调试已连接", "connected");
-				return true;
-			}
-			setConnection("事件已清空；保存设置后开始记录", "connected");
+			setConnection("事件已清空，实时调试已连接", "connected");
 			return true;
 		} catch (error) {
 			setConnection(errorText(error), "error");
@@ -162,37 +165,22 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 	function updateEnabled() {
 		if (!enabled.value) {
 			disconnect();
-			if (saved.value) {
-				setConnection("已断开；保存设置后停止记录", "off");
-				return;
-			}
 			setConnection("调试已关闭", "off");
 			return;
 		}
-		const connected = connect();
-		if (connected && !saved.value) {
-			setConnection("已连接；保存设置后开始记录", "connected");
-		}
+		connect();
 		void sync();
 	}
 
 	function updateSaved() {
 		if (!enabled.value) {
-			if (saved.value) {
-				setConnection("已断开；保存设置后停止记录", "off");
-				return;
-			}
 			setConnection("调试已关闭", "off");
 			return;
 		}
-		if (saved.value) {
-			if (!port && !connect()) {
-				return;
-			}
-			setConnection("实时调试已连接", "connected");
+		if (!port && !connect()) {
 			return;
 		}
-		setConnection("已连接；保存设置后开始记录", "connected");
+		setConnection("实时调试已连接", "connected");
 	}
 
 	function handleVisibilityChange() {
@@ -223,5 +211,5 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		disconnect();
 	});
 
-	return { enabled, events, rows, connection, clear, sync };
+	return { enabled, events, rows, requests, connection, clear, sync };
 }

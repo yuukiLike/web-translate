@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 
 import {
 	PROVIDERS,
@@ -57,6 +57,7 @@ export function useOptions() {
 	const version = ref(manifestVersion(runtime));
 	const status = reactive({ text: "", error: false });
 	const busy = ref("");
+	const connected = ref(false);
 	const usage = ref({});
 	const savedDebug = ref(false);
 	let initialSettings = createFallbackSettings(catalog);
@@ -92,6 +93,22 @@ export function useOptions() {
 		return createUsageRows(usage.value, core.getMonthKey(), getProviderName);
 	});
 
+	watch(
+		() => {
+			const providerSettings = draft[draft.provider];
+			return [
+				draft.provider,
+				providerSettings?.apiKey,
+				providerSettings?.baseUrl,
+				providerSettings?.model,
+				providerSettings?.region,
+			];
+		},
+		() => {
+			connected.value = false;
+		},
+	);
+
 	function setStatus(text, error = false) {
 		status.text = text;
 		status.error = error;
@@ -125,6 +142,31 @@ export function useOptions() {
 			throw new Error(configurationError);
 		}
 		return settings;
+	}
+
+	async function ensureCustomHostPermission(settings) {
+		if (settings.provider !== "custom") {
+			return;
+		}
+		const origin = core.getCustomApiOrigin(settings.custom.baseUrl);
+		if (!origin) {
+			throw new Error("自定义 Base URL 无效");
+		}
+		const permissions = chromeApi?.permissions;
+		if (!permissions || typeof permissions.request !== "function") {
+			return;
+		}
+		const origins = [`${origin}/*`];
+		if (typeof permissions.contains === "function") {
+			const alreadyGranted = await permissions.contains({ origins });
+			if (alreadyGranted) {
+				return;
+			}
+		}
+		const granted = await permissions.request({ origins });
+		if (!granted) {
+			throw new Error("需要授权访问该自定义 API 域名");
+		}
 	}
 
 	function acceptSavedSettings(value) {
@@ -166,6 +208,7 @@ export function useOptions() {
 		setStatus("正在保存设置…");
 		try {
 			const settings = settingsForSave();
+			await ensureCustomHostPermission(settings);
 			const response = await sendMessage({ type: "SAVE_SETTINGS", settings });
 			acceptSavedSettings(response.settings);
 			setStatus("设置已保存");
@@ -178,11 +221,33 @@ export function useOptions() {
 		}
 	}
 
+	async function saveDebug() {
+		const requested = draft.debugLogging;
+		busy.value = "debug";
+		setStatus(requested ? "正在开启调试记录…" : "正在关闭调试记录…");
+		try {
+			const response = await sendMessage({ type: "SET_DEBUG_LOGGING", enabled: requested });
+			const stored = response.debugLogging === true;
+			savedDebug.value = stored;
+			draft.debugLogging = stored;
+			setStatus(stored ? "调试记录已开启" : "调试记录已关闭");
+			return true;
+		} catch (error) {
+			draft.debugLogging = savedDebug.value;
+			setStatus(errorText(error), true);
+			return false;
+		} finally {
+			busy.value = "";
+		}
+	}
+
 	async function testProvider() {
 		busy.value = "test";
+		connected.value = false;
 		setStatus("正在测试连接…");
 		try {
 			const settings = settingsForSave();
+			await ensureCustomHostPermission(settings);
 			const saved = await sendMessage({ type: "SAVE_SETTINGS", settings });
 			acceptSavedSettings(saved.settings);
 			const tested = await sendMessage({ type: "TEST_PROVIDER" });
@@ -190,6 +255,7 @@ export function useOptions() {
 			acceptUsage(refreshed.usage);
 			const message = typeof tested.message === "string" ? tested.message : "连接测试完成";
 			setStatus(message);
+			connected.value = true;
 			return true;
 		} catch (error) {
 			setStatus(errorText(error), true);
@@ -253,7 +319,9 @@ export function useOptions() {
 		usageRows,
 		status,
 		busy,
+		connected,
 		save,
+		saveDebug,
 		testProvider,
 		clearCache,
 		debug,

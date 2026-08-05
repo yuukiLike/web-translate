@@ -4,11 +4,17 @@ import test from "node:test";
 import vm from "node:vm";
 
 const catalogSource = readFileSync(
-	new URL("../lib/provider-catalog.generated.js", import.meta.url),
+	new URL("../chrome-extension/generated/provider-catalog.js", import.meta.url),
 	"utf8",
 );
-const coreSource = readFileSync(new URL("../lib/core.js", import.meta.url), "utf8");
-const contentSource = readFileSync(new URL("../content.js", import.meta.url), "utf8");
+const coreSource = readFileSync(
+	new URL("../chrome-extension/shared/core.js", import.meta.url),
+	"utf8",
+);
+const contentSource = readFileSync(
+	new URL("../chrome-extension/content/content-script.js", import.meta.url),
+	"utf8",
+);
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -709,9 +715,9 @@ test("production content script renders and incrementally maintains every X-like
 	context.window = context;
 	context.innerHeight = 800;
 
-	vm.runInContext(catalogSource, context, { filename: "provider-catalog.generated.js" });
+	vm.runInContext(catalogSource, context, { filename: "provider-catalog.js" });
 	vm.runInContext(coreSource, context, { filename: "core.js" });
-	vm.runInContext(contentSource, context, { filename: "content.js" });
+	vm.runInContext(contentSource, context, { filename: "content-script.js" });
 	try {
 		await waitFor(
 			() => environment.document.querySelectorAll(".bt-translation[data-bt-owned='true']").length === 18,

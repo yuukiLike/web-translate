@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const snapshotUrl = new URL("../../../pi-test/test.htm", import.meta.url);
-const contentUrl = new URL("../content.js", import.meta.url);
-const cssUrl = new URL("../content.css", import.meta.url);
+const contentUrl = new URL("../chrome-extension/content/content-script.js", import.meta.url);
+const cssUrl = new URL("../chrome-extension/content/content.css", import.meta.url);
 const hasSnapshot = existsSync(snapshotUrl);
 
 test("the saved X snapshot exposes every tweet as an atomic text unit", { skip: !hasSnapshot }, () => {

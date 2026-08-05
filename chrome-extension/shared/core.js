@@ -43,6 +43,14 @@
 		openai: createModelProviderDefinition("openai"),
 		google: createModelProviderDefinition("google"),
 		anthropic: createModelProviderDefinition("anthropic"),
+		custom: Object.freeze({
+			configKey: "custom",
+			label: "自定义",
+			maximumConcurrency: 2,
+			limits: MODEL_PROVIDER_LIMITS,
+			modelProvider: true,
+			customEndpoint: true,
+		}),
 	});
 	const PROVIDERS = new Set(Object.keys(PROVIDER_DEFINITIONS));
 	const TARGET_MODES = new Set(["auto", "zh", "en"]);
@@ -52,6 +60,8 @@
 	const USAGE_KEY = "usage";
 	const CHAT_TRANSLATION_PROTOCOL_VERSION = "ai-sdk-json-v2";
 	const MAXIMUM_API_KEY_LENGTH = 4_096;
+	const MAXIMUM_CUSTOM_BASE_URL_LENGTH = 2_048;
+	const CUSTOM_DEFAULT_OUTPUT_TOKENS = 8_192;
 
 	function createDefaultModelSettings(providerId) {
 		return {
@@ -78,7 +88,68 @@
 			openai: createDefaultModelSettings("openai"),
 			google: createDefaultModelSettings("google"),
 			anthropic: createDefaultModelSettings("anthropic"),
+			custom: {
+				apiKey: "",
+				baseUrl: "",
+				model: "",
+			},
 		};
+	}
+
+	function isLocalHttpHost(hostname) {
+		return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+	}
+
+	function normalizeCustomBaseUrl(value) {
+		const input = safeString(value, "", MAXIMUM_CUSTOM_BASE_URL_LENGTH);
+		if (!input) {
+			return "";
+		}
+		try {
+			const url = new URL(input);
+			if (url.protocol !== "https:" && url.protocol !== "http:") {
+				return "";
+			}
+			if (url.protocol === "http:" && !isLocalHttpHost(url.hostname)) {
+				return "";
+			}
+			if (url.username || url.password) {
+				return "";
+			}
+			const path = url.pathname.replace(/\/+$/u, "");
+			return `${url.origin}${path === "/" ? "" : path}`;
+		} catch {
+			return "";
+		}
+	}
+
+	function normalizeCustomSettings(value, defaults) {
+		const input = isRecord(value) ? value : {};
+		return {
+			apiKey: safeString(input.apiKey, "", MAXIMUM_API_KEY_LENGTH),
+			baseUrl: normalizeCustomBaseUrl(input.baseUrl) || defaults.baseUrl,
+			model: safeString(input.model, defaults.model, 300),
+		};
+	}
+
+	function getCustomApiOrigin(baseUrl) {
+		const normalized = normalizeCustomBaseUrl(baseUrl);
+		if (!normalized) {
+			return "";
+		}
+		try {
+			return new URL(normalized).origin;
+		} catch {
+			return "";
+		}
+	}
+
+	function usesTokenUsage(provider) {
+		return MODEL_PROVIDER_IDS.includes(provider) || provider === "custom";
+	}
+
+	function usesChatTranslation(provider) {
+		return MODEL_PROVIDER_IDS.includes(provider) || provider === "custom";
 	}
 
 	function isRecord(value) {
@@ -135,6 +206,7 @@
 			openai: normalizeModelSettings(inputSettings.openai, "openai", defaults.openai),
 			google: normalizeModelSettings(inputSettings.google, "google", defaults.google),
 			anthropic: normalizeModelSettings(inputSettings.anthropic, "anthropic", defaults.anthropic),
+			custom: normalizeCustomSettings(inputSettings.custom, defaults.custom),
 		};
 	}
 
@@ -164,6 +236,14 @@
 		const label = getProviderLabel(normalized);
 		if (!getProviderApiKey(normalized)) {
 			return `请先填写 ${label} API Key`;
+		}
+		if (normalized.provider === "custom") {
+			if (!normalized.custom.baseUrl) {
+				return "请填写有效的自定义 Base URL（仅 https，本地可用 http）";
+			}
+			if (!normalized.custom.model) {
+				return "请填写自定义模型 ID";
+			}
 		}
 		return null;
 	}
@@ -330,6 +410,8 @@
 				return `azure:${normalized.azure.region || "global"}`;
 			case "deepl":
 				return "deepl:latency-optimized-v1";
+			case "custom":
+				return `custom:${normalized.custom.baseUrl}:${normalized.custom.model}:${CHAT_TRANSLATION_PROTOCOL_VERSION}`;
 			default:
 				return `${MODEL_CATALOG.defaultProviderId}:${MODEL_CATALOG.providers[MODEL_CATALOG.defaultProviderId].defaultModelId}:${CHAT_TRANSLATION_PROTOCOL_VERSION}`;
 		}
@@ -337,9 +419,13 @@
 
 	function getProviderModel(settings) {
 		const normalized = normalizeSettings(settings);
-		return MODEL_PROVIDER_IDS.includes(normalized.provider)
-			? normalized[normalized.provider].model
-			: "";
+		if (MODEL_PROVIDER_IDS.includes(normalized.provider)) {
+			return normalized[normalized.provider].model;
+		}
+		if (normalized.provider === "custom") {
+			return normalized.custom.model;
+		}
+		return "";
 	}
 
 	function cacheKey(settings, sourceLanguage, targetLanguage, text, cacheScope = "global") {
@@ -399,6 +485,7 @@
 			CHAT_TRANSLATION_PROTOCOL_VERSION,
 			CACHE_INDEX_KEY,
 			CACHE_PREFIX,
+			CUSTOM_DEFAULT_OUTPUT_TOKENS,
 			MODEL_CATALOG,
 			MODEL_PROVIDER_IDS,
 			PROVIDER_DEFINITIONS,
@@ -409,6 +496,7 @@
 			cacheKey,
 			cjkRatio,
 			createDefaultSettings,
+			getCustomApiOrigin,
 			getDeepLApiHost,
 			getLanguagePair,
 			getMaximumTranslationLength,
@@ -422,6 +510,7 @@
 			getProviderSignature,
 			hashText,
 			isRecord,
+			normalizeCustomBaseUrl,
 			normalizeLanguageTag,
 			normalizeSettings,
 			normalizeSourceText,
@@ -431,6 +520,8 @@
 			publicSettings,
 			shouldTranslateText,
 			splitText,
+			usesChatTranslation,
+			usesTokenUsage,
 		}),
 		configurable: false,
 		enumerable: false,

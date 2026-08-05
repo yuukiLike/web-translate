@@ -30,6 +30,55 @@ function getProviderAndModel(providerId, modelId) {
 	return { provider, model };
 }
 
+function normalizeCustomBaseUrl(value) {
+	if (typeof value !== "string") {
+		return "";
+	}
+	const input = value.trim();
+	if (!input) {
+		return "";
+	}
+	try {
+		const url = new URL(input);
+		if (url.protocol !== "https:" && url.protocol !== "http:") {
+			return "";
+		}
+		const localHost =
+			url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+		if (url.protocol === "http:" && !localHost) {
+			return "";
+		}
+		if (url.username || url.password) {
+			return "";
+		}
+		const path = url.pathname.replace(/\/+$/u, "");
+		return `${url.origin}${path === "/" ? "" : path}`;
+	} catch {
+		return "";
+	}
+}
+
+function getCustomEndpoint(baseUrl, modelId) {
+	const normalizedBaseUrl = normalizeCustomBaseUrl(baseUrl);
+	const model = typeof modelId === "string" ? modelId.trim() : "";
+	if (!normalizedBaseUrl) {
+		throw new Error("A valid custom base URL is required");
+	}
+	if (!model || model.length > 300) {
+		throw new Error("A valid custom model id is required");
+	}
+	return {
+		provider: Object.freeze({
+			id: "custom",
+			apiBaseURL: normalizedBaseUrl,
+		}),
+		model: Object.freeze({
+			id: model,
+			limits: Object.freeze({ output: 8_192 }),
+		}),
+	};
+}
+
 function assertApiKey(apiKey) {
 	if (typeof apiKey !== "string" || !apiKey.trim() || apiKey.length > 4096) {
 		throw new Error("A valid API key is required");
@@ -39,6 +88,12 @@ function assertApiKey(apiKey) {
 function assertMessages(messages) {
 	if (!Array.isArray(messages) || messages.length === 0) {
 		throw new Error("At least one message is required");
+	}
+}
+
+function assertInstructions(instructions) {
+	if (typeof instructions !== "string" || !instructions.trim()) {
+		throw new Error("Translation instructions are required");
 	}
 }
 
@@ -159,6 +214,7 @@ function createLanguageModel(provider, apiKey, modelId, observedFetch) {
 		case "deepseek":
 			return createDeepSeek(options)(modelId);
 		case "openai":
+		case "custom":
 			return createOpenAI(options)(modelId);
 		case "google":
 			return createGoogle(options)(modelId);
@@ -192,6 +248,9 @@ function createProviderGenerationOptions(providerId) {
 		case "openai":
 		case "anthropic":
 			return { reasoning: "none" };
+		case "custom":
+			// Compatible proxies vary; avoid vendor-specific inference flags.
+			return {};
 		default:
 			throw new Error(`Unsupported provider: ${providerId}`);
 	}
@@ -220,28 +279,35 @@ async function generateTranslation({
 	providerId,
 	apiKey,
 	modelId,
+	baseUrl,
+	instructions,
 	messages,
 	abortSignal,
 	maxOutputTokens,
 	onRequestEvent,
 }) {
-	const { provider, model } = getProviderAndModel(providerId, modelId);
+	const { provider, model } =
+		providerId === "custom"
+			? getCustomEndpoint(baseUrl, modelId)
+			: getProviderAndModel(providerId, modelId);
 	assertApiKey(apiKey);
+	assertInstructions(instructions);
 	assertMessages(messages);
 	const outputTokenLimit = getMaximumOutputTokens(maxOutputTokens, model);
 	const languageModel = createLanguageModel(
 		provider,
 		apiKey,
-		modelId,
+		model.id,
 		createObservedFetch(onRequestEvent),
 	);
 	const result = await generateText({
 		model: languageModel,
+		instructions,
 		messages,
 		abortSignal,
 		maxOutputTokens: outputTokenLimit,
 		maxRetries: 0,
-		...createProviderGenerationOptions(providerId),
+		...createProviderGenerationOptions(provider.id),
 	});
 	return normalizeTranslationResult(result);
 }

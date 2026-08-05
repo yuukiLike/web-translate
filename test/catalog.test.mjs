@@ -11,6 +11,7 @@ import {
 } from "../scripts/validate-provider-config.mjs";
 
 const sourceCommit = "141191529fcad56200de45e7267a21dffcc4c33e";
+const translationInstructions = "Translate the user content and return only the translation.";
 
 async function readJson(relativePath) {
 	return JSON.parse(await readFile(new URL(relativePath, import.meta.url), "utf8"));
@@ -60,7 +61,10 @@ function createRuntimeContext(fetchImplementation) {
 }
 
 async function loadProviderRuntime(fetchImplementation) {
-	const source = await readFile(new URL("../lib/provider-runtime.js", import.meta.url), "utf8");
+	const source = await readFile(
+		new URL("../chrome-extension/generated/provider-runtime.js", import.meta.url),
+		"utf8",
+	);
 	const context = createRuntimeContext(fetchImplementation);
 	vm.runInContext(source, context, { filename: "provider-runtime.js" });
 	return {
@@ -128,12 +132,12 @@ test("cross-validation binds defaults, model ownership, SDK packages, and offici
 
 test("generated classic script exposes a deeply frozen provider catalog global", async () => {
 	const source = await readFile(
-		new URL("../lib/provider-catalog.generated.js", import.meta.url),
+		new URL("../chrome-extension/generated/provider-catalog.js", import.meta.url),
 		"utf8",
 	);
 	const context = vm.createContext({ globalThis: null });
 	context.globalThis = context;
-	vm.runInContext(source, context, { filename: "provider-catalog.generated.js" });
+	vm.runInContext(source, context, { filename: "provider-catalog.js" });
 
 	const catalog = context.BilingualTranslatorProviderCatalog;
 	assert.equal(catalog.source.commit, sourceCommit);
@@ -158,6 +162,7 @@ test("generated runtime rejects providers and provider-model mismatches before f
 			providerId: "openrouter",
 			apiKey: "not-a-real-key",
 			modelId: "openrouter/auto",
+			instructions: translationInstructions,
 			messages: [{ role: "user", content: "translate" }],
 		}),
 		/Unsupported provider: openrouter/u,
@@ -167,6 +172,7 @@ test("generated runtime rejects providers and provider-model mismatches before f
 			providerId: "deepseek",
 			apiKey: "not-a-real-key",
 			modelId: "gpt-5.6-luna",
+			instructions: translationInstructions,
 			messages: [{ role: "user", content: "translate" }],
 		}),
 		/Model gpt-5\.6-luna is not allowlisted for provider deepseek/u,
@@ -206,6 +212,7 @@ test("DeepSeek requests disable thinking and expose only safe request metadata",
 		providerId: "deepseek",
 		apiKey,
 		modelId: "deepseek-v4-flash",
+		instructions: translationInstructions,
 		messages: [{ role: "user", content: "Translate this" }],
 		maxOutputTokens: 100,
 		onRequestEvent(event) {
@@ -217,7 +224,14 @@ test("DeepSeek requests disable thinking and expose only safe request metadata",
 	assert.equal(context.__zod_globalConfig.jitless, true);
 	assert.equal(requests.length, 1);
 	assert.equal(requests[0].input, "https://api.deepseek.com/chat/completions");
-	assert.deepEqual(JSON.parse(requests[0].init.body).thinking, { type: "disabled" });
+	const requestBody = JSON.parse(requests[0].init.body);
+	assert.deepEqual(requestBody.thinking, { type: "disabled" });
+	assert.deepEqual(
+		requestBody.messages.map((message) => message.role),
+		["system", "user"],
+	);
+	assert.equal(requestBody.messages[0].content, translationInstructions);
+	assert.equal(requestBody.messages[1].content, "Translate this");
 	assert.equal(normalizedResult.text, "译文");
 	assert.equal(normalizedResult.finishReason, "stop");
 	assert.equal(normalizedResult.rawFinishReason, "stop");
@@ -284,6 +298,7 @@ test("OpenAI uses the Responses API with reasoning explicitly disabled", async (
 		providerId: "openai",
 		apiKey: "not-a-real-openai-key",
 		modelId: "gpt-5.6-luna",
+		instructions: translationInstructions,
 		messages: [{ role: "user", content: "Translate this" }],
 	});
 	const body = JSON.parse(requests[0].init.body);
@@ -317,6 +332,7 @@ test("Google uses its explicit provider and minimal Gemini thinking", async () =
 		providerId: "google",
 		apiKey: "not-a-real-google-key",
 		modelId: "gemini-3.5-flash-lite",
+		instructions: translationInstructions,
 		messages: [{ role: "user", content: "Translate this" }],
 	});
 	const body = JSON.parse(requests[0].init.body);
@@ -354,6 +370,7 @@ test("Anthropic uses Messages API with thinking explicitly disabled", async () =
 		providerId: "anthropic",
 		apiKey: "not-a-real-anthropic-key",
 		modelId: "claude-sonnet-5",
+		instructions: translationInstructions,
 		messages: [{ role: "user", content: "Translate this" }],
 	});
 	const body = JSON.parse(requests[0].init.body);

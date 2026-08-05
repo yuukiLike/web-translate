@@ -1,31 +1,28 @@
 <script setup>
+import { ref } from "vue";
+
 import DebugPanel from "./DebugPanel.vue";
 import Mark from "./Mark.vue";
-import ProviderPanel from "./ProviderPanel.vue";
+import ProviderFields from "./ProviderFields.vue";
 import ProviderPicker from "./ProviderPicker.vue";
 import UsagePanel from "./UsagePanel.vue";
 import { useOptions } from "./useOptions.js";
 
 defineOptions({ name: "OptionsApp" });
 
-const nav = [
-	{ href: "#service", index: "01", name: "接入服务", note: "ROOTS" },
-	{ href: "#behavior", index: "02", name: "翻译习惯", note: "GROWTH" },
-	{ href: "#debug", index: "03", name: "调试模式", note: "GREENHOUSE" },
-	{ href: "#usage-section", index: "04", name: "本月用量", note: "RINGS" },
-	{ href: "#privacy", index: "05", name: "隐私边界", note: "GROUND" },
-];
-
+const view = ref(globalThis.location?.hash === "#debug" ? "debug" : "setup");
 const {
 	busy,
 	catalogInfo,
 	clearCache,
+	connected,
 	debug,
 	draft,
 	fatal,
 	providers,
 	ready,
 	save,
+	saveDebug,
 	selectedProvider,
 	selectedTarget,
 	status,
@@ -38,218 +35,180 @@ const {
 const {
 	clear: clearDebug,
 	connection: debugConnection,
+	requests: debugRequests,
 	rows: debugRows,
 } = debug;
+
+function show(nextView) {
+	view.value = nextView;
+	const hash = nextView === "debug" ? "#debug" : "#setup";
+	globalThis.history?.replaceState(null, "", hash);
+	if (globalThis.location?.hash !== hash) {
+		globalThis.location.hash = hash;
+	}
+}
 </script>
 
 <template>
-	<div class="page">
-		<svg class="growth-rings" viewBox="0 0 540 540" aria-hidden="true">
-			<circle cx="270" cy="270" r="76" />
-			<circle cx="270" cy="270" r="116" />
-			<circle cx="270" cy="270" r="158" />
-			<circle cx="270" cy="270" r="202" />
-			<circle cx="270" cy="270" r="246" />
-		</svg>
-
-		<aside class="rail">
-			<a class="brand" href="#top" aria-label="回到页面顶部">
+	<div class="shell">
+		<header class="topbar">
+			<button class="brand" type="button" aria-label="打开翻译配置" @click="show('setup')">
 				<span class="mark-wrap"><Mark /></span>
-				<span>
-					<strong>web translate</strong>
-					<small>first sapling</small>
+				<span class="brand-copy">
+					<strong>一键双语</strong>
+					<small>web translate</small>
 				</span>
-			</a>
+			</button>
 
-			<nav class="rail-nav" aria-label="设置页导航">
-				<a v-for="item in nav" :key="item.href" :href="item.href">
-					<span>{{ item.index }}</span>
-					<strong>{{ item.name }}</strong>
-					<small>{{ item.note }}</small>
-				</a>
+			<nav class="tabs" aria-label="设置页导航">
+				<button type="button" :aria-pressed="view === 'setup'" @click="show('setup')">配置</button>
+				<button type="button" :aria-pressed="view === 'debug'" @click="show('debug')">
+					调试
+					<i v-if="draft.debugLogging" aria-label="已开启"></i>
+				</button>
 			</nav>
 
-			<div class="rail-meta">
-				<p><i aria-hidden="true"></i> 本地优先</p>
-				<code id="extension-version">{{ version }}</code>
-			</div>
-		</aside>
+			<code id="extension-version" class="version">{{ version }}</code>
+		</header>
 
-		<main id="top" class="main">
-			<header class="hero">
-				<div class="hero-copy">
-					<p class="eyebrow"><span aria-hidden="true"></span> YOUR FIRST OPEN-SOURCE SAPLING</p>
-					<h1>让译文，<em>自然长在</em><br />原文下方。</h1>
-					<p class="lede">点击一次扩展图标，整页内容和后续加载的段落都会持续长出双语译文。</p>
-				</div>
-
-				<section v-if="ready && !fatal" class="glance" aria-label="当前翻译状态">
-					<p class="glance-title">CURRENT GROVE</p>
-					<dl>
-						<div>
-							<dt>服务</dt>
-							<dd><i aria-hidden="true"></i>{{ selectedProvider.name }}</dd>
-						</div>
-						<div>
-							<dt>方向</dt>
-							<dd>{{ selectedTarget.cue }}</dd>
-						</div>
-						<div>
-							<dt>新内容</dt>
-							<dd>{{ draft.translateDynamicContent ? "持续监听" : "单次扫描" }}</dd>
-						</div>
-						<div>
-							<dt>目录</dt>
-							<dd>{{ catalogInfo.error ? "需要重建" : catalogInfo.sha }}</dd>
-						</div>
-					</dl>
-					<div class="growth-meter" aria-hidden="true">
-						<span v-for="index in 12" :key="index" :class="{ active: index < 10 }"></span>
-					</div>
-				</section>
-			</header>
-
+		<main>
 			<section v-if="fatal" class="fatal" role="alert">
 				<Mark />
 				<div>
-					<p class="section-kicker">SETUP PAUSED</p>
-					<h2>设置页没有完整发芽</h2>
+					<h1>设置页未能加载</h1>
 					<p>{{ fatal }}</p>
 				</div>
 			</section>
 
 			<div v-else-if="!ready" class="boot" role="status" aria-live="polite">
-				<span class="boot-stem" aria-hidden="true"></span>
+				<Mark />
 				<p>正在读取本地设置…</p>
 			</div>
 
-			<template v-else>
-				<form id="settings-form" class="workbench" @submit.prevent="save">
-					<section id="service" class="section service-section">
-						<div class="section-head">
-							<div class="section-title">
-								<span class="section-index">01</span>
-								<div>
-									<p class="section-kicker">ROOTS</p>
-									<h2>接入翻译服务</h2>
-									<p>只发送筛选后的正文段落；网址、Cookie、输入框和整页 HTML 不会离开浏览器。</p>
-								</div>
-							</div>
+			<template v-else-if="view === 'setup'">
+				<section class="intro">
+					<div>
+						<p class="kicker">一次配置，以后只点图标</p>
+						<h1>让译文自然长在原文下面。</h1>
+						<p>粘贴 API Key，扩展会翻译整页，并继续处理下滑时出现的新内容。</p>
+					</div>
+					<div class="bilingual-sample" aria-hidden="true">
+						<span>Keep reading the page.</span>
+						<strong>继续阅读整个网页。</strong>
+					</div>
+				</section>
+
+				<form id="settings-form" class="setup" @submit.prevent="testProvider">
+					<div class="setup-head">
+						<div>
+							<p class="step">连接翻译服务</p>
+							<h2>一个 Key，一次点击。</h2>
 						</div>
+						<span v-if="connected" class="connected"><i aria-hidden="true"></i>连接可用</span>
+					</div>
 
-						<ProviderPicker v-model="draft.provider" :items="providers" />
 
-						<div class="provider-stage">
-							<ProviderPanel
-								v-for="item in providers"
-								:key="item.id"
-								v-model:api-key="draft[item.id].apiKey"
-								v-model:model="draft[item.id].model"
-								v-model:region="draft.azure.region"
-								:active="draft.provider === item.id"
-								:models="catalogInfo.models[item.id] || []"
-								:provider="item"
-							/>
+					<ProviderPicker v-model="draft.provider" :providers="providers" />
+
+					<ProviderFields
+						:key="selectedProvider.id"
+						v-model:api-key="draft[selectedProvider.id].apiKey"
+						v-model:base-url="draft.custom.baseUrl"
+						v-model:model="draft[selectedProvider.id].model"
+						v-model:region="draft.azure.region"
+						:models="catalogInfo.models[selectedProvider.id] || []"
+						:provider="selectedProvider"
+					/>
+
+					<div class="submit-row">
+						<button id="test-provider" class="primary" type="submit" :disabled="Boolean(busy)">
+							{{ busy === "test" ? "正在连接…" : connected ? "重新测试" : "保存并测试" }}
+						</button>
+						<output id="status" :data-error="String(status.error)" role="status" aria-live="polite">
+							{{ status.text }}
+						</output>
+					</div>
+
+					<p class="local-note">
+						<span aria-hidden="true"></span>
+						密钥仅存本机；正文只发送给 {{ selectedProvider.name }}。
+					</p>
+
+					<details id="behavior" class="fold">
+						<summary>
+							<strong>翻译方式</strong>
+							<span>{{ selectedTarget.cue }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
+						</summary>
+						<div class="fold-body behavior-grid">
+							<label class="field">
+								<span>中英方向</span>
+								<select id="target-mode" v-model="draft.targetMode">
+									<option v-for="target in targets" :key="target.id" :value="target.id">
+										{{ target.name }}
+									</option>
+								</select>
+							</label>
+							<label class="field">
+								<span>云端并发</span>
+								<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
+							</label>
+							<label class="toggle-row">
+								<span><strong>增量翻译</strong><small>无限滚动、SPA 与懒加载</small></span>
+								<input id="translate-dynamic" v-model="draft.translateDynamicContent" type="checkbox" />
+								<i aria-hidden="true"></i>
+							</label>
 						</div>
+					</details>
 
+					<details class="fold catalog-fold">
+						<summary>
+							<strong>模型目录</strong>
+							<span>固定快照，不在运行时联网更新</span>
+						</summary>
 						<p
 							id="catalog-status"
 							class="catalog-status"
 							:data-error="String(Boolean(catalogInfo.error))"
 							role="status"
-							aria-live="polite"
 						>
-							<span class="catalog-mark" aria-hidden="true"></span>
 							<template v-if="catalogInfo.error">{{ catalogInfo.error }}</template>
 							<template v-else>
-								固定本地目录 <code id="catalog-source-sha">{{ catalogInfo.sha }}</code>
-								<span aria-hidden="true">·</span>
-								<time id="catalog-fetched-at" :datetime="catalogInfo.dateTime" :title="catalogInfo.dateTime">
-									{{ catalogInfo.dateText }}
-								</time>
-								<span aria-hidden="true">·</span> 更新后需重新加载扩展
+								Snapshot <code id="catalog-source-sha">{{ catalogInfo.sha }}</code>
+								·
+								<time id="catalog-fetched-at" :datetime="catalogInfo.dateTime">{{ catalogInfo.dateText }}</time>
 							</template>
 						</p>
-					</section>
+					</details>
 
-					<section id="behavior" class="section behavior-section">
-						<div class="section-head">
-							<div class="section-title">
-								<span class="section-index">02</span>
-								<div>
-									<p class="section-kicker">GROWTH</p>
-									<h2>翻译习惯</h2>
-									<p>设置语言方向、请求节奏，以及下滑时是否继续翻译新段落。</p>
-								</div>
-							</div>
-						</div>
-
-						<div class="behavior-grid">
-							<label class="field behavior-target">
-								<span>中英方向</span>
-								<select id="target-mode" v-model="draft.targetMode">
-									<option v-for="item in targets" :key="item.id" :value="item.id">
-										{{ item.name }}
-									</option>
-								</select>
-							</label>
-
-							<label class="field behavior-speed">
-								<span>云端并发</span>
-								<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
-							</label>
-
-							<label class="toggle-row">
-								<span>
-									<strong>增量翻译</strong>
-									<small>继续处理 SPA、无限滚动和懒加载正文</small>
-								</span>
-								<input id="translate-dynamic" v-model="draft.translateDynamicContent" type="checkbox" />
-								<i aria-hidden="true"></i>
-							</label>
-						</div>
-					</section>
-
-					<DebugPanel
-						v-model:enabled="draft.debugLogging"
-						:connection="debugConnection"
-						:rows="debugRows"
-						@clear="clearDebug"
-					/>
-
-					<div class="save-dock">
-						<div class="save-copy">
-							<span class="save-mark" aria-hidden="true"></span>
-							<p><strong>设置保存在本机</strong><small>修改后需要手动保存，不会自动调用 API。</small></p>
-						</div>
-						<div class="actions">
-							<button id="test-provider" class="secondary" type="button" :disabled="Boolean(busy)" @click="testProvider">
-								{{ busy === "test" ? "测试中…" : "测试当前服务" }}
-							</button>
-							<button id="save" class="primary" type="submit" :disabled="Boolean(busy)">
-								{{ busy === "save" ? "保存中…" : "保存设置" }}
-							</button>
-						</div>
-						<output id="status" :data-error="String(status.error)" role="status" aria-live="polite">
-							{{ status.text }}
-						</output>
-					</div>
+					<details class="fold">
+						<summary>
+							<strong>本月用量与缓存</strong>
+							<span>{{ usageRows.length ? `${usageRows.length} 个服务有记录` : "暂无云端调用" }}</span>
+						</summary>
+						<UsagePanel :rows="usageRows" @clear="clearCache" />
+					</details>
 				</form>
 
-				<UsagePanel :rows="usageRows" @clear="clearCache" />
-
 				<footer id="privacy" class="privacy">
-					<div class="privacy-mark" aria-hidden="true"><Mark /></div>
-					<div>
-						<p class="section-kicker">GROUND</p>
-						<h2>密钥只扎根在本机</h2>
-						<p>
-							扩展仅在点击图标后取得当前标签页的临时权限。API Key 保存在
-							<code>chrome.storage.local</code>，内容脚本无法读取。若未来为他人统一付费，请接入自有后端代理，不要把开发者密钥打包进扩展。
-						</p>
-					</div>
+					<Mark />
+					<p>
+						扩展只在点击图标后读取当前标签页。API Key 存于 <code>chrome.storage.local</code>，网页脚本无法读取。
+					</p>
 				</footer>
 			</template>
+
+			<DebugPanel
+				v-else
+				v-model:enabled="draft.debugLogging"
+				:busy="busy"
+				:connection="debugConnection"
+				:requests="debugRequests"
+				:rows="debugRows"
+				:status="status"
+				@clear="clearDebug"
+				@save="saveDebug"
+				@test="testProvider"
+			/>
 		</main>
 	</div>
 </template>
