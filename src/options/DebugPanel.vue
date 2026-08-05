@@ -1,9 +1,9 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
-
 defineOptions({ name: "DebugPanel" });
 
 const enabled = defineModel("enabled", { type: Boolean, required: true });
+const requestPayload = defineModel("requestPayload", { type: Boolean, required: true });
 
 const props = defineProps({
 	busy: {
@@ -28,7 +28,7 @@ const props = defineProps({
 	},
 });
 
-defineEmits(["clear", "save", "test"]);
+defineEmits(["clear", "save", "save-request-payload", "test"]);
 
 const mode = ref("requests");
 const query = ref("");
@@ -125,7 +125,7 @@ async function copyVisible() {
 	}));
 	try {
 		await clipboard.writeText(JSON.stringify(snapshot, null, 2));
-		copyState.value = `已复制 ${snapshot.length} 条脱敏轨迹`;
+		copyState.value = `已复制 ${snapshot.length} 条调试轨迹`;
 	} catch {
 		copyState.value = "复制失败";
 	}
@@ -151,7 +151,7 @@ watch([mode, query], () => {
 			<div>
 				<p class="kicker">开发温室</p>
 				<h1>看清每一次请求。</h1>
-				<p>本机实时轨迹，只保留脱敏元数据；正文、译文、密钥、请求头与响应体不会进入记录。</p>
+				<p>事件记录默认不含网页正文。可另行授权记录 DeepSeek 请求正文；无痕窗口永不记录，API Key、请求头与响应体也不会记录。</p>
 			</div>
 			<div class="debug-head-actions">
 				<button
@@ -169,6 +169,20 @@ watch([mode, query], () => {
 						<small>开关独立保存</small>
 					</span>
 					<input id="debug-logging" v-model="enabled" type="checkbox" @change="$emit('save')" />
+					<i aria-hidden="true"></i>
+				</label>
+				<label class="switch-field">
+					<span>
+						<strong>DeepSeek 请求正文</strong>
+						<small>可能含网页原文；无痕永不记录</small>
+					</span>
+					<input
+						id="debug-request-payload"
+						v-model="requestPayload"
+						type="checkbox"
+						:disabled="!enabled || Boolean(busy)"
+						@change="$emit('save-request-payload')"
+					/>
 					<i aria-hidden="true"></i>
 				</label>
 			</div>
@@ -265,7 +279,7 @@ watch([mode, query], () => {
 							<strong class="debug-event-name">{{ row.name }}</strong>
 							<code>{{ row.code }}</code>
 						</span>
-						<small>{{ row.summary || "展开查看脱敏元数据" }}</small>
+						<small>{{ row.summary || "展开查看调试详情" }}</small>
 					</span>
 					<b>{{ row.badge }}</b>
 				</summary>

@@ -7,12 +7,19 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"build:chrome": "npm run build:provider-runtime && npm run build:options",
+		"build:chrome": "npm run build:runtime && npm run build:options && npm run build:popup",
 		"build:options": "node scripts/build-options.mjs",
-		"build:provider-runtime": "node scripts/build-provider-runtime.mjs",
-		"check": "npm run check:chrome && node raycast-extension/scripts/sync-catalog.mjs --check",
-		"check:chrome": "node scripts/validate-provider-config.mjs && node scripts/build-provider-runtime.mjs --check && node scripts/build-options.mjs --check && node --check chrome-extension/background/service-worker.js && node --check chrome-extension/content/content-script.js && node --test test/*.test.mjs",
-		"test:catalog": "node --test test/catalog.test.mjs",
+		"build:popup": "node scripts/build-popup.mjs",
+		"build:runtime": "node scripts/build-extension-runtime.mjs",
+		"check": "npm run check:chrome",
+		"check:chrome": "npm run check:runtime && npm run check:options && npm run check:popup && npm run check:source && npm test",
+		"check:options": "node scripts/build-options.mjs --check",
+		"check:popup": "node scripts/build-popup.mjs --check",
+		"check:runtime": "node scripts/build-extension-runtime.mjs --check",
+		"check:source": "node scripts/check-javascript.mjs",
+		"test": "node --test test/*/*.test.mjs",
+		"test:catalog": "node --test test/contract/provider-config.test.mjs",
+		"test:unit": "node --test test/unit/*.test.mjs",
 		"validate:provider-catalog": "node scripts/validate-provider-config.mjs"
 	},
 	"dependencies": {

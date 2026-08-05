@@ -1,12 +1,12 @@
 # 一键双语翻译
 
-同一仓库包含 Chrome Manifest V3 扩展和 Raycast 本地扩展。Chrome 版一键把网页转换为行间双语对照；Raycast 版在浏览器之外翻译任意应用的选区、剪贴板或手动输入文字。
+这是一个 Chrome Manifest V3 扩展，一键把当前网页转换为行间双语对照。
 
-当前版本：Chrome `0.4.0`，Raycast `0.1.0`。
+当前版本：Chrome `0.4.0`。
 
 ## Chrome 当前能力
 
-- 工具栏图标或快捷键一键翻译/恢复，不使用弹窗
+- 工具栏图标或快捷键打开 popup；popup 提供翻译/恢复、设置和调试日志入口
 - 自动判断中英文方向，也可固定翻译方向
 - 当前视口优先，逐批回填译文
 - 持续翻译 SPA、无限滚动和懒加载的新正文
@@ -16,8 +16,8 @@
 - 通过 Vercel AI SDK 显式支持 DeepSeek、OpenAI、Google、Anthropic
 - 支持自定义 OpenAI-compatible Chat Completions 服务，按域名单独授权
 - 固定 models.dev snapshot、JSON Schema 校验和人工 Provider/API allowlist
-- 右键工具栏图标可开关调试、打开详细面板并核对当前加载版本
-- 脱敏调试面板实时显示批次、缓存、HTTP、重试、响应模型、结束原因和 token
+- popup 直接提供设置与调试日志入口；右键菜单保留辅助调试和版本入口
+- 受控调试面板实时显示批次、缓存、HTTP、重试、DeepSeek 请求正文投影、响应模型、结束原因和 token
 
 ## 安装与首次使用
 
@@ -28,7 +28,7 @@
 3. 点击“加载已解压的扩展程序”。
 4. 选择 `web-translate` 仓库中的 `chrome-extension/` 目录。
 5. 首次安装会打开设置页。DeepSeek 已默认选中，粘贴你自己的 API Key 即可；需要时再切换服务。
-6. 点击“保存并测试”，成功后打开普通网页并点击扩展图标。
+6. 点击“保存并测试”，成功后打开普通网页，点击扩展图标，再在 popup 中点击“翻译 / 恢复当前网页”。需要恢复时，再次打开 popup 并点击同一个按钮。
 7. 建议把扩展固定到 Chrome 工具栏。
 
 没有有效 API Key 时不会翻译。扩展不会要求下载模型；它把筛选后的正文段落直接发送给用户选择的云 Provider。
@@ -37,6 +37,8 @@
 
 - Windows/Linux：`Alt+Shift+B`
 - macOS：`Control+Shift+B`
+
+快捷键与点击工具栏图标相同，负责打开 popup；翻译和恢复由 popup 中的主按钮明确触发。
 
 本扩展要求 Chrome 140+ 桌面版。测试本地 `file://` 页面时，需要在扩展详情页开启“允许访问文件网址”，然后刷新页面。
 
@@ -52,26 +54,6 @@
 4. 再点击扩展图标。
 
 设置页顶部、工具栏悬停 title 和图标右键菜单都会显示 Chrome 当前实际加载的版本。
-
-## Raycast 版本
-
-Raycast 版位于 `raycast-extension/`，复用同一份固定 models.dev snapshot 和 Provider allowlist。它提供：
-
-- 手动输入后显示中英双语结果
-- 读取任意前台应用选区，没有选区时回退到剪贴板
-- 一键复制译文，或把译文直接粘贴回原应用
-- DeepSeek、OpenAI、Google、Anthropic、Azure Translator 和 DeepL
-- 90 天本地缓存和不含正文、译文、Key 的脱敏诊断面板
-
-本地安装：
-
-```bash
-cd raycast-extension
-npm install --ignore-scripts
-npm run dev
-```
-
-完整安装、快捷键、Provider 配置、调试和开发说明见 [Raycast 扩展文档](raycast-extension/README.md)。Chrome 与 Raycast 的 API Key 都只保存在各自的本地设置中，不会自动互相复制。
 
 ## Provider 推荐
 
@@ -131,7 +113,7 @@ models.dev 固定 commit
 
 ## 调试模式
 
-右键扩展图标勾选“开发调试模式”，再选择“打开详细调试面板”。设置页“调试”标签中的“记录事件”也会在切换后自动保存。
+点击扩展图标打开 popup，再点击“调试日志”进入详细面板。只有用户主动开启“记录事件”后，扩展才会把调试事件暂存在 `chrome.storage.session`。
 
 面板可以看到：
 
@@ -139,41 +121,56 @@ models.dev 固定 commit
 - Provider、模型、显式 SDK adapter、固定 API host 和低推理策略
 - 批次段落数、字符数、缓存命中/未命中
 - HTTP endpoint、状态、耗时、超时、尝试次数和退避等待
+- DeepSeek 实际 HTTP body 的安全投影 `requestPayload`：`model`、`max_tokens`、`messages[].role/content`、`thinking.type`
 - Provider 响应 ID、实际响应模型、标准/原始结束原因和警告数量
 - 输入、输出、cache read、cache write、no-cache token 或计费字符
 
-调试事件采用严格字段白名单，绝不保存：
+DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试后不应直接分享日志。调试事件始终不保存：
 
 - API Key、Authorization 或其他请求头
-- query token、请求体、响应体或完整 Provider 错误原文
-- 网页原文、译文、Cookie、表单值或整页 HTML
+- query token、Provider 响应体或完整 Provider 错误原文
+- Cookie、表单值或整页 HTML
 
-事件只位于 `chrome.storage.session`，最多 300 条且约 512 KiB。完整字段、事件顺序和故障诊断见 [调试模式与请求诊断](docs/debugging.md)。
+事件只位于 `chrome.storage.session`，最多 300 条且约 512 KiB。关闭记录只停止新增事件；排查结束后应点击“清空”。完整字段、请求正文边界和故障诊断见 [调试模式与请求诊断](docs/debugging.md)。
 
 ## 插件数据流
 
 ```text
+工具栏 action / 快捷键
+  → popup：用户选择翻译/恢复、设置或调试日志
+  → chrome-extension/background/message-router.js：验证来自扩展页面的动作
 网页 DOM
-  → chrome-extension/content/content-script.js：TreeWalker 筛选、去重、分批、监听新增 DOM
-  → chrome-extension/background/service-worker.js：固定任务设置、缓存、限流/重试、Provider 调用
+  → chrome-extension/generated/content-script.js：由 src/content/ 构建，负责扫描、去重、调度与增量监听
+  → chrome-extension/background/service-worker.js：极薄装配入口，只注册 Chrome 事件；不监听 action 点击
+  → chrome-extension/background/app.js：组装后台服务与消息路由
+  → cache-store / batch-translator / provider-service：缓存、批次、限流/重试与 Provider 调用
   → Provider API：返回译文和用量
-  → chrome-extension/background/service-worker.js：校验结束原因、JSON、段落 ID、数量和长度
-  → chrome-extension/content/content-script.js：通过 textContent 把译文插入原文下方
+  → 后台模块：校验结束原因、JSON、段落 ID、数量和长度
+  → 生成的内容脚本：通过 textContent 把译文插入原文下方
 ```
 
 主要文件：
 
 - `chrome-extension/manifest.json`：Chrome 可直接加载的 Manifest V3 入口
-- `chrome-extension/background/service-worker.js`：API Key、任务、缓存、重试、用量和安全调试事件
-- `chrome-extension/content/`：DOM 遍历、视口优先、增量监听、双语渲染与页面样式
-- `chrome-extension/shared/core.js`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验
-- `chrome-extension/generated/`：只读模型目录与 Provider runtime 生成产物
+- `chrome-extension/background/service-worker.js`：极薄后台装配入口；不注册 `action.onClicked`，实际职责拆在同目录的小模块中
+- `src/popup/`：popup 的交互与样式源码；加载时发送 `GET_POPUP_STATE`，主按钮发送 `TOGGLE_ACTIVE_TAB`，设置和调试按钮打开受信任扩展页面
+- `chrome-extension/popup/index.html`：Chrome 直接打开的 popup HTML 壳；同目录 `popup.js` 与 `popup.css` 是生成产物
+- `src/content/`：DOM 遍历、视口优先、增量监听、运行缓存、双语渲染与进度状态源码
+- `src/core/`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验源码
+- `src/provider/`：Vercel AI SDK Provider 选择、输入校验、请求观测与结果规范化源码
+- `chrome-extension/generated/`：由构建脚本生成的目录、核心、内容脚本和 Provider runtime；不要手工编辑
 - `chrome-extension/options/`：编译后的 Vue 设置页，也是 Chrome 的 Options page
-- `src/provider-runtime.js`：四个固定模型 Provider 与自定义 OpenAI-compatible 调用的统一源代码
 - `src/options/`：Vue 设置页源码
-- `raycast-extension/`：选区、剪贴板和手动文本翻译的 Raycast 版本
 
-第一次开发 Chrome 插件建议阅读 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
+第一次开发建议先读 [文档入口](docs/README.md)，再读 [代码地图](docs/codebase-map.md) 和 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
+
+## 架构与文档导航
+
+- [docs/README.md](docs/README.md)：每份文档解决什么问题，以及推荐阅读顺序
+- [docs/codebase-map.md](docs/codebase-map.md)：逐目录、逐手写文件理解职责、依赖方向和完整调用链
+- [docs/chrome-extension-basics.md](docs/chrome-extension-basics.md)：从加载扩展到理解 Manifest V3 运行上下文
+- [docs/debugging.md](docs/debugging.md)：查看受控调试事件、DeepSeek 请求正文投影，并用三类 DevTools 定位故障
+- [docs/provider-catalog.md](docs/provider-catalog.md)：固定模型目录、allowlist、Provider 构建、DeepSeek 请求转换与安全边界
 
 ## 性能与成本策略
 
@@ -193,6 +190,7 @@ models.dev 固定 commit
 - 云端只接收筛选后的纯文本段落，不接收网址、Cookie、输入框或整页 HTML。
 - API 请求由 Service Worker 发出；内容脚本不能读取 API Key。
 - Key 保存在本机 `chrome.storage.local`，访问级别限制为 `TRUSTED_CONTEXTS`。
+- 用户主动开启调试时，DeepSeek `messages` 可能把网页原文短暂写入 `chrome.storage.session`；日志不含 Key、Authorization、请求头或响应体，排查后应主动清空。
 - 无痕标签页不读写持久翻译缓存。
 - Provider 返回值只通过 `textContent` 写入网页。
 - 所有可执行 JavaScript 随扩展打包，不从网络下载代码。
@@ -219,7 +217,7 @@ npm run build:chrome
 npm run check
 ```
 
-`npm run build:chrome` 会生成 `chrome-extension/generated/` 与 `chrome-extension/options/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 Provider 或 Vue 设置页 bundle。
+`npm run build:chrome` 会从 `src/core/`、`src/content/`、`src/provider/`、`src/options/` 与 `src/popup/` 生成 `chrome-extension/generated/`、`chrome-extension/options/` 和 `chrome-extension/popup/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 runtime、Vue 设置页或 popup bundle。
 
 ## 官方资料
 

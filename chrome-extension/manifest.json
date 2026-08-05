@@ -30,7 +30,8 @@
 			"16": "assets/icons/icon-16.png",
 			"32": "assets/icons/icon-32.png"
 		},
-		"default_title": "翻译/恢复当前网页"
+		"default_title": "打开一键双语翻译",
+		"default_popup": "popup/index.html"
 	},
 	"commands": {
 		"_execute_action": {
@@ -38,7 +39,7 @@
 				"default": "Alt+Shift+B",
 				"mac": "MacCtrl+Shift+B"
 			},
-			"description": "翻译/恢复当前网页"
+			"description": "打开翻译面板"
 		}
 	},
 	"options_ui": {

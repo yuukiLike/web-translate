@@ -1,0 +1,101 @@
+.usage-section {
+	padding-top: 0;
+}
+
+.usage-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	border-bottom: 1px solid var(--line);
+}
+
+.usage-head p {
+	margin-bottom: 0;
+	color: var(--ink-soft);
+	font-size: 11px;
+	line-height: 1.5;
+}
+
+.usage-list {
+	display: grid;
+}
+
+.usage-row {
+	display: grid;
+	grid-template-columns: minmax(130px, 0.9fr) repeat(4, minmax(82px, 1fr));
+	gap: 12px;
+	align-items: center;
+	padding: 13px 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.usage-provider {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.usage-provider .provider-dot {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--leaf-light);
+}
+
+.usage-provider strong {
+	overflow: hidden;
+	font-size: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.metric {
+	color: var(--ink-soft);
+	font-size: 10px;
+	line-height: 1.35;
+}
+
+.metric b {
+	display: block;
+	margin-top: 3px;
+	color: var(--ink);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.empty {
+	margin-bottom: 0;
+	padding: 21px 0;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.6;
+}
+
+.privacy {
+	display: flex;
+	align-items: center;
+	gap: 13px;
+	padding: 22px 5px 0;
+	color: var(--ink-soft);
+}
+
+.privacy .mark {
+	width: 28px;
+	height: 28px;
+	flex: 0 0 auto;
+	opacity: 0.72;
+}
+
+.privacy p {
+	margin-bottom: 0;
+	font-size: 11px;
+	line-height: 1.6;
+}
+
+.privacy code {
+	color: var(--pine);
+	font-size: 10px;
+}

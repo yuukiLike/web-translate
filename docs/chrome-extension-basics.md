@@ -8,7 +8,7 @@
 chrome-extension/
 ```
 
-仓库已经包含 Chrome 可直接加载的生成产物，因此只想安装和体验扩展时，不需要安装依赖或执行构建。参与开发、修改模型目录、Vue 设置页或 Provider runtime 前，则需要在 `web-translate` 仓库根目录准备 Node 依赖并重新生成产物。当前 `chrome-extension/manifest.json` 声明的扩展版本是 `0.4.0`，最低 Chrome 版本是 140。
+仓库已经包含 Chrome 可直接加载的生成产物，因此只想安装和体验扩展时，不需要安装依赖或执行构建。参与开发、修改模型目录、Vue 设置页、action popup 或 Provider runtime 前，则需要在 `web-translate` 仓库根目录准备 Node 依赖并重新生成产物。当前 `chrome-extension/manifest.json` 声明的扩展版本是 `0.4.0`，最低 Chrome 版本是 140。
 
 ## 阅读路线
 
@@ -37,14 +37,14 @@ chrome-extension/
 
 如果你只是加载仓库中已经生成好的扩展，请跳过本节，直接进入步骤 1。
 
-如果你要修改 `src/provider-runtime.js`、`src/options/`、固定模型 snapshot、Provider allowlist 或对应 schema，请使用 Node.js 24。仓库根目录的 `.nvmrc` 记录当前版本。随后在仓库根目录运行：
+如果你要修改 `src/provider-runtime.js`、`src/options/`、`src/popup/`、固定模型 snapshot、Provider allowlist 或对应 schema，请使用 Node.js 24。仓库根目录的 `.nvmrc` 记录当前版本。随后在仓库根目录运行：
 
 ```bash
 npm install --ignore-scripts
 npm run build:chrome
 ```
 
-第一条命令安装构建依赖，但不运行依赖包的生命周期脚本；第二条命令先校验 snapshot、schema 和 allowlist，再生成 `chrome-extension/generated/` 中的 Provider 文件，并把 Vue 设置页编译到 `chrome-extension/options/`。这些生成文件已经随仓库提供，因此普通安装者无需重复构建。
+第一条命令安装构建依赖，但不运行依赖包的生命周期脚本；第二条命令先校验 snapshot、schema 和 allowlist，再生成 `chrome-extension/generated/` 中的 runtime 文件、把 Vue 设置页编译到 `chrome-extension/options/`，并把 `src/popup/` 打包为 `chrome-extension/popup/popup.js` 与 `popup.css`。这些生成文件已经随仓库提供，因此普通安装者无需重复构建；`npm run check` 会在内存中重新生成三类 bundle，并拒绝缺失或过期的提交产物。
 
 ### 步骤 1：加载目录
 
@@ -72,51 +72,59 @@ Chrome 会把 `chrome-extension/` 根部的 `manifest.json` 当作扩展入口�
 
 这已经证明三件事：扩展包加载成功、Service Worker 的安装事件执行成功、设置页能通过 `chrome.runtime.getManifest()` 读取当前已加载版本。
 
-如果设置页没有自动打开，先把扩展固定到工具栏，再右键扩展图标并选择“打开详细调试面板”。重新加载一个已安装的扩展不会再次触发“首次安装时打开设置页”的分支。
+如果设置页没有自动打开，先把扩展固定到工具栏，点击图标打开 popup，再点击“设置”。重新加载一个已安装的扩展不会再次触发“首次安装时打开设置页”的分支。
 
 ### 步骤 3：配置你自己的翻译服务
 
 1. 在“服务”中选择 DeepSeek、OpenAI、Google Gemini、Anthropic、Azure Translator、DeepL 或自定义 OpenAI-compatible 服务。DeepSeek 是默认项。
 2. 只在密码输入框中填写你自己的 API Key。
 3. 固定模型 Provider 默认使用本地 allowlist 模型，通常无需展开模型选项。只有选择“自定义”时才需要填写 Base URL 和模型 ID；保存或测试时 Chrome 会为该 API origin 请求可选访问权限。
-4. 点击“保存并测试”。
-5. 等待页面显示“连接成功”。
+4. 服务卡片上的“付费 API”标签表示该服务会按用量计费；设置页下方的小字会提示实际费用以服务商账单为准。
+5. 点击“保存并测试”。连接测试会向当前 Provider 发起一次很小的真实请求。
+6. 等待页面显示“连接成功”。
 
-不要在本文、源代码或聊天中使用真实 Key 作为示例。若没有有效 Key，左键点击扩展图标时，扩展会显示 `SET` 徽标并打开设置页，不会执行翻译。
+不要在本文、源代码或聊天中使用真实 Key 作为示例，也不要把开发者共同付费的共享 Key 打进扩展。若没有有效 Key，popup 的翻译按钮不会执行翻译；扩展会显示 `SET` 徽标并打开设置页。标有“付费 API”的服务按用量计费，实际费用以服务商账单为准。
 
-### 步骤 4：左键一键翻译，再次点击恢复
+### 步骤 4：从 popup 翻译，再次打开恢复
 
 1. 打开一个普通文章页面。
-2. 左键点击“一键双语翻译”的工具栏图标。
-3. 观察页面右下角状态提示和图标徽标。正文会按当前视口优先分批翻译，译文以纯文本显示在原文下方。
-4. 等待徽标显示 `OK`。
-5. 再次左键点击同一个图标。当前运行插入的译文和状态节点会被移除，页面恢复原状。
+2. 点击“一键双语翻译”的工具栏图标，打开 popup。
+3. 点击 popup 的“翻译 / 恢复当前网页”。
+4. 观察页面右下角状态提示和图标徽标。正文会按当前视口优先分批翻译，译文以纯文本显示在原文下方。
+5. 等待徽标显示 `OK`。
+6. 再次打开 popup，点击同一个“翻译 / 恢复当前网页”按钮。当前运行插入的译文和状态节点会被移除，页面恢复原状。
 
-这里没有弹窗。项目没有声明 `action.default_popup`，因此左键触发 `chrome.action.onClicked`。后台先注入 `content/content.css`，再按顺序注入 `generated/provider-catalog.js`、`shared/core.js` 和 `content/content-script.js`。第二次注入时，页面中已有的内容脚本控制器会执行“停止并恢复”。模型 SDK 的 `generated/provider-runtime.js` 只由 Service Worker 加载，不会进入网页内容脚本。
+Manifest 通过 `action.default_popup` 把工具栏图标连接到 popup，Service Worker 不注册 `chrome.action.onClicked`。只有用户点击 popup 的翻译/恢复按钮后，popup 才把当前标签页交给后台；后台随后注入 `content/content.css`、`generated/provider-catalog.js`、`generated/core.js` 和 `generated/content-script.js`。第二次注入时，页面中已有的内容脚本控制器会执行“停止并恢复”。模型 SDK 的 `generated/provider-runtime.js` 只由 Service Worker 加载，不会进入网页内容脚本。
 
-也可以使用快捷键触发相同动作：
+也可以使用快捷键打开同一个 popup：
 
 - Windows/Linux：`Alt+Shift+B`
 - macOS：`Control+Shift+B`
 
-### 步骤 5：用右键菜单看一次脱敏调试事件
+快捷键不会绕过 popup 自动翻译；翻译或恢复仍由 popup 中的主按钮确认。
 
-1. 右键扩展工具栏图标。
-2. 勾选“开发调试模式”。这个菜单项会立即保存开关状态。
-3. 再次右键，选择“打开详细调试面板”。
-4. 回到网页触发一次翻译，或在设置页点击“保存并测试”。
-5. 在“调试模式”区域观察 `batch.received`、`cache.resolved`，以及当前服务对应的请求事件。Azure 和 DeepL 使用 `request.*`；四个模型 Provider 使用 `model.request.*`、`sdk.request-*` 和 `model.response.validated`。
-6. 测试结束后取消勾选“开发调试模式”，或在设置页关闭“记录事件”；两处都会立即保存。
+### 步骤 5：从 popup 查看一次调试事件
 
-内置面板只显示安全字段，例如 Provider、模型、请求方法、脱敏后的端点、HTTP 状态、耗时、字符数和 token 数。它不显示 API Key、请求头、正文、译文、请求体或响应体。
+1. 点击扩展图标打开 popup。
+2. 点击“调试日志”，打开详细调试面板。
+3. 主动开启“记录事件”。这个开关会立即保存，默认只记录元数据，不含网页正文。
+4. 只有需要查看 DeepSeek 正文时，再单独开启“DeepSeek 请求正文”。
+5. 回到网页，通过 popup 触发一次翻译，或在调试面板点击“测试当前服务”。
+6. 在“调试模式”区域观察 `batch.received`、`cache.resolved`，以及当前服务对应的请求事件。Azure 和 DeepL 使用 `request.*`；四个模型 Provider 使用 `model.request.*`、`sdk.request-*` 和 `model.response.validated`。
+7. 当前服务为 DeepSeek、请求来自普通窗口且两个开关均开启时，`sdk.request-start` 可展开“DeepSeek 请求正文”；这是实际 HTTP body 的 `requestPayload` 安全投影，只包含 `model`、`max_tokens`、`messages[].role/content` 和 `thinking.type`。连接测试会发送 `hello`，可生成一条可见样例。
+8. 测试结束后关闭“记录事件”；这会撤销正文授权并清除已有 `requestPayload`，普通元数据仍保留。要删除全部事件，再点击“清空”。
+
+受控投影不含 API Key、Authorization、其他请求头或响应体，但 `messages` 可能包含网页原文。“安全”表示字段范围受到限制，不表示日志可以直接公开分享。旧版只有 `debugLogging: true` 的设置不会自动授权正文；无痕窗口即使两个开关都开启，也永不捕获或暂存请求正文。
 
 ### 你刚刚完成了什么
 
 你已经走通了完整链路：
 
 ```text
-左键 action
-  → Service Worker 获得当前标签页
+左键 action / 快捷键
+  → Chrome 打开 popup
+  → 用户点击“翻译 / 恢复当前网页”
+  → popup 把当前标签页动作发给 Service Worker
   → 动态注入内容脚本
   → 内容脚本读取并筛选 DOM 文本
   → 消息传给 Service Worker
@@ -132,26 +140,26 @@ Chrome 会把 `chrome-extension/` 根部的 `manifest.json` 当作扩展入口�
 
 ### 2.1 先建立“多个运行上下文”的模型
 
-Chrome 扩展不是一个一直运行的网页。当前项目由三个主要运行上下文组成：
+Chrome 扩展不是一个一直运行的网页。当前项目由四个主要运行上下文组成：
 
 ```text
-普通网页                                  扩展自己的安全源
-┌─────────────────────┐                 ┌──────────────────────────┐
-│ content-script.js   │  一次性消息      │ service-worker.js         │
-│ - 读取/修改 DOM      │ ───────────────→ │ - Service Worker          │
-│ - 不持有 API Key     │ ←─────────────── │ - 读取 Key、缓存和用量      │
-└─────────────────────┘  结果/状态        │ - 请求 Provider API        │
-                                          └────────────┬─────────────┘
+普通网页                                   扩展自己的安全源
+┌─────────────────────┐                  ┌──────────────────────────┐
+│ content-script.js   │   一次性消息      │ service-worker.js         │
+│ - 读取/修改 DOM      │ ────────────────→ │ - 读取 Key、缓存和用量      │
+│ - 不持有 API Key     │ ←──────────────── │ - 请求 Provider API        │
+└─────────────────────┘   结果/状态        └────────────┬─────────────┘
                                                        │ 消息与 Port
-                                          ┌────────────▼─────────────┐
-                                          │ options/index.html       │
-                                          │ Vue options bundle       │
-                                          │ - 本地目录、设置、用量      │
-                                          │ - 脱敏实时调试面板         │
-                                          └──────────────────────────┘
+                           ┌───────────────────────────┼────────────────────┐
+                           │                           │                    │
+              ┌────────────▼─────────────┐ ┌───────────▼──────────────┐
+              │ action popup             │ │ options/index.html       │
+              │ - 翻译 / 恢复当前网页     │ │ - 设置、用量、连接测试     │
+              │ - 设置与调试日志入口       │ │ - 受控实时调试面板         │
+              └──────────────────────────┘ └──────────────────────────┘
 ```
 
-这种拆分不是文件分类习惯，而是安全边界：内容脚本能接触不可信网页；Service Worker 持有高权限能力；设置页是扩展自己的受信任界面。它们不能直接共享普通 JavaScript 变量，只能通过消息或存储协作。
+这种拆分不是文件分类习惯，而是安全边界：内容脚本能接触不可信网页；Service Worker 持有高权限能力；popup 和设置页是扩展自己的受信任界面。它们不能直接共享普通 JavaScript 变量，只能通过消息或存储协作。
 
 ### 2.2 `manifest.json`：声明能力，不承载业务逻辑
 
@@ -159,26 +167,28 @@ Chrome 扩展不是一个一直运行的网页。当前项目由三个主要运�
 
 - 这是 Manifest V3 扩展，名称和版本是什么。
 - 后台入口是哪个 Service Worker。
-- 工具栏 action、快捷键和设置页如何注册。
+- 工具栏 action popup、快捷键和设置页如何注册。
 - 扩展请求哪些 Chrome API 权限和站点权限。
 - 哪个 Chrome 版本起才允许安装。
 
-当前项目的几个“没有声明”同样重要：
+当前项目同时声明和省略了几项关键能力：
 
-- 没有 `action.default_popup`，所以左键事件交给 `chrome.action.onClicked`，不会打开弹窗。
-- 没有 `content_scripts`，所以不会在所有匹配网页启动时自动注入；只在用户触发 action 后动态注入。
+- 声明 `action.default_popup`，所以左键和 `_execute_action` 快捷键打开 popup；Service Worker 不注册 `chrome.action.onClicked`。
+- 没有 `content_scripts`，所以不会在所有匹配网页启动时自动注入；只在用户打开 popup 并点击主按钮后动态注入。
 - 没有显式 `content_security_policy`，所以扩展页和 Service Worker 使用 Manifest V3 默认策略。
 
-### 2.3 `action`：左键是产品主动作
+### 2.3 `action`：先打开 popup，再选择主动作
 
-`action` 表示工具栏上的扩展入口。`default_title` 提供初始悬停提示；后台还会通过 `chrome.action.setTitle()` 把运行时版本和调试状态写入提示，并通过徽标显示：
+`action` 表示工具栏上的扩展入口。点击图标或使用 `_execute_action` 快捷键后，Chrome 直接打开 Manifest 指定的 `popup/index.html`。主按钮文案固定为“翻译 / 恢复当前网页”，因为 popup 不猜测页面当前状态；只有用户点击它后，后台才尝试注入当前网页。另两个按钮分别打开设置和 `options/index.html#debug`。
+
+`default_title` 提供初始悬停提示；后台还会通过 `chrome.action.setTitle()` 把运行时版本和调试状态写入提示，并通过徽标显示：
 
 - `SET`：需要配置 API Key，或本地模型配置未通过 allowlist 检查。
 - `ERR`：页面不可注入或发生错误。
 - `0`–`99`：翻译进度百分比。
 - `OK`：当前页面翻译完成。
 
-右键不是另一种 `action.onClicked`。项目使用 `chrome.contextMenus`，并把三个菜单项限制在 `contexts: ["action"]`：切换开发调试、打开详细调试面板、显示当前版本。
+Service Worker 不再监听 `action.onClicked`。项目仍可使用 `chrome.contextMenus` 提供 action 右键辅助入口，但 popup 是翻译/恢复、设置与调试日志的主入口。
 
 ### 2.4 Service Worker：事件驱动的后台协调者
 
@@ -191,30 +201,34 @@ Chrome 扩展不是一个一直运行的网页。当前项目由三个主要运�
 }
 ```
 
-Service Worker 没有页面 DOM，也不是永久进程。Chrome 会在 action 点击、消息、安装事件或 Port 连接等事件到达时唤醒它，并可能在空闲后终止它。因此：
+Service Worker 没有页面 DOM，也不是永久进程。Chrome 会在 popup 或内容脚本发来消息、安装事件、菜单点击或 Port 连接等事件到达时唤醒它，并可能在空闲后终止它。因此：
 
-- 事件监听器必须在文件顶层同步注册。当前代码在顶层注册 `onInstalled`、`action.onClicked`、`contextMenus.onClicked`、`runtime.onMessage` 和 `runtime.onConnect`。
+- 事件监听器必须在文件顶层同步注册。当前代码在顶层注册安装、右键菜单、runtime message、runtime Port 和标签页关闭监听器，不注册 `action.onClicked`。
 - 不能把必须长期存在的数据只放在全局变量中。当前项目把设置、缓存和用量放进 `storage.local`，把运行快照、缓存代次和调试事件放进 `storage.session`。
 - 内存对象仍可用于当前活跃周期，例如进行中的 `AbortController`；但设计不能假定它永远存在。
 
-当前后台还承担配置与模型 allowlist 检查、输入验证、批处理、缓存、超时、重试、用量统计和 Provider 响应校验。Azure Translator 与 DeepL 使用后台中的专用 REST 调用；DeepSeek、OpenAI、Google 和 Anthropic 通过打包到 `generated/provider-runtime.js` 的 Vercel AI SDK 适配器调用固定官方 API；自定义 OpenAI-compatible 服务复用同一包内运行时，并且必须先获得对应 origin 的可选权限。把跨域请求放在这里，而不是内容脚本里，可以让 API Key 留在扩展受信任上下文，并由 host permission 控制访问目标。
+`service-worker.js` 是极薄装配入口：导入生成产物，调用 `createBackgroundApp()`，同步注册五类 Chrome 监听器，再启动应用。`tabs.onRemoved` 在标签页关闭时中止活动请求并清理任务快照。配置与 allowlist 检查、输入验证、批处理、缓存、超时、重试、用量统计和 Provider 响应校验分别位于 `chrome-extension/background/` 的小模块中，由 `app.js` 装配。这样入口一眼可读，同时仍满足监听器必须在顶层同步注册的 Manifest V3 要求。
+
+Azure Translator 与 DeepL 使用 `providers/rest-translators.js`；DeepSeek、OpenAI、Google 和 Anthropic 通过打包到 `generated/provider-runtime.js` 的 Vercel AI SDK 适配器调用固定官方 API；自定义 OpenAI-compatible 服务复用同一包内运行时，并且必须先获得对应 origin 的可选权限。把跨域请求放在后台，而不是内容脚本里，可以让 API Key 留在扩展受信任上下文，并由 host permission 控制访问目标。
 
 ### 2.5 Content script：能碰 DOM，但处在隔离世界
 
-内容脚本运行在网页上下文中，可以读取和修改共享 DOM，但它的 JavaScript 全局环境与网页自身脚本隔离。网页脚本不能直接读取 `content/content-script.js` 中的局部变量；两者仍然会看到对同一 DOM 的修改。
+内容脚本运行在网页上下文中，可以读取和修改共享 DOM，但它的 JavaScript 全局环境与网页自身脚本隔离。网页脚本不能直接读取 `generated/content-script.js` 中的模块状态；两者仍然会看到对同一 DOM 的修改。
 
 本项目使用 `chrome.scripting` 动态注入：
 
 1. `content/content.css` 定义译文和状态节点样式。
 2. `generated/provider-catalog.js` 在隔离世界中提供冻结的本地 Provider 与模型目录。
-3. `shared/core.js` 基于该目录建立设置和纯函数工具。
-4. `content/content-script.js` 遍历文本节点、选择翻译单元、发送批次并插入译文。
+3. `generated/core.js` 基于该目录建立设置和纯函数工具；源码位于 `src/core/`。
+4. `generated/content-script.js` 遍历文本节点、选择翻译单元、发送批次并插入译文；源码位于 `src/content/`。
 
 注入目标只给出 `tabId`，因此默认只处理主 frame。当前实现也不穿越 Shadow DOM。这解释了为什么 iframe 和某些 Web Component 内容不会被完整翻译。
 
 内容脚本把 Provider 返回值当作不可信数据，最终只通过 `textContent` 写入页面，不把返回文本当 HTML 执行。
 
-### 2.6 Options page：扩展自己的设置与诊断界面
+### 2.6 Popup 与 Options page：两个受信任界面
+
+action popup 是短生命周期入口。`chrome-extension/popup/index.html` 是手写 HTML 壳；`src/popup/main.js`、`popup-app.js` 与 `popup.css` 是交互和样式源码，通过 `scripts/build-popup.mjs` 生成包内的 `popup/popup.js` 与 `popup/popup.css`。它不持有翻译任务或 API Key：加载时发送 `GET_POPUP_STATE`，点击主按钮时发送 `TOGGLE_ACTIVE_TAB`；设置使用 `openOptionsPage()`，调试打开 `options/index.html#debug`。关闭 popup 不会取消已经启动的翻译。
 
 `options_ui.page` 指向 `options/index.html`，`open_in_tab: true` 表示设置页在独立标签页打开。`chrome.runtime.openOptionsPage()` 会打开或聚焦它。页面源码位于 `src/options/`，通过 Vue 构建为包内的 `options/options.js` 与 `options/options.css`。
 
@@ -222,8 +236,9 @@ Service Worker 没有页面 DOM，也不是永久进程。Chrome 会在 action �
 
 - 读取和保存 Provider、API Key、模型、翻译方向及并发数。
 - 从包内 `generated/provider-catalog.js` 呈现固定 Provider、模型、成本和上下文信息。
+- 用“付费 API”标签标出按量计费的服务，并显示一行以服务商账单为准的计费提示。
 - 测试连接、读取用量和清理缓存。
-- 通过长连接 Port 接收脱敏实时调试事件。
+- 通过长连接 Port 接收受控实时调试事件；“记录事件”默认只有元数据，用户另行开启“DeepSeek 请求正文”后，普通窗口的 DeepSeek 请求才可包含 `model`、`max_tokens`、`messages` 和 `thinking` 投影。
 
 设置页不会联网刷新模型目录。固定 Provider 的 Base URL 与模型仍来自 allowlist；只有单独的自定义 Provider 提供 Base URL 与模型 ID 输入，并按 origin 请求可选权限。目录来源 commit 和 snapshot 抓取时间只是本地产物中的元数据；更新固定目录必须修改仓库数据、通过 schema/allowlist 校验、重新构建并重新加载扩展。
 
@@ -234,7 +249,7 @@ Service Worker 没有页面 DOM，也不是永久进程。Chrome 会在 action �
 | 区域 | Chrome 生命周期 | 本项目存放内容 | 内容脚本访问 |
 | --- | --- | --- | --- |
 | `chrome.storage.local` | 保留到扩展被卸载 | 设置与 API Key、翻译缓存、月度用量 | 后台显式设为 `TRUSTED_CONTEXTS`，禁止内容脚本读取 |
-| `chrome.storage.session` | 内存保存；扩展停用、重新加载、更新或浏览器重启时清空 | 运行快照、缓存代次、脱敏调试事件 | 默认不暴露，项目也显式设为 `TRUSTED_CONTEXTS` |
+| `chrome.storage.session` | 内存保存；扩展停用、重新加载、更新或浏览器重启时清空 | 运行快照、缓存代次、默认只含元数据的调试事件；另行授权后，普通窗口的 DeepSeek `messages` 可能含网页原文 | 默认不暴露，项目也显式设为 `TRUSTED_CONTEXTS` |
 
 `storage.local` 不是密钥保险箱。它避免把 Key 暴露给普通内容脚本，但拥有本机 Chrome 配置访问权的人、扩展自身受信任页面以及被攻陷的扩展代码仍可能读取它。
 
@@ -248,7 +263,7 @@ Chrome 提供两种主要通信方式：
 当前消息流的关键约束是：
 
 - 来自网页的消息必须带有有效 `sender.tab.id`。
-- 读取完整设置、调试事件和用量等操作必须来自 `chrome-extension://` 设置页。
+- popup 的翻译/恢复、设置和调试入口必须来自受信任的 `chrome-extension://` 页面；读取完整设置、调试事件和用量仍限制在受信任扩展页面。
 - 后台验证消息类型、任务 ID、语言、段落数量、总字符数和译文长度。
 - 内容脚本不能指定任意请求 URL；Provider URL由后台根据已保存设置构造。
 
@@ -258,7 +273,7 @@ Chrome 提供两种主要通信方式：
 
 | 权限 | 访问对象 | 获得时机 | 当前用途 |
 | --- | --- | --- | --- |
-| `activeTab` | 用户当前网页 | 左键 action、快捷键等明确用户手势后临时获得；导航到其他 origin 或关闭标签页后撤销 | 配合 `scripting` 向当前网页注入 CSS 和内容脚本 |
+| `activeTab` | 用户当前网页 | 点击 action 或使用快捷键打开 popup 时临时获得；导航到其他 origin 或关闭标签页后撤销 | popup 的主按钮请求后台配合 `scripting` 向当前网页注入 CSS 和内容脚本 |
 | `host_permissions` | 六类固定 Provider 的七个 API origin | 安装时随清单声明 | 允许扩展 Service Worker 请求固定 Provider |
 | `optional_host_permissions` | 用户填写的自定义 OpenAI-compatible origin | 保存或测试自定义服务时，由 Chrome 明确询问 | 只允许请求用户选择并授权的自定义 API |
 
@@ -274,7 +289,7 @@ Manifest V3 扩展页的默认 Content Security Policy 等价于：
 script-src 'self'; object-src 'self';
 ```
 
-因此 `options/index.html` 只加载包内的 `generated/provider-catalog.js`、`shared/core.js` 和 `options/options.js`；Service Worker 也只导入包内代码。Vue、Vercel AI SDK 及 Provider 适配器在开发阶段由 esbuild 打包成本地文件，运行时不会从 npm 或 CDN 加载代码。不要改成 CDN 脚本、`eval()` 或把网络响应当 JavaScript 执行。
+因此 popup 与 `options/index.html` 只加载包内脚本；Service Worker 也只导入包内代码。Vue、Vercel AI SDK 及 Provider 适配器在开发阶段由 esbuild 打包成本地文件，运行时不会从 npm 或 CDN 加载代码。不要改成 CDN 脚本、`eval()` 或把网络响应当 JavaScript 执行。
 
 固定模型 snapshot 与 allowlist 是包内数据，构建前由 JSON Schema 和交叉约束校验，并被生成到本地目录脚本中。扩展运行时不请求 Models.dev，也不维护远程目录缓存；网络只用于向当前 Provider 发送翻译或连接测试。Provider 返回值仍会经过结构、ID、数量和长度校验。
 
@@ -299,16 +314,18 @@ chrome://extensions
 npm run build:chrome
 ```
 
-如果这是首次准备该目录，使用 Node.js 24 并先执行 `npm install --ignore-scripts`。构建成功会生成 `chrome-extension/generated/` 与 `chrome-extension/options/` 产物；随后仍需在 Chrome 中重新加载扩展。
+如果这是首次准备该目录，使用 Node.js 24 并先执行 `npm install --ignore-scripts`。构建成功会生成 `chrome-extension/generated/`、`chrome-extension/options/` 与 `chrome-extension/popup/` 的 JavaScript/CSS 产物；随后仍需在 Chrome 中重新加载扩展。
 
 之后修改文件时，不需要删除后重新选择目录。根据修改位置执行：
 
 | 修改文件 | 需要重新加载扩展 | 还需要刷新页面 |
 | --- | --- | --- |
 | `chrome-extension/manifest.json` | 是 | 视测试目标而定 |
-| `chrome-extension/background/service-worker.js` | 是 | 通常重新触发动作即可；为避免旧上下文干扰，建议刷新测试网页 |
-| `chrome-extension/content/` | 是 | 是。旧内容脚本已进入页面，必须刷新宿主网页再点击图标 |
-| `chrome-extension/generated/provider-catalog.js`、`chrome-extension/shared/core.js` | 是 | 是。它们同时被 Service Worker、内容脚本和设置页使用 |
+| `chrome-extension/background/*.js` | 是 | 通常重新触发动作即可；为避免旧上下文干扰，建议刷新测试网页 |
+| `chrome-extension/popup/index.html` | 是 | 重新点击工具栏图标；正在打开的旧 popup 会随失焦关闭 |
+| `src/popup/` | 先运行 `npm run build:popup`，再重新加载 | 重新点击工具栏图标；不需要刷新宿主网页 |
+| `src/content/`、`src/core/`、`src/provider/` | 先运行 `npm run build:runtime`，再重新加载 | 是。旧生成脚本已进入页面，必须刷新宿主网页再点击图标 |
+| `chrome-extension/generated/provider-catalog.js`、`chrome-extension/generated/core.js`、`chrome-extension/generated/content-script.js` | 是；只能通过构建更新 | 是。它们被 Service Worker、内容脚本或设置页加载 |
 | `chrome-extension/generated/provider-runtime.js` | 是 | 建议刷新测试网页；它只在 Service Worker 中执行 |
 | `chrome-extension/options/` | Chrome 官方流程不要求重新加载整个扩展 | 重新构建后刷新设置页标签 |
 
@@ -319,15 +336,16 @@ npm run build:chrome
 - `schemas/*.schema.json`
 - `src/provider-runtime.js`
 - `src/options/`
+- `src/popup/`
 
-修改这些文件后必须先重新运行构建脚本，再重新加载扩展。不要直接编辑 `chrome-extension/generated/` 中的 Provider 文件或 `chrome-extension/options/options.js`、`chrome-extension/options/options.css`；下一次构建会覆盖手工修改。`npm run check` 会重新计算预期产物并拒绝过期 bundle；构建器还会预设 Zod `jitless`，避免在 Manifest V3 CSP 下尝试动态代码生成。
+修改这些文件后必须先重新运行对应构建脚本，再重新加载扩展。不要直接编辑 `chrome-extension/generated/` 中的 Provider 文件、`chrome-extension/options/options.{js,css}` 或 `chrome-extension/popup/popup.{js,css}`；下一次构建会覆盖手工修改。`npm run check` 会重新计算预期产物并拒绝过期 bundle；构建器还会预设 Zod `jitless`，避免在 Manifest V3 CSP 下尝试动态代码生成。
 
 最稳妥的开发循环是：
 
 1. 保存文件。
 2. 在 `chrome://extensions` 的扩展卡片上点击“重新加载”按钮。
 3. 刷新测试网页。
-4. 再次左键点击扩展图标。
+4. 再次打开 popup，点击要验证的翻译/恢复动作。
 
 不要只刷新网页来测试新的 Service Worker，也不要只重新加载扩展却保留已经注入旧内容脚本的网页。
 
@@ -362,7 +380,7 @@ npm run build:chrome
    - Network：查看由 Service Worker 发出的 Provider 请求。
    - Application：查看 Service Worker 状态和 Extension Storage。
 
-若显示 `inactive`，这通常不是故障。点击链接或触发一次 action 会唤醒 Worker。注意：打开 Worker DevTools 会让它保持活跃；验证“休眠后能否恢复”时必须关闭 DevTools 再测试。
+若显示 `inactive`，这通常不是故障。点击 popup 中需要后台处理的动作会通过消息唤醒 Worker。注意：打开 Worker DevTools 会让它保持活跃；验证“休眠后能否恢复”时必须关闭 DevTools 再测试。
 
 如果 Worker 在初始化阶段就注册失败，可能无法打开 DevTools。此时查看扩展卡片上的“错误”按钮，先修复首个注册或语法错误，再重新加载。
 
@@ -370,7 +388,7 @@ npm run build:chrome
 
 1. 在已经触发过翻译的普通网页上打开网页 DevTools。
 2. 在 Console 顶部的执行上下文下拉框中，从 `top` 切换到该扩展的内容脚本上下文。
-3. 在 Sources 中找到注入的 `content/content-script.js` 并设置断点。
+3. 在 Sources 中找到注入的 `generated/content-script.js` 并设置断点；定位源码职责时对照 `src/content/`。
 4. 在 Elements 中检查：
    - 原文节点上的 `data-bt-source`。
    - 扩展插入的 `.bt-translation[data-bt-owned="true"]`。
@@ -385,7 +403,7 @@ npm run build:chrome
 
 ### 3.5 如何调试设置页
 
-1. 右键扩展图标，选择“打开详细调试面板”。
+1. 点击扩展图标打开 popup，再点击“设置”或“调试日志”。
 2. 在设置页标签中打开普通 DevTools。
 3. 用 Console 调试构建后的 `options/options.js`，用 Vue 源码定位 `src/options/`，并用 Network 区分设置页自身资源和后台请求。
 4. 在 Application > Storage > Extension Storage 中可查看 `local` 和 `session`。
@@ -399,11 +417,11 @@ Provider 请求可能在你打开 DevTools 前就结束。建议按这个顺序�
 1. 先打开 Service Worker DevTools 的 Network。
 2. 开启 Preserve log。
 3. 清空现有记录。
-4. 回到设置页点击“保存并测试”，或在网页触发翻译。
+4. 回到设置页点击“保存并测试”，或通过 popup 在网页触发翻译。
 5. 按当前 Provider 的 API host 过滤，或查找 `translate`、`chat/completions`、`responses`、`messages`、`generateContent` 等请求路径。
 6. 先看 Status、Initiator 和 Timing，再决定是否查看 Headers、Payload 或 Response。
 
-Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload 和 Response 可能含网页正文及译文。不要截图、复制为 cURL、导出带敏感数据的 HAR，或把这些内容贴到 issue 和聊天中。日常排错优先使用项目内置的脱敏调试面板。
+Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload 和 Response 可能含网页正文及译文。不要截图、复制为 cURL、导出带敏感数据的 HAR，或把这些内容贴到 issue 和聊天中。日常排错优先使用项目内置的受控调试面板；它默认只有元数据。只有普通窗口、DeepSeek 且“记录事件”和“DeepSeek 请求正文”均开启时，请求才会显示固定字段投影，其中的 `messages` 仍可能含网页原文。
 
 ### 3.7 如何读项目内置调试事件
 
@@ -417,12 +435,12 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | `request.retry-scheduled` | 已安排退避重试 | 看 `retryAfterMs`，不要立刻重复点击造成更多请求 |
 | `model.request.started` / `model.request.completed` | 一次模型 SDK 尝试开始或完成 | 用 Provider、模型、adapter、attempt、timeout 和总耗时确认模型层生命周期 |
 | `model.request.failed` / `model.request.retry-scheduled` | 模型 SDK 尝试失败或安排重试 | 看 HTTP 状态、安全错误码、是否可重试及等待时间 |
-| `sdk.request-start` / `sdk.request-end` / `sdk.request-error` | SDK 内部实际 HTTP 请求开始、结束或网络失败 | 看脱敏端点、方法、HTTP 状态和 SDK HTTP 耗时；它们位于一次 `model.request.*` 尝试内部 |
+| `sdk.request-start` / `sdk.request-end` / `sdk.request-error` | SDK 内部实际 HTTP 请求开始、结束或网络失败 | 看受控端点、方法、HTTP 状态和 SDK HTTP 耗时；只有普通窗口、DeepSeek 且两个调试开关均开启时，开始事件才可查看实际 body 投影；这些事件位于一次 `model.request.*` 尝试内部 |
 | `model.response.validated` | SDK 响应元数据已提取，且模型完成原因通过检查 | 可查看响应 ID、响应模型、结束原因、警告数和输入/输出/缓存 token；不含响应正文 |
 | `provider.usage` | Provider 返回的用量已提取 | 核对 token 或计费字符是否符合预期 |
 | `batch.completed` / `batch.failed` | 整批完成或失败 | 与同一 `runId` 的前序事件串联查看 |
 
-调试事件保存在 `chrome.storage.session` 的有界缓冲区中，最多 300 条且约 512 KiB。重新加载扩展、停用扩展、更新扩展或重启浏览器会清空 session 区域。也可以在设置页点击“清空事件”。
+调试事件保存在 `chrome.storage.session` 的有界缓冲区中，最多 300 条且约 512 KiB。重新加载扩展、停用扩展、更新扩展或重启浏览器会清空 session 区域。关闭“DeepSeek 请求正文”或“记录事件”都会撤销正文授权并从既有事件中移除 `requestPayload`；关闭“记录事件”仍保留普通元数据事件，点击“清空事件”才会删除全部记录。旧版只有 `debugLogging` 的设置不会自动获得正文授权，无痕窗口也永不捕获正文。
 
 ---
 
@@ -438,19 +456,26 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | [`config/provider-allowlist.json`](../config/provider-allowlist.json) | 构建输入 | Provider allowlist | 固定四个 SDK 包、官方 API Base URL、默认模型和默认 Provider |
 | [`schemas/model-catalog.schema.json`](../schemas/model-catalog.schema.json)、[`schemas/provider-allowlist.schema.json`](../schemas/provider-allowlist.schema.json) | Node 开发环境 | JSON Schema | 约束 snapshot 与 allowlist 的结构和允许值 |
 | [`scripts/validate-provider-config.mjs`](../scripts/validate-provider-config.mjs) | Node 开发环境 | 构建前校验 | 用 schema 和交叉约束校验四个 Provider、来源 commit、SDK 包、官方 Base URL 与默认模型 |
-| [`scripts/build-provider-runtime.mjs`](../scripts/build-provider-runtime.mjs) | Node 开发环境 | 生成与打包 | 生成本地目录脚本，并用 esbuild 将 Provider SDK 运行时打包为 Chrome 140 可执行代码 |
-| [`src/provider-runtime.js`](../src/provider-runtime.js) | 构建输入 | Vercel AI SDK 适配层 | 创建四家固定模型和自定义 OpenAI-compatible 模型，采集 SDK HTTP 与响应元数据 |
-| [`src/options/`](../src/options/) | 构建输入 | Vue 设置页源码 | 最短配置路径、Provider 字段、用量与调试界面 |
+| [`scripts/build-extension-runtime.mjs`](../scripts/build-extension-runtime.mjs) | Node 开发环境 | 生成与打包 | 校验目录，并由 `src/core/`、`src/content/`、`src/provider/` 生成四个 Chrome runtime 文件 |
+| [`scripts/build-popup.mjs`](../scripts/build-popup.mjs) | Node 开发环境 | popup 打包 | 从 `src/popup/main.js` 生成 `popup/popup.js` 与 `popup/popup.css`；`--check` 拒绝缺失或过期产物 |
+| [`src/provider/`](../src/provider/) | 构建输入 | Vercel AI SDK 适配层 | 创建固定模型和自定义 OpenAI-compatible 模型，校验输入并采集请求事件；DeepSeek 可提供实际 body 供后台收窄投影 |
+| [`src/options/`](../src/options/) | 构建输入 | Vue 设置页源码 | 最短配置路径、Provider 字段、付费 API 标签、用量与调试界面 |
+| [`src/popup/`](../src/popup/) | 构建输入 | action popup 源码 | 读取 popup 状态、发送主动作消息，并打开设置或调试页面 |
 | [`chrome-extension/generated/provider-catalog.js`](../chrome-extension/generated/provider-catalog.js) | Worker、内容脚本、设置页都会加载 | 包内生成数据 | 提供深度冻结的固定 Provider 和模型目录；不要手工编辑 |
+| [`chrome-extension/generated/core.js`](../chrome-extension/generated/core.js) | Worker、内容脚本、设置页都会加载 | 包内生成代码 | `src/core/` 的浏览器 bundle；不要手工编辑 |
+| [`chrome-extension/generated/content-script.js`](../chrome-extension/generated/content-script.js) | 网页中的隔离世界 | 动态 content script | `src/content/` 的浏览器 bundle；不要手工编辑 |
 | [`chrome-extension/generated/provider-runtime.js`](../chrome-extension/generated/provider-runtime.js) | Extension Service Worker | 包内生成代码 | 包含 Vercel AI SDK 与 Provider 适配器；不要手工编辑，也不注入网页 |
-| [`chrome-extension/background/service-worker.js`](../chrome-extension/background/service-worker.js) | Extension Service Worker | `background.service_worker`、事件、跨域请求 | 左键入口、右键菜单、消息路由、allowlist 检查、Key、缓存、Provider 请求、重试、用量和脱敏事件 |
-| [`chrome-extension/shared/core.js`](../chrome-extension/shared/core.js) | Worker、内容脚本、设置页都会加载 | 包内共享代码 | 设置规范化、Provider 定义、语言判断、分批、缓存签名和模型 JSON 校验 |
-| [`chrome-extension/content/content-script.js`](../chrome-extension/content/content-script.js) | 网页中的隔离世界 | 动态 content script | 扫描 DOM、视口优先调度、监听动态内容、发消息、用 `textContent` 插入和移除译文 |
+| [`chrome-extension/background/service-worker.js`](../chrome-extension/background/service-worker.js) | Extension Service Worker | `background.service_worker` | 极薄装配入口：导入 runtime、创建应用、同步注册五类监听器；不注册 `action.onClicked` |
+| [`chrome-extension/background/`](../chrome-extension/background/) | Extension Service Worker | 后台业务模块 | popup/内容脚本消息、Key、任务、缓存、Provider、重试、用量、徽标和受控调试事件 |
+| [`src/core/`](../src/core/) | 构建输入 | 共享核心源码 | 设置规范化、Provider 定义、语言判断、分批、缓存签名和模型 JSON 校验 |
+| [`src/content/`](../src/content/) | 构建输入 | 内容脚本源码 | 扫描 DOM、视口优先调度、监听动态内容、发消息、运行缓存与双语渲染 |
 | [`chrome-extension/content/content.css`](../chrome-extension/content/content.css) | 注入到当前网页 | `scripting.insertCSS()` | 译文和状态节点样式；使用 `data-bt-owned` 限定扩展节点 |
+| [`chrome-extension/popup/index.html`](../chrome-extension/popup/index.html) | `chrome-extension://` 页面 | action popup | 手写 HTML 壳；固定展示“翻译 / 恢复当前网页”、设置和调试日志入口 |
+| [`chrome-extension/popup/popup.js`](../chrome-extension/popup/popup.js)、[`popup.css`](../chrome-extension/popup/popup.css) | 受信任扩展页面 | popup bundle | `src/popup/` 的生成产物；不要手工编辑 |
 | [`chrome-extension/options/index.html`](../chrome-extension/options/index.html) | `chrome-extension://` 页面 | Options page | 加载包内目录、共享核心和 Vue bundle |
-| [`chrome-extension/options/options.js`](../chrome-extension/options/options.js) | 受信任扩展页面 | Vue bundle、消息、Port | 保存设置、测试连接并渲染用量和脱敏事件；不要手工编辑 |
+| [`chrome-extension/options/options.js`](../chrome-extension/options/options.js) | 受信任扩展页面 | Vue bundle、消息、Port | 保存设置、测试连接并渲染用量和受控事件；另行授权的普通窗口 DeepSeek body 投影可能含网页原文；不要手工编辑 |
 | [`chrome-extension/options/options.css`](../chrome-extension/options/options.css) | 受信任扩展页面 | Extension page UI | 编译后的设置页样式；不要手工编辑 |
-| [`test/`](../test/) | Node 测试环境 | 行为契约 | 验证消息边界、脱敏、目录过滤、DOM 增量更新、去重和恢复行为 |
+| [`test/`](../test/) | Node 测试环境 | 行为契约 | 验证 popup 消息边界、安全请求投影、目录过滤、DOM 增量更新、去重和恢复行为 |
 
 ### 4.2 当前 Manifest 字段速查
 
@@ -461,8 +486,9 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | `minimum_chrome_version` | `140` | Chrome 140 以下不受支持 |
 | `background.service_worker` | `background/service-worker.js` | 后台事件入口 |
 | `background.type` | `module` | 允许顶层 `import` |
-| `action.default_title` | `翻译/恢复当前网页` | 初始悬停提示；运行时会加入版本和状态 |
-| `commands._execute_action` | 平台快捷键 | 与左键 action 触发相同主动作 |
+| `action.default_title` | `打开一键双语翻译` | 初始悬停提示；运行时会加入版本和调试状态 |
+| `action.default_popup` | `popup/index.html` | 点击图标时由 Chrome 打开 popup，后台不接收 `action.onClicked` |
+| `commands._execute_action` | 平台快捷键 | 与左键 action 相同，打开 popup；不直接翻译 |
 | `options_ui.page` | `options/index.html` | 设置页入口 |
 | `options_ui.open_in_tab` | `true` | 在独立标签页打开设置页 |
 
@@ -470,9 +496,9 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 
 | 权限 | 当前代码使用位置 | 为什么需要 |
 | --- | --- | --- |
-| `activeTab` | action 或快捷键触发后 | 临时访问当前标签页，不申请所有网页的永久权限 |
-| `scripting` | `toggleTranslation()` | 动态注入 `content/content.css`、`generated/provider-catalog.js`、`shared/core.js` 和 `content/content-script.js` |
-| `contextMenus` | `initializeActionUi()` | 创建仅出现在扩展图标右键菜单中的调试和版本项 |
+| `activeTab` | action 或快捷键打开 popup 后 | popup 主按钮请求后台临时访问当前标签页，不申请所有网页的永久权限 |
+| `scripting` | `toggleTranslation()` | 动态注入 `content/content.css`、`generated/provider-catalog.js`、`generated/core.js` 和 `generated/content-script.js` |
+| `contextMenus` | `createActionUi().initialize()` | 创建仅出现在扩展图标右键菜单中的调试和版本项 |
 | `storage` | 后台与设置页 | 保存设置、Key、缓存、用量、运行快照和调试事件 |
 
 ### 4.4 Host permissions 速查
@@ -492,16 +518,18 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 
 | 来源 | 消息或连接 | 用途 |
 | --- | --- | --- |
-| `content/content-script.js` | `START_RUN` | 建立任务快照，只取回非敏感公开设置 |
-| `content/content-script.js` | `TRANSLATE_BATCH` | 发送已筛选和分批的文本，接收 ID 对齐的译文 |
-| `content/content-script.js` | `CANCEL_RUN` | 第二次点击时取消请求并清理任务 |
-| `content/content-script.js` | `STATUS` | 更新当前标签页徽标和 title |
-| `content/content-script.js` | `OPEN_OPTIONS` | 从网页状态提示打开设置页 |
+| `src/popup/popup-app.js` | `GET_POPUP_STATE` | 读取版本、非敏感配置摘要、调试开关与当前页可用性，不读取 API Key |
+| `src/popup/popup-app.js` | `TOGGLE_ACTIVE_TAB` | 后台查询当前标签页并执行一次 toggle；设置和调试按钮不经过这条消息 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `START_RUN` | 建立任务快照，只取回非敏感公开设置 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `TRANSLATE_BATCH` | 发送已筛选和分批的文本，接收 ID 对齐的译文 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `CANCEL_RUN` | 第二次点击时取消请求并清理任务 |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `STATUS` | 更新当前标签页徽标和 title |
+| `src/content/runtime-client.js`（构建后进入 `generated/content-script.js`） | `OPEN_OPTIONS` | 从网页状态提示打开设置页 |
 | `options/options.js` | `GET_OPTIONS_STATE`、`SAVE_SETTINGS`、`TEST_PROVIDER` | 管理完整设置、用量和连接测试 |
-| `options/options.js` | `GET_DEBUG_LOGS`、`CLEAR_DEBUG_LOGS` | 读取或清空脱敏事件 |
+| `options/options.js` | `GET_DEBUG_LOGS`、`CLEAR_DEBUG_LOGS` | 读取或清空受控事件；另行授权的普通窗口 DeepSeek 请求投影可能含网页原文 |
 | `options/options.js` | Port `debug-events-v1` | 接收实时事件、快照与重置通知 |
 
-后台还保留 `CACHE_LOOKUP` 和 `CACHE_STORE` 消息处理接口；当前主要翻译路径在 `TRANSLATE_BATCH` 内部完成持久缓存查找与写入。
+持久缓存不暴露独立消息接口。`TRANSLATE_BATCH` 由后台在一次受控流程中完成缓存查找、缺失段落请求、结果校验与缓存写入。
 
 ---
 
@@ -512,18 +540,19 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 | 症状 | 最可能原因 | 处理方式 |
 | --- | --- | --- |
 | “加载已解压”失败 | 选错目录、Manifest JSON 错误、未知权限或 Chrome 版本低于 140 | 选择 `web-translate` 仓库中的 `chrome-extension/`；查看扩展页错误；升级 Chrome |
-| Worker 注册失败并提示本地目录或运行时未加载 | 生成产物缺失、过期或构建失败 | 使用 Node.js 24，先运行 `npm install --ignore-scripts`，再运行 `npm run build:chrome`；确认 `chrome-extension/generated/` 和 `chrome-extension/options/` 产物存在后重新加载 |
-| 设置页没有自动打开 | 这是重新加载，不是首次安装 | 右键图标选择“打开详细调试面板” |
+| Worker 注册失败或 popup 无脚本/样式 | 生成产物缺失、过期或构建失败 | 使用 Node.js 24，先运行 `npm install --ignore-scripts`，再运行 `npm run build:chrome`；确认 `chrome-extension/generated/`、`chrome-extension/options/` 和 `chrome-extension/popup/` 产物存在后重新加载 |
+| 设置页没有自动打开 | 这是重新加载，不是首次安装 | 点击图标打开 popup，再点击“设置” |
 | 源码已改，但版本仍旧 | Chrome 仍加载旧包或另一份副本 | 对比扩展路径；点击“重新加载”；用运行时四种方法核对版本 |
-| 左键后只打开设置页，徽标为 `SET` | 当前 Provider 缺 API Key，或本地目录与已保存模型不一致 | 在设置页填写 Key；若目录异常，重新构建并加载扩展；点击“保存并测试” |
-| 左键后徽标为 `ERR` | 当前页面不允许脚本注入，或注入阶段报错 | 换普通 HTTP(S) 页面；查 Service Worker Console 和扩展“错误”页 |
+| popup 点击翻译后打开设置页，徽标为 `SET` | 当前 Provider 缺 API Key，或本地目录与已保存模型不一致 | 在设置页填写 Key；若目录异常，重新构建并加载扩展；点击“保存并测试” |
+| popup 点击翻译后徽标为 `ERR` | 当前页面不允许脚本注入，或注入阶段报错 | 换普通 HTTP(S) 页面；查 Service Worker Console 和扩展“错误”页 |
 | 本地 `file://` 页面不工作 | 用户尚未允许文件网址访问 | 右键图标 → 管理扩展程序 → 开启“允许访问文件网址”，再刷新文件页 |
 | 页面没有可见译文 | 页面没有符合语言和可见性规则的文本，或内容位于 PDF、iframe、Shadow DOM、输入框等边界内 | 看右下角状态；换普通文章；在网页 DevTools 检查候选 DOM |
 | 修改内容脚本后仍执行旧逻辑 | 旧脚本已经注入现有标签页 | 重新加载扩展，再刷新宿主网页，然后重新点击图标 |
 | Service Worker 显示 `inactive` | 正常的空闲终止 | 触发 action 或消息唤醒；不要靠长期打开 DevTools 掩盖生命周期问题 |
 | `chrome://extensions` 没有内容脚本错误 | 内容脚本错误属于网页运行上下文 | 打开网页 DevTools，并切换到扩展内容脚本上下文 |
 | 网页 Network 看不到 Provider 请求 | 请求由 Service Worker 发出 | 打开 Service Worker DevTools 的 Network，在触发操作前开始记录 |
-| 调试面板一直为空 | 调试未开启，或开启后尚未触发操作 | 在右键菜单或设置页开启记录；再测试连接或翻译 |
+| 调试面板一直为空 | 调试未开启，或开启后尚未触发操作 | 从 popup 打开“调试日志”，开启记录，再测试连接或翻译 |
+| DeepSeek 请求事件存在但没有正文 | 只开启了“记录事件”、沿用了旧版 `debugLogging` 设置，或请求来自无痕窗口 | 在普通窗口另行开启“DeepSeek 请求正文”；也可点击“测试当前服务”生成包含 `hello` 的可见样例 |
 | HTTP 401/403 | API Key、账户、Azure 资源区域或 Provider 权限错误 | 核对 Provider 控制台配置；不要把 Key 发给他人排查 |
 | 自定义服务提示需要授权 | 尚未允许扩展访问该 API origin，或 Base URL 无效 | 重新保存或测试并在 Chrome 提示中允许该 origin；不要授予与实际服务无关的域名 |
 | 模型 Provider 返回“请求失败”或“未完整返回译文” | 账户无权使用固定模型、模型暂不可用、输出截断，或 Provider 响应不符合协议 | 查看 `model.request.*`、`sdk.request-*` 与 `model.response.validated`；核对 HTTP 状态、响应模型和结束原因，不要分享正文或 Key |
@@ -536,7 +565,7 @@ Network 面板不会替你脱敏。Headers 可能含 `Authorization`，Payload �
 清单无法加载、Worker 注册失败
   → chrome://extensions 的“错误”
 
-action、右键菜单、权限、Provider、缓存、重试
+popup 动作、右键菜单、权限、Provider、缓存、重试
   → Service Worker DevTools
 
 DOM 扫描、节点插入、网页布局、内容脚本异常
@@ -548,8 +577,8 @@ DOM 扫描、节点插入、网页布局、内容脚本异常
 snapshot、allowlist、schema 或 SDK bundle 构建失败
   → 终端中的校验/构建错误
 
-只需请求状态、耗时、字符数、重试原因
-  → 项目内置脱敏调试面板
+请求状态、耗时、字符数、重试原因，或 DeepSeek 实际 body 投影
+  → 项目内置受控调试面板
 ```
 
 ### 5.3 安全边界
@@ -568,6 +597,10 @@ snapshot、allowlist、schema 或 SDK bundle 构建失败
 - 浏览器端 BYOK 不能替代服务端密钥保险箱。若面向其他用户并由开发者承担费用，应使用带鉴权、配额和速率限制的后端代理。
 - 不要把设置页 Storage、Service Worker Network Headers、Payload、Response、Copy as cURL 或 HAR 交给第三方。
 
+#### 计费边界
+
+- 标有“付费 API”的服务按用量计费，实际费用以服务商账单为准；连接测试也会调用当前选中的服务。
+
 #### 权限边界
 
 - 用 `activeTab` 保持网页访问短暂且由用户触发，不要为了方便改成所有网页永久权限。
@@ -577,7 +610,7 @@ snapshot、allowlist、schema 或 SDK bundle 构建失败
 
 #### 代码与 CSP 边界
 
-- 所有可执行 JavaScript 必须随扩展打包。Vue 与 Vercel AI SDK 依赖在开发阶段分别构建进 `chrome-extension/options/` 和 `chrome-extension/generated/provider-runtime.js`；扩展运行时不得下载 SDK 或其他待执行逻辑。
+- 所有可执行 JavaScript 必须随扩展打包。action popup、Vue 与 Vercel AI SDK 依赖在开发阶段分别构建进 `chrome-extension/popup/popup.js`、`chrome-extension/options/` 和 `chrome-extension/generated/provider-runtime.js`；扩展运行时不得下载 SDK 或其他待执行逻辑。
 - Models.dev 只作为仓库内固定 snapshot 的可追溯来源；运行时不得获取或执行其内容。
 - 不使用 `eval()`、`new Function()`、远程 `<script>` 或从网络下载再执行的代码。
 - 不为方便调试放宽 Manifest V3 的扩展页 CSP。
@@ -585,9 +618,9 @@ snapshot、allowlist、schema 或 SDK bundle 构建失败
 
 #### 调试边界
 
-- 内置调试事件是经过白名单筛选的元数据，适合分享前再次人工检查。
+- 内置调试事件经过字段白名单筛选，默认只含元数据。只有另行开启“DeepSeek 请求正文”后，普通窗口捕获的 `requestPayload.messages` 才可能含网页原文；复制或分享前必须删除或替换内容。无痕窗口永不捕获正文。
 - Chrome DevTools Network、Console 和 Extension Storage 是原始诊断面，默认不脱敏。
-- 关闭调试模式会停止新增内置事件，但不会清除既有事件；需要时点击“清空事件”。
+- 调试日志不保存 API Key、Authorization、其他请求头或响应体。旧版 `debugLogging` 不会自动授权正文；关闭“DeepSeek 请求正文”或“记录事件”会清除既有 `requestPayload`，其中关闭“记录事件”仍保留普通元数据。排查后点击“清空事件”可删除全部记录。
 - 打开 Service Worker DevTools 会改变 Worker 生命周期。调试完成后关闭它，再验证真实休眠与唤醒行为。
 
 ---

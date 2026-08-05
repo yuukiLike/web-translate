@@ -21,8 +21,8 @@ const {
 	fatal,
 	providers,
 	ready,
-	save,
 	saveDebug,
+	saveDebugRequestPayload,
 	selectedProvider,
 	selectedTarget,
 	status,
@@ -106,7 +106,6 @@ function show(nextView) {
 						</div>
 						<span v-if="connected" class="connected"><i aria-hidden="true"></i>连接可用</span>
 					</div>
-
 
 					<ProviderPicker v-model="draft.provider" :providers="providers" />
 
@@ -199,14 +198,16 @@ function show(nextView) {
 
 			<DebugPanel
 				v-else
-				v-model:enabled="draft.debugLogging"
+					v-model:enabled="draft.debugLogging"
+					v-model:request-payload="draft.debugRequestPayload"
 				:busy="busy"
 				:connection="debugConnection"
 				:requests="debugRequests"
 				:rows="debugRows"
 				:status="status"
 				@clear="clearDebug"
-				@save="saveDebug"
+					@save="saveDebug"
+					@save-request-payload="saveDebugRequestPayload"
 				@test="testProvider"
 			/>
 		</main>

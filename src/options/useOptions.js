@@ -9,57 +9,28 @@ import {
 	errorText,
 	isRecord,
 } from "./data.js";
+import {
+	createRuntimeMessenger,
+	getCoreError,
+	getManifestVersion,
+} from "./optionsRuntime.js";
 import { useDebug } from "./useDebug.js";
-
-const REQUIRED_CORE_FUNCTIONS = Object.freeze([
-	"createDefaultSettings",
-	"getMonthKey",
-	"getProviderConfigurationError",
-	"getProviderLabel",
-	"normalizeSettings",
-]);
-
-function coreError(core) {
-	if (!isRecord(core)) {
-		return "扩展核心模块未载入。请重新构建并重新加载扩展。";
-	}
-	for (const name of REQUIRED_CORE_FUNCTIONS) {
-		if (typeof core[name] !== "function") {
-			return "扩展核心模块不完整。请重新构建并重新加载扩展。";
-		}
-	}
-	if (typeof core.SETTINGS_KEY !== "string" || !core.SETTINGS_KEY) {
-		return "扩展核心模块不完整。请重新构建并重新加载扩展。";
-	}
-	return "";
-}
-
-function manifestVersion(runtime) {
-	try {
-		const manifest = runtime?.getManifest();
-		if (isRecord(manifest) && typeof manifest.version === "string" && manifest.version) {
-			return `v${manifest.version}`;
-		}
-	} catch {
-		// A fatal runtime error is reported separately; the heading keeps a stable fallback.
-	}
-	return "版本未知";
-}
+import { useDebugSettings } from "./useDebugSettings.js";
 
 export function useOptions() {
 	const core = globalThis.BilingualTranslatorCore;
 	const catalog = globalThis.BilingualTranslatorProviderCatalog;
 	const chromeApi = globalThis.chrome;
 	const runtime = chromeApi?.runtime;
+	const sendMessage = createRuntimeMessenger(runtime);
 	const catalogInfo = createCatalogInfo(catalog);
 	const ready = ref(false);
-	const fatal = ref(catalogInfo.error || coreError(core));
-	const version = ref(manifestVersion(runtime));
+	const fatal = ref(catalogInfo.error || getCoreError(core));
+	const version = ref(getManifestVersion(runtime));
 	const status = reactive({ text: "", error: false });
 	const busy = ref("");
 	const connected = ref(false);
 	const usage = ref({});
-	const savedDebug = ref(false);
 	let initialSettings = createFallbackSettings(catalog);
 
 	if (!fatal.value) {
@@ -74,9 +45,10 @@ export function useOptions() {
 	}
 
 	const draft = reactive(initialSettings);
+	const debugSettings = useDebugSettings({ busy, draft, sendMessage, setStatus });
 	const debug = useDebug({
 		enabled: toRef(draft, "debugLogging"),
-		saved: savedDebug,
+		saved: debugSettings.savedLogging,
 		runtime,
 		sendMessage,
 	});
@@ -112,18 +84,6 @@ export function useOptions() {
 	function setStatus(text, error = false) {
 		status.text = text;
 		status.error = error;
-	}
-
-	async function sendMessage(message) {
-		if (!runtime || typeof runtime.sendMessage !== "function") {
-			throw new Error("Chrome 扩展后台不可用");
-		}
-		const response = await runtime.sendMessage(message);
-		if (!isRecord(response) || response.ok !== true) {
-			const responseError = isRecord(response) && typeof response.error === "string" ? response.error : "";
-			throw new Error(responseError || "扩展后台无响应");
-		}
-		return response;
 	}
 
 	function applySettings(value) {
@@ -171,7 +131,7 @@ export function useOptions() {
 
 	function acceptSavedSettings(value) {
 		const settings = applySettings(value);
-		savedDebug.value = settings.debugLogging;
+		debugSettings.accept(settings);
 		return settings;
 	}
 
@@ -200,44 +160,6 @@ export function useOptions() {
 			setStatus(errorText(error), true);
 		} finally {
 			ready.value = true;
-		}
-	}
-
-	async function save() {
-		busy.value = "save";
-		setStatus("正在保存设置…");
-		try {
-			const settings = settingsForSave();
-			await ensureCustomHostPermission(settings);
-			const response = await sendMessage({ type: "SAVE_SETTINGS", settings });
-			acceptSavedSettings(response.settings);
-			setStatus("设置已保存");
-			return true;
-		} catch (error) {
-			setStatus(errorText(error), true);
-			return false;
-		} finally {
-			busy.value = "";
-		}
-	}
-
-	async function saveDebug() {
-		const requested = draft.debugLogging;
-		busy.value = "debug";
-		setStatus(requested ? "正在开启调试记录…" : "正在关闭调试记录…");
-		try {
-			const response = await sendMessage({ type: "SET_DEBUG_LOGGING", enabled: requested });
-			const stored = response.debugLogging === true;
-			savedDebug.value = stored;
-			draft.debugLogging = stored;
-			setStatus(stored ? "调试记录已开启" : "调试记录已关闭");
-			return true;
-		} catch (error) {
-			draft.debugLogging = savedDebug.value;
-			setStatus(errorText(error), true);
-			return false;
-		} finally {
-			busy.value = "";
 		}
 	}
 
@@ -290,11 +212,7 @@ export function useOptions() {
 			return;
 		}
 		const settings = core.normalizeSettings(changedSettings.newValue);
-		if (settings.debugLogging === savedDebug.value && draft.debugLogging === savedDebug.value) {
-			return;
-		}
-		savedDebug.value = settings.debugLogging;
-		draft.debugLogging = settings.debugLogging;
+		debugSettings.sync(settings);
 	}
 
 	onMounted(() => {
@@ -320,8 +238,8 @@ export function useOptions() {
 		status,
 		busy,
 		connected,
-		save,
-		saveDebug,
+		saveDebug: debugSettings.saveLogging,
+		saveDebugRequestPayload: debugSettings.saveRequestPayload,
 		testProvider,
 		clearCache,
 		debug,
