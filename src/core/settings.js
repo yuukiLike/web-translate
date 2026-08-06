@@ -2,6 +2,7 @@ import {
 	MAXIMUM_API_KEY_LENGTH,
 	MAXIMUM_CUSTOM_BASE_URL_LENGTH,
 	MODEL_PROVIDER_IDS,
+	SOURCE_MODES,
 	TARGET_MODES,
 } from "./constants.js";
 import { clampInteger, isRecord, safeString } from "./value-utils.js";
@@ -46,7 +47,8 @@ export function createSettingsApi(catalog, providerDefinitions) {
 	function createDefaultSettings() {
 		return {
 			provider: catalog.defaultProviderId,
-			targetMode: "auto",
+			sourceMode: "auto",
+			targetMode: "zh",
 			translateDynamicContent: true,
 			concurrency: 2,
 			debugLogging: false,
@@ -81,17 +83,45 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		};
 	}
 
+	function normalizeLanguagePair(settings, defaults) {
+		const requestedTargetMode = safeString(settings.targetMode);
+		if (!Object.hasOwn(settings, "sourceMode")) {
+			// 旧版把方向复用在 targetMode 中；读取时一次性迁移到两个独立字段。
+			switch (requestedTargetMode) {
+				case "zh":
+					return { sourceMode: "en", targetMode: "zh" };
+				case "en":
+					return { sourceMode: "zh", targetMode: "en" };
+				default:
+					return { sourceMode: defaults.sourceMode, targetMode: defaults.targetMode };
+			}
+		}
+
+		const requestedSourceMode = safeString(settings.sourceMode);
+		const sourceMode = SOURCE_MODES.has(requestedSourceMode)
+			? requestedSourceMode
+			: defaults.sourceMode;
+		const targetMode = TARGET_MODES.has(requestedTargetMode)
+			? requestedTargetMode
+			: defaults.targetMode;
+		if (sourceMode !== "auto" && sourceMode === targetMode) {
+			// 同语种显式方向没有翻译意义；保留目标并改为自动识别来源。
+			return { sourceMode: "auto", targetMode };
+		}
+		return { sourceMode, targetMode };
+	}
+
 	function normalizeSettings(input) {
 		const defaults = createDefaultSettings();
 		const settings = isRecord(input) ? input : {};
 		const azure = isRecord(settings.azure) ? settings.azure : {};
 		const deepl = isRecord(settings.deepl) ? settings.deepl : {};
 		const provider = safeString(settings.provider);
-		const targetMode = safeString(settings.targetMode);
+		const languagePair = normalizeLanguagePair(settings, defaults);
 		const debugLogging = settings.debugLogging === true;
 		return {
 			provider: providerIds.has(provider) ? provider : defaults.provider,
-			targetMode: TARGET_MODES.has(targetMode) ? targetMode : defaults.targetMode,
+			...languagePair,
 			translateDynamicContent:
 				typeof settings.translateDynamicContent === "boolean"
 					? settings.translateDynamicContent
@@ -169,6 +199,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		const normalized = normalizeSettings(settings);
 		return {
 			provider: normalized.provider,
+			sourceMode: normalized.sourceMode,
 			targetMode: normalized.targetMode,
 			translateDynamicContent: normalized.translateDynamicContent,
 			concurrency: normalized.concurrency,

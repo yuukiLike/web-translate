@@ -1,3 +1,4 @@
+import { SOURCE_MODES, TARGET_MODES } from "./constants.js";
 import { clampInteger, safeString } from "./value-utils.js";
 
 export function normalizeSourceText(value) {
@@ -35,19 +36,26 @@ function cjkRatio(value) {
 	return meaningfulCharacters === 0 ? 0 : cjkCharacters / meaningfulCharacters;
 }
 
-export function getLanguagePair(documentLanguage, sampleText, targetMode = "auto") {
-	if (targetMode === "zh") {
-		return { sourceLanguage: "en", targetLanguage: "zh" };
-	}
-	if (targetMode === "en") {
-		return { sourceLanguage: "zh", targetLanguage: "en" };
+export function getLanguagePair(
+	documentLanguage,
+	sampleText,
+	sourceMode = "auto",
+	targetMode = "zh",
+) {
+	const normalizedSourceMode = SOURCE_MODES.has(sourceMode) ? sourceMode : "auto";
+	const normalizedTargetMode = TARGET_MODES.has(targetMode) ? targetMode : "zh";
+	if (normalizedSourceMode !== "auto") {
+		return {
+			sourceLanguage: normalizedSourceMode,
+			targetLanguage: normalizedSourceMode === "zh" ? "en" : "zh",
+		};
 	}
 	const declaredLanguage = normalizeLanguageTag(documentLanguage);
 	const sourceLanguage =
 		declaredLanguage === "auto" ? (cjkRatio(sampleText) >= 0.12 ? "zh" : "en") : declaredLanguage;
 	return {
 		sourceLanguage,
-		targetLanguage: sourceLanguage === "zh" ? "en" : "zh",
+		targetLanguage: normalizedTargetMode,
 	};
 }
 

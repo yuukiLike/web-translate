@@ -6,18 +6,61 @@ import { createCatalogFixture } from "../helpers/catalog-fixture.mjs";
 
 const core = createCore(await createCatalogFixture());
 
+function getLanguageSettings(settings) {
+	return { sourceMode: settings.sourceMode, targetMode: settings.targetMode };
+}
+
 // 验证不可信设置会回落到安全默认值，而不是把非法 Provider 或并发数带入后台。
 test("设置规范化会拒绝非法枚举并约束并发", () => {
 	const settings = core.normalizeSettings({
 		provider: "unknown",
+		sourceMode: "other",
 		targetMode: "other",
 		concurrency: 99,
 		translateDynamicContent: "yes",
 	});
 	assert.equal(settings.provider, "deepseek");
-	assert.equal(settings.targetMode, "auto");
+	assert.equal(settings.sourceMode, "auto");
+	assert.equal(settings.targetMode, "zh");
 	assert.equal(settings.concurrency, 4);
 	assert.equal(settings.translateDynamicContent, true);
+});
+
+// 验证旧版复用 targetMode 的三个值能无损迁移，缺失设置仍采用自动识别并译为中文。
+test("旧版语言方向迁移为独立的来源与目标字段", () => {
+	for (const [legacyTargetMode, expected] of [
+		["auto", { sourceMode: "auto", targetMode: "zh" }],
+		["zh", { sourceMode: "en", targetMode: "zh" }],
+		["en", { sourceMode: "zh", targetMode: "en" }],
+	]) {
+		const settings = core.normalizeSettings({ targetMode: legacyTargetMode });
+		assert.deepEqual(getLanguageSettings(settings), expected);
+	}
+	assert.deepEqual(getLanguageSettings(core.createDefaultSettings()), {
+		sourceMode: "auto",
+		targetMode: "zh",
+	});
+});
+
+// 验证自动识别可选择中英文目标，显式来源只接受互为相反语言的方向。
+test("新语言字段只保留有意义的组合", () => {
+	for (const expected of [
+		{ sourceMode: "auto", targetMode: "zh" },
+		{ sourceMode: "auto", targetMode: "en" },
+		{ sourceMode: "en", targetMode: "zh" },
+		{ sourceMode: "zh", targetMode: "en" },
+	]) {
+		const settings = core.normalizeSettings(expected);
+		assert.deepEqual(getLanguageSettings(settings), expected);
+	}
+	assert.deepEqual(
+		getLanguageSettings(core.normalizeSettings({ sourceMode: "zh", targetMode: "zh" })),
+		{ sourceMode: "auto", targetMode: "zh" },
+	);
+	assert.deepEqual(
+		getLanguageSettings(core.normalizeSettings({ sourceMode: "en", targetMode: "en" })),
+		{ sourceMode: "auto", targetMode: "en" },
+	);
 });
 
 // 旧版只有 debugLogging；升级后不得把它解释为已同意记录网页正文。
@@ -64,7 +107,8 @@ test("公开任务设置不会泄露凭据", () => {
 	});
 	assert.deepEqual(core.publicSettings(settings), {
 		provider: "deepseek",
-		targetMode: "auto",
+		sourceMode: "auto",
+		targetMode: "zh",
 		translateDynamicContent: true,
 		concurrency: 2,
 	});

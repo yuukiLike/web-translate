@@ -66,6 +66,7 @@ test("首屏契约稳定且 Provider 切换保留草稿", async () => {
 			"provider",
 			"deepseek-api-key",
 			"deepseek-model",
+			"source-mode",
 			"target-mode",
 			"concurrency",
 			"translate-dynamic",
@@ -83,6 +84,8 @@ test("首屏契约稳定且 Provider 切换保留草稿", async () => {
 			"保存并测试",
 		);
 		assert.equal(page.document.querySelector("#cost-protection"), null);
+		assert.equal(page.document.querySelector("#source-mode").value, "auto");
+		assert.equal(page.document.querySelector("#target-mode").value, "zh");
 		assert.equal(page.document.querySelectorAll(".provider-paid").length, 3);
 		assert.match(page.document.querySelector(".provider-note").textContent, /感谢梁圣/u);
 		assert.equal(
@@ -124,7 +127,7 @@ test("折叠后的 Anthropic 保留付费标签", async () => {
 	}
 });
 
-// “保存并测试”必须先持久化当前草稿，再测试 Provider，最后刷新用量状态。
+// “保存并测试”必须先独立保存语言与服务草稿，再测试 Provider，最后刷新用量状态。
 test("保存并测试按固定消息顺序执行", async () => {
 	const page = await createOptionsPageHarness();
 	try {
@@ -139,9 +142,9 @@ test("保存并测试按固定消息顺序执行", async () => {
 
 		assert.deepEqual(
 			page.calls.map((message) => message.type),
-			["SAVE_SETTINGS", "TEST_PROVIDER", "GET_OPTIONS_STATE"],
+			["SET_LANGUAGE_PAIR", "SAVE_SETTINGS", "TEST_PROVIDER", "GET_OPTIONS_STATE"],
 		);
-		assert.equal(page.calls[0].settings.openai.apiKey, "openai-draft-key");
+		assert.equal(page.calls[1].settings.openai.apiKey, "openai-draft-key");
 		assert.match(page.document.querySelector(".connected").textContent, /连接可用/u);
 	} finally {
 		page.cleanup();

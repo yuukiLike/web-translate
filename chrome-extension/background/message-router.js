@@ -1,3 +1,5 @@
+const POPUP_PROTOCOL_VERSION = 2;
+
 export function createMessageRouter({
 	chrome,
 	core,
@@ -23,6 +25,8 @@ export function createMessageRouter({
 		switch (message.type) {
 			case "GET_POPUP_STATE":
 				return await getPopupState(sender);
+			case "SET_LANGUAGE_PAIR":
+				return await setLanguagePair(message, sender);
 			case "TOGGLE_ACTIVE_TAB":
 				return await toggleActiveTab(sender);
 			case "START_RUN":
@@ -62,14 +66,33 @@ export function createMessageRouter({
 		const [settings, tab] = await Promise.all([settingsStore.getSettings(), getActiveTab()]);
 		const availability = actionUi.getTabAvailability(tab);
 		return {
+			popupProtocolVersion: POPUP_PROTOCOL_VERSION,
 			version: extensionVersion,
 			providerLabel: core.getProviderLabel(settings),
 			model: core.getProviderModel(settings),
-			targetLanguage: getTargetModeLabel(settings.targetMode),
+			languagePair: {
+				sourceMode: settings.sourceMode,
+				targetLanguage: settings.targetMode,
+			},
 			debugLogging: settings.debugLogging,
 			configured: !core.getProviderConfigurationError(settings),
 			canTranslate: availability.available,
 			unavailableReason: availability.reason,
+		};
+	}
+
+	async function setLanguagePair(message, sender) {
+		settingsStore.assertExtensionPage(sender);
+		const settings = await settingsStore.updateLanguagePair(
+			message.sourceMode,
+			message.targetLanguage,
+		);
+		return {
+			popupProtocolVersion: POPUP_PROTOCOL_VERSION,
+			languagePair: {
+				sourceMode: settings.sourceMode,
+				targetLanguage: settings.targetMode,
+			},
 		};
 	}
 
@@ -138,8 +161,8 @@ export function createMessageRouter({
 
 	async function saveSettings(message, sender) {
 		settingsStore.assertExtensionPage(sender);
-		const settings = core.normalizeSettings(message.settings);
-		await settingsStore.save(settings);
+		const requested = core.normalizeSettings(message.settings);
+		const settings = await settingsStore.save(requested);
 		await actionUi.updateState(settings);
 		debug.record({
 			component: "background",
@@ -271,15 +294,4 @@ export function createMessageRouter({
 	}
 
 	return { handleMessage };
-}
-
-function getTargetModeLabel(targetMode) {
-	switch (targetMode) {
-		case "zh":
-			return "译为中文";
-		case "en":
-			return "译为英文";
-		default:
-			return "自动判断";
-	}
 }

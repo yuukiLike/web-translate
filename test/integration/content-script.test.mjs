@@ -52,17 +52,19 @@ test("纯中文页面显示合适的无需翻译提示", async () => {
 	}
 });
 
-// 验证用户明确选择译为英文时，中文正文仍会按 zh -> en 方向翻译。
-test("显式英文模式可以翻译中文正文", async () => {
-	const harness = createContentHarness({ targetMode: "en" });
+// 验证自动译为英文只提交检测为中文的正文，英文正文会因来源与目标相同而跳过。
+test("自动来源可以译为英文并跳过英文正文", async () => {
+	const harness = createContentHarness({ sourceMode: "auto", targetMode: "en" });
 	try {
 		const chinese = harness.addArticle("这段中文需要翻译成英文。", { lang: "zh-CN" });
+		const english = harness.addArticle("This English paragraph is already in the target language.");
 		harness.start();
 
 		await waitFor(
 			() => Boolean(harness.getTranslation(chinese.source)),
-			"显式英文模式没有生成译文",
+			"自动英文目标没有生成中文译文",
 		);
+		await new Promise((resolve) => setTimeout(resolve, 230));
 		assert.deepEqual(
 			harness.translationRequests.map(({ sourceLanguage, targetLanguage }) => ({
 				sourceLanguage,
@@ -70,6 +72,8 @@ test("显式英文模式可以翻译中文正文", async () => {
 			})),
 			[{ sourceLanguage: "zh", targetLanguage: "en" }],
 		);
+		assert.equal(harness.requestCount(english.source.textContent), 0);
+		assert.equal(harness.getTranslation(english.source), null);
 	} finally {
 		harness.dispose();
 	}

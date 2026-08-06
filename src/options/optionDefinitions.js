@@ -62,20 +62,28 @@ export const PROVIDERS = Object.freeze([
 	}),
 ]);
 
-export const TARGETS = Object.freeze([
+export const SOURCES = Object.freeze([
 	Object.freeze({
 		id: "auto",
-		name: "自动判断",
-		cue: "中英互译",
+		name: "自动检测",
 	}),
 	Object.freeze({
 		id: "zh",
-		name: "译为中文",
-		cue: "英 → 中",
+		name: "简体中文",
 	}),
 	Object.freeze({
 		id: "en",
-		name: "译为英文",
-		cue: "中 → 英",
+		name: "English",
+	}),
+]);
+
+export const TARGETS = Object.freeze([
+	Object.freeze({
+		id: "zh",
+		name: "简体中文",
+	}),
+	Object.freeze({
+		id: "en",
+		name: "English",
 	}),
 ]);

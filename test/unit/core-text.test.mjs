@@ -6,19 +6,35 @@ import { createCatalogFixture } from "../helpers/catalog-fixture.mjs";
 
 const core = createCore(await createCatalogFixture());
 
-// 验证显式方向优先，自动方向再依据 lang 与文本中的中文比例判断。
-test("语言方向识别覆盖显式与自动模式", () => {
-	assert.deepEqual(core.getLanguagePair("", "Hello world", "auto"), {
+// 验证自动来源依据 lang 与文本判断，同时保持用户选择的中英文目标。
+test("自动来源识别支持中文与英文目标", () => {
+	assert.deepEqual(core.getLanguagePair("", "Hello world", "auto", "zh"), {
 		sourceLanguage: "en",
 		targetLanguage: "zh",
 	});
-	assert.deepEqual(core.getLanguagePair("zh-CN", "Hello", "auto"), {
+	assert.deepEqual(core.getLanguagePair("zh-CN", "Hello", "auto", "zh"), {
+		sourceLanguage: "zh",
+		targetLanguage: "zh",
+	});
+	assert.deepEqual(core.getLanguagePair("", "中文内容", "auto", "en"), {
 		sourceLanguage: "zh",
 		targetLanguage: "en",
 	});
-	assert.deepEqual(core.getLanguagePair("", "中文内容", "zh"), {
+	assert.deepEqual(core.getLanguagePair("", "English content", "auto", "en"), {
+		sourceLanguage: "en",
+		targetLanguage: "en",
+	});
+});
+
+// 验证显式来源始终使用固定的中英互译方向，不接受同语种目标污染任务。
+test("显式来源固定为相反目标语言", () => {
+	assert.deepEqual(core.getLanguagePair("zh-CN", "中文内容", "en", "en"), {
 		sourceLanguage: "en",
 		targetLanguage: "zh",
+	});
+	assert.deepEqual(core.getLanguagePair("en", "English content", "zh", "zh"), {
+		sourceLanguage: "zh",
+		targetLanguage: "en",
 	});
 });
 

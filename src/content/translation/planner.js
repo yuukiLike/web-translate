@@ -110,7 +110,7 @@ export class TranslationPlanner {
 	}
 
 	#shouldTranslate(text, languagePair) {
-		if (this.settings.targetMode === "auto" && languagePair.sourceLanguage === "zh") {
+		if (languagePair.sourceLanguage === languagePair.targetLanguage) {
 			return false;
 		}
 		return this.core.shouldTranslateText(text, languagePair.targetLanguage);
@@ -130,7 +130,12 @@ export class TranslationPlanner {
 			declaredElement === document.body || declaredElement === document.documentElement
 				? ""
 				: declaredElement?.getAttribute("lang") || "";
-		return this.core.getLanguagePair(declaredLanguage, text, this.settings.targetMode);
+		return this.core.getLanguagePair(
+			declaredLanguage,
+			text,
+			this.settings.sourceMode,
+			this.settings.targetMode,
+		);
 	}
 }
 

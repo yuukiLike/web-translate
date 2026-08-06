@@ -34,7 +34,7 @@ export async function waitFor(predicate, message, timeout = 3_000) {
 	}
 }
 
-export function createContentHarness({ targetMode = "auto", translateText } = {}) {
+export function createContentHarness({ sourceMode = "auto", targetMode = "zh", translateText } = {}) {
 	const window = new Window({ url: "https://example.com/article" });
 	const { document } = window;
 	const messages = [];
@@ -60,6 +60,7 @@ export function createContentHarness({ targetMode = "auto", translateText } = {}
 						ok: true,
 						settings: {
 							provider: "deepseek",
+							sourceMode,
 							targetMode,
 							translateDynamicContent: true,
 							concurrency: 2,

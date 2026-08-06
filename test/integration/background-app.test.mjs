@@ -56,8 +56,12 @@ test("Popup 消息安全查询并切换当前标签页", async () => {
 	const { app } = createApp(harness);
 	await app.start();
 
-	for (const type of ["GET_POPUP_STATE", "TOGGLE_ACTIVE_TAB"]) {
-		assert.deepEqual(await sendAppMessage(app, { type }, createWebpageSender()), {
+	for (const message of [
+		{ type: "GET_POPUP_STATE" },
+		{ type: "SET_LANGUAGE_PAIR", sourceMode: "zh", targetLanguage: "en" },
+		{ type: "TOGGLE_ACTIVE_TAB" },
+	]) {
+		assert.deepEqual(await sendAppMessage(app, message, createWebpageSender()), {
 			ok: false,
 			error: "网页脚本无权读取敏感设置",
 		});
@@ -68,9 +72,10 @@ test("Popup 消息安全查询并切换当前标签页", async () => {
 	const state = await sendAppMessage(app, { type: "GET_POPUP_STATE" }, popupSender);
 	assert.equal(state.ok, true);
 	assert.equal(state.version, "0.4.0");
+	assert.equal(state.popupProtocolVersion, 2);
 	assert.equal(state.providerLabel, "DeepSeek");
 	assert.equal(state.model, "deepseek-v4-flash");
-	assert.equal(state.targetLanguage, "自动判断");
+	assert.deepEqual(state.languagePair, { sourceMode: "auto", targetLanguage: "zh" });
 	assert.equal(state.configured, true);
 	assert.equal(state.canTranslate, true);
 	assert.deepEqual(await sendAppMessage(app, { type: "TOGGLE_ACTIVE_TAB" }, popupSender), {
@@ -101,26 +106,38 @@ test("Popup 消息安全查询并切换当前标签页", async () => {
 	]);
 });
 
-// 验证 Popup 的目标语言文案严格映射真实设置字段 targetMode，避免显示不存在的旧字段。
-test("Popup 正确展示全部目标语言模式", async () => {
-	for (const [targetMode, expectedLabel] of [
-		["auto", "自动判断"],
-		["zh", "译为中文"],
-		["en", "译为英文"],
+// 验证 Popup 通过窄接口持久化全部合法语言方向，并拒绝会被规范化掩盖的非法值。
+test("Popup 安全读写全部语言方向", async () => {
+	const harness = createChromeHarness();
+	const { app } = createApp(harness);
+	const sender = createExtensionSender("popup/index.html");
+	await app.start();
+
+	for (const [sourceMode, targetLanguage] of [
+		["auto", "en"],
+		["en", "zh"],
+		["zh", "en"],
+		["auto", "zh"],
 	]) {
-		const harness = createChromeHarness({
-			settings: createConfiguredSettings({ targetMode }),
-		});
-		const { app } = createApp(harness);
-		await app.start();
-		const state = await sendAppMessage(
+		const languagePair = { sourceMode, targetLanguage };
+		const response = await sendAppMessage(
 			app,
-			{ type: "GET_POPUP_STATE" },
-			createExtensionSender("popup/index.html"),
+			{ type: "SET_LANGUAGE_PAIR", ...languagePair },
+			sender,
 		);
-		assert.equal(state.ok, true);
-		assert.equal(state.targetLanguage, expectedLabel);
+		assert.deepEqual(response, { ok: true, popupProtocolVersion: 2, languagePair });
+		const state = await sendAppMessage(app, { type: "GET_POPUP_STATE" }, sender);
+		assert.deepEqual(state.languagePair, languagePair);
 	}
+	assert.equal(harness.local.data[backgroundCore.SETTINGS_KEY].deepseek.apiKey, "sk-background-test");
+	assert.deepEqual(
+		await sendAppMessage(
+			app,
+			{ type: "SET_LANGUAGE_PAIR", sourceMode: "zh", targetLanguage: "zh" },
+			sender,
+		),
+		{ ok: false, error: "翻译语言组合无效" },
+	);
 });
 
 // 验证从启动任务、翻译、缓存命中、状态完成到取消的完整后台消息主链。

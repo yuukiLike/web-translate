@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } fro
 
 import {
 	PROVIDERS,
+	SOURCES,
 	TARGETS,
 	createCatalogInfo,
 	createFallbackSettings,
@@ -30,7 +31,9 @@ export function useOptions() {
 	const status = reactive({ text: "", error: false });
 	const busy = ref("");
 	const connected = ref(false);
+	const reloadRequired = ref(false);
 	const usage = ref({});
+	let languageRevision = 0;
 	let initialSettings = createFallbackSettings(catalog);
 
 	if (!fatal.value) {
@@ -54,6 +57,9 @@ export function useOptions() {
 	});
 	const selectedProvider = computed(() => {
 		return PROVIDERS.find((provider) => provider.id === draft.provider) || PROVIDERS[0];
+	});
+	const selectedSource = computed(() => {
+		return SOURCES.find((source) => source.id === draft.sourceMode) || SOURCES[0];
 	});
 	const selectedTarget = computed(() => {
 		return TARGETS.find((target) => target.id === draft.targetMode) || TARGETS[0];
@@ -90,6 +96,26 @@ export function useOptions() {
 		const settings = core.normalizeSettings(value);
 		Object.assign(draft, settings);
 		return settings;
+	}
+
+	function setSourceMode(sourceMode) {
+		if (!SOURCES.some((source) => source.id === sourceMode)) {
+			return;
+		}
+		draft.sourceMode = sourceMode;
+		if (sourceMode !== "auto" && sourceMode === draft.targetMode) {
+			draft.targetMode = sourceMode === "zh" ? "en" : "zh";
+		}
+	}
+
+	function setTargetMode(targetMode) {
+		if (!TARGETS.some((target) => target.id === targetMode)) {
+			return;
+		}
+		draft.targetMode = targetMode;
+		if (draft.sourceMode === targetMode) {
+			draft.sourceMode = targetMode === "zh" ? "en" : "zh";
+		}
 	}
 
 	function settingsForSave() {
@@ -153,8 +179,14 @@ export function useOptions() {
 			return;
 		}
 		try {
+			const revisionAtStart = languageRevision;
 			const response = await sendMessage({ type: "GET_OPTIONS_STATE" });
+			const latestLanguage = {
+				sourceMode: draft.sourceMode,
+				targetMode: draft.targetMode,
+			};
 			acceptSavedSettings(response.settings);
+			if (languageRevision !== revisionAtStart) Object.assign(draft, latestLanguage);
 			acceptUsage(response.usage);
 		} catch (error) {
 			setStatus(errorText(error), true);
@@ -164,12 +196,21 @@ export function useOptions() {
 	}
 
 	async function testProvider() {
+		if (reloadRequired.value) {
+			runtime.reload();
+			return false;
+		}
 		busy.value = "test";
 		connected.value = false;
 		setStatus("正在测试连接…");
 		try {
 			const settings = settingsForSave();
 			await ensureCustomHostPermission(settings);
+			await sendMessage({
+				type: "SET_LANGUAGE_PAIR",
+				sourceMode: settings.sourceMode,
+				targetLanguage: settings.targetMode,
+			});
 			const saved = await sendMessage({ type: "SAVE_SETTINGS", settings });
 			acceptSavedSettings(saved.settings);
 			const tested = await sendMessage({ type: "TEST_PROVIDER" });
@@ -180,7 +221,11 @@ export function useOptions() {
 			connected.value = true;
 			return true;
 		} catch (error) {
-			setStatus(errorText(error), true);
+			const message = errorText(error);
+			if (/未知消息类型|unknown message type/iu.test(message)) {
+				reloadRequired.value = true;
+				setStatus("后台版本未同步，请重新载入扩展后再次保存", true);
+			} else setStatus(message, true);
 			return false;
 		} finally {
 			busy.value = "";
@@ -212,6 +257,9 @@ export function useOptions() {
 			return;
 		}
 		const settings = core.normalizeSettings(changedSettings.newValue);
+		languageRevision += 1;
+		draft.sourceMode = settings.sourceMode;
+		draft.targetMode = settings.targetMode;
 		debugSettings.sync(settings);
 	}
 
@@ -230,14 +278,19 @@ export function useOptions() {
 		fatal,
 		version,
 		providers: PROVIDERS,
+		sources: SOURCES,
 		targets: TARGETS,
 		catalogInfo,
 		selectedProvider,
+		selectedSource,
 		selectedTarget,
 		usageRows,
 		status,
 		busy,
 		connected,
+		reloadRequired,
+		setSourceMode,
+		setTargetMode,
 		saveDebug: debugSettings.saveLogging,
 		saveDebugRequestPayload: debugSettings.saveRequestPayload,
 		testProvider,

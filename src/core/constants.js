@@ -14,4 +14,5 @@ export const MODEL_PROVIDER_IDS = Object.freeze([
 	"anthropic",
 ]);
 
-export const TARGET_MODES = new Set(["auto", "zh", "en"]);
+export const SOURCE_MODES = new Set(["auto", "zh", "en"]);
+export const TARGET_MODES = new Set(["zh", "en"]);

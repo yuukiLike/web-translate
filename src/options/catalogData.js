@@ -149,7 +149,8 @@ function defaultModelId(catalog, providerId) {
 export function createFallbackSettings(catalog) {
 	return {
 		provider: "deepseek",
-		targetMode: "auto",
+		sourceMode: "auto",
+		targetMode: "zh",
 		translateDynamicContent: true,
 		concurrency: 2,
 		debugLogging: false,
