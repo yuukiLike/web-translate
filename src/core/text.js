@@ -64,11 +64,23 @@ export function shouldTranslateText(value, targetLanguage) {
 	if (text.length < 2 || text.length > 30_000) {
 		return false;
 	}
-	if (!/[\p{L}\p{N}]/u.test(text) || /^(?:https?:\/\/|www\.)\S+$/iu.test(text)) {
+	if (
+		!/[\p{L}\p{N}]/u.test(text) ||
+		/^(?:https?:\/\/|www\.)\S+$/iu.test(text) ||
+		isNumericDisplayText(text)
+	) {
 		return false;
 	}
 	const ratio = cjkRatio(text);
 	return targetLanguage === "zh" ? ratio < 0.35 : ratio >= 0.12;
+}
+
+function isNumericDisplayText(text) {
+	const numericBody = text.replace(
+		/(\p{N})(?:[KMBT]|万|亿)(?=$|[\s+%‰,)])/gu,
+		"$1",
+	);
+	return /\p{N}/u.test(numericBody) && !/\p{L}/u.test(numericBody);
 }
 
 export function splitText(value, maximumCharacters = 3_500) {

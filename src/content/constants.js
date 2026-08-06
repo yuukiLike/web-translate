@@ -24,6 +24,15 @@ export const SELECTORS = Object.freeze({
 	leaf: "p, h1, h2, h3, h4, h5, h6",
 	language: "[lang]:not(html):not(body)",
 	interactive: "a, button, input, textarea, select, option, [role='button'], [role='link']",
+	metadata: [
+		"time",
+		"[itemprop~='datePublished']",
+		"[itemprop~='dateModified']",
+		"[itemprop~='author'][itemprop~='name']",
+		"[itemprop~='author'] [itemprop~='name']",
+		"[rel~='author']",
+		"[data-testid='User-Name']",
+	].join(","),
 	root: "main, article, [role='main']",
 	excluded: [
 		"script",

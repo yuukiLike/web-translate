@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from "vue";
 
+import ContentFilters from "./ContentFilters.vue";
 import DebugPanel from "./DebugPanel.vue";
 import Mark from "./Mark.vue";
 import ProviderFields from "./ProviderFields.vue";
@@ -177,6 +178,8 @@ function getSubmitLabel() {
 							</label>
 						</div>
 					</details>
+
+					<ContentFilters v-model="draft.contentFilters" />
 
 					<details class="fold catalog-fold">
 						<summary>

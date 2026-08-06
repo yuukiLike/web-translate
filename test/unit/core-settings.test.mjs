@@ -5,6 +5,12 @@ import { createCore } from "../../src/core/create-core.js";
 import { createCatalogFixture } from "../helpers/catalog-fixture.mjs";
 
 const core = createCore(await createCatalogFixture());
+const DEFAULT_CONTENT_FILTERS = {
+	skipTechnicalIdentifiers: true,
+	skipSocialMetadata: true,
+	skipShortLinks: true,
+	skipShortButtons: true,
+};
 
 function getLanguageSettings(settings) {
 	return { sourceMode: settings.sourceMode, targetMode: settings.targetMode };
@@ -24,6 +30,42 @@ test("设置规范化会拒绝非法枚举并约束并发", () => {
 	assert.equal(settings.targetMode, "zh");
 	assert.equal(settings.concurrency, 4);
 	assert.equal(settings.translateDynamicContent, true);
+});
+
+// 验证旧设置会获得完整过滤默认值，局部嵌套设置也不会因浅合并丢失其他字段。
+test("内容过滤设置补齐默认值并保留显式关闭项", () => {
+	const disabledFilters = Object.fromEntries(
+		Object.keys(DEFAULT_CONTENT_FILTERS).map((key) => [key, false]),
+	);
+	assert.deepEqual(core.createDefaultSettings().contentFilters, DEFAULT_CONTENT_FILTERS);
+	assert.deepEqual(core.normalizeSettings({}).contentFilters, DEFAULT_CONTENT_FILTERS);
+	assert.deepEqual(
+		core.normalizeSettings({ contentFilters: disabledFilters }).contentFilters,
+		disabledFilters,
+	);
+	assert.deepEqual(
+		core.normalizeSettings({ contentFilters: { skipShortLinks: false } }).contentFilters,
+		{ ...DEFAULT_CONTENT_FILTERS, skipShortLinks: false },
+	);
+});
+
+// 验证四个开关只接受布尔值，固定阈值、纯数字规则和未知字段不能混入设置。
+test("内容过滤设置拒绝非法值和未声明字段", () => {
+	const contentFilters = core.normalizeSettings({
+		contentFilters: {
+			skipTechnicalIdentifiers: false,
+			skipSocialMetadata: "false",
+			skipShortLinks: 0,
+			skipShortButtons: null,
+			shortControlWordLimit: 99,
+			skipNumericCounts: false,
+		},
+	}).contentFilters;
+
+	assert.deepEqual(contentFilters, {
+		...DEFAULT_CONTENT_FILTERS,
+		skipTechnicalIdentifiers: false,
+	});
 });
 
 // 验证旧版复用 targetMode 的三个值能无损迁移，缺失设置仍采用自动识别并译为中文。
@@ -111,6 +153,7 @@ test("公开任务设置不会泄露凭据", () => {
 		targetMode: "zh",
 		translateDynamicContent: true,
 		concurrency: 2,
+		contentFilters: DEFAULT_CONTENT_FILTERS,
 	});
 	assert.ok(!JSON.stringify(core.publicSettings(settings)).includes("secret"));
 });

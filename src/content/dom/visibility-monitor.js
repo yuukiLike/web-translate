@@ -84,7 +84,7 @@ export class VisibilityMonitor {
 		const layoutRoots = new Set();
 		for (const element of targets) {
 			const trackedAncestor = this.elementStore.findTrackedAncestor(element);
-			if (this.layout.update(element, Boolean(trackedAncestor))) {
+			if (this.layout.update(element)) {
 				layoutRoots.add(element);
 			}
 			if (element.dataset?.btSource === this.runId) {

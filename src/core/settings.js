@@ -44,6 +44,15 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		};
 	}
 
+	function createDefaultContentFilters() {
+		return {
+			skipTechnicalIdentifiers: true,
+			skipSocialMetadata: true,
+			skipShortLinks: true,
+			skipShortButtons: true,
+		};
+	}
+
 	function createDefaultSettings() {
 		return {
 			provider: catalog.defaultProviderId,
@@ -51,6 +60,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			targetMode: "zh",
 			translateDynamicContent: true,
 			concurrency: 2,
+			contentFilters: createDefaultContentFilters(),
 			debugLogging: false,
 			debugRequestPayload: false,
 			azure: { apiKey: "", region: "" },
@@ -80,6 +90,28 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			apiKey: safeString(input.apiKey, "", MAXIMUM_API_KEY_LENGTH),
 			baseUrl: normalizeCustomBaseUrl(input.baseUrl) || defaults.baseUrl,
 			model: safeString(input.model, defaults.model, 300),
+		};
+	}
+
+	function normalizeContentFilters(value, defaults) {
+		const input = isRecord(value) ? value : {};
+		return {
+			skipTechnicalIdentifiers:
+				typeof input.skipTechnicalIdentifiers === "boolean"
+					? input.skipTechnicalIdentifiers
+					: defaults.skipTechnicalIdentifiers,
+			skipSocialMetadata:
+				typeof input.skipSocialMetadata === "boolean"
+					? input.skipSocialMetadata
+					: defaults.skipSocialMetadata,
+			skipShortLinks:
+				typeof input.skipShortLinks === "boolean"
+					? input.skipShortLinks
+					: defaults.skipShortLinks,
+			skipShortButtons:
+				typeof input.skipShortButtons === "boolean"
+					? input.skipShortButtons
+					: defaults.skipShortButtons,
 		};
 	}
 
@@ -127,6 +159,10 @@ export function createSettingsApi(catalog, providerDefinitions) {
 					? settings.translateDynamicContent
 					: defaults.translateDynamicContent,
 			concurrency: clampInteger(settings.concurrency, defaults.concurrency, 1, 4),
+			contentFilters: normalizeContentFilters(
+				settings.contentFilters,
+				defaults.contentFilters,
+			),
 			debugLogging,
 			debugRequestPayload: debugLogging && settings.debugRequestPayload === true,
 			azure: {
@@ -203,6 +239,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			targetMode: normalized.targetMode,
 			translateDynamicContent: normalized.translateDynamicContent,
 			concurrency: normalized.concurrency,
+			contentFilters: { ...normalized.contentFilters },
 		};
 	}
 

@@ -34,11 +34,24 @@ export async function waitFor(predicate, message, timeout = 3_000) {
 	}
 }
 
-export function createContentHarness({ sourceMode = "auto", targetMode = "zh", translateText } = {}) {
+const DEFAULT_CONTENT_FILTERS = Object.freeze({
+	skipTechnicalIdentifiers: true,
+	skipSocialMetadata: true,
+	skipShortLinks: true,
+	skipShortButtons: true,
+});
+
+export function createContentHarness({
+	sourceMode = "auto",
+	targetMode = "zh",
+	translateText,
+	contentFilters = {},
+} = {}) {
 	const window = new Window({ url: "https://example.com/article" });
 	const { document } = window;
 	const messages = [];
 	const translationRequests = [];
+	const normalizedContentFilters = { ...DEFAULT_CONTENT_FILTERS, ...contentFilters };
 	let requestNumber = 0;
 
 	Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
@@ -62,6 +75,7 @@ export function createContentHarness({ sourceMode = "auto", targetMode = "zh", t
 							provider: "deepseek",
 							sourceMode,
 							targetMode,
+							contentFilters: normalizedContentFilters,
 							translateDynamicContent: true,
 							concurrency: 2,
 						},

@@ -5,6 +5,7 @@ import {
 	createCatalogInfo,
 	createDebugRequests,
 	createDebugRows,
+	createFallbackSettings,
 	createUsageRows,
 } from "../../src/options/data.js";
 import { createCatalogFixture } from "../helpers/catalog-fixture.mjs";
@@ -19,6 +20,16 @@ test("模型目录视图使用固定本地数据", () => {
 	assert.equal(info.models.deepseek[0].id, "deepseek-v4-flash");
 	assert.equal(info.models.deepseek[0].optionLabel, "DeepSeek V4 Flash");
 	assert.match(info.models.deepseek[0].label, /\$0\.14 \/ \$0\.28/u);
+});
+
+// 验证核心不可用时的设置草稿仍提供完整过滤结构，避免设置页绑定缺失字段。
+test("设置页回退数据包含全部内容过滤默认值", () => {
+	assert.deepEqual(createFallbackSettings(catalog).contentFilters, {
+		skipTechnicalIdentifiers: true,
+		skipSocialMetadata: true,
+		skipShortLinks: true,
+		skipShortButtons: true,
+	});
 });
 
 // 验证字符型和 token 型 Provider 使用各自正确的用量指标。

@@ -153,6 +153,12 @@ export function createFallbackSettings(catalog) {
 		targetMode: "zh",
 		translateDynamicContent: true,
 		concurrency: 2,
+		contentFilters: {
+			skipTechnicalIdentifiers: true,
+			skipSocialMetadata: true,
+			skipShortLinks: true,
+			skipShortButtons: true,
+		},
 		debugLogging: false,
 		debugRequestPayload: false,
 		azure: { apiKey: "", region: "" },

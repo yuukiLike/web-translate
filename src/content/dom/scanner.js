@@ -121,6 +121,10 @@ export class DomScanner {
 				partial: Boolean(draft.partial),
 				placementAnchor: findPlacementAnchor(draft),
 				text: this.#serializeAssignedText(draft.nodes),
+				traits: {
+					interactiveKind: getInteractiveKind(draft.element),
+					metadataOnly: containsOnlyMetadata(draft),
+				},
 			}))
 			.filter((candidate) => /[\p{L}\p{N}]/u.test(candidate.text));
 	}
@@ -159,6 +163,34 @@ export class DomScanner {
 		}
 		return this.core.normalizeSourceText(output);
 	}
+}
+
+function containsOnlyMetadata({ element, nodes }) {
+	const meaningfulEntries = nodes.filter(({ node }) =>
+		/[\p{L}\p{N}]/u.test(node.textContent ?? ""),
+	);
+	return (
+		meaningfulEntries.length > 0 &&
+		meaningfulEntries.every(({ node }) => isMetadataEntry(node, element))
+	);
+}
+
+function isMetadataEntry(node, candidate) {
+	if (node.parentElement?.closest(SELECTORS.metadata)) {
+		return true;
+	}
+	const author = node.parentElement?.closest("[itemprop~='author']");
+	return Boolean(author && (author === candidate || candidate.contains(author)));
+}
+
+function getInteractiveKind(element) {
+	if (element.matches("button, [role='button']")) {
+		return "button";
+	}
+	if (element.matches("a, [role='link']")) {
+		return "link";
+	}
+	return null;
 }
 
 function findPlacementAnchor(draft) {

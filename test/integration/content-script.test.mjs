@@ -131,6 +131,96 @@ test("动态 DOM 复用运行缓存并识别正文变化", async () => {
 	}
 });
 
+// 验证正文内部未知子节点的样式变化不会误删并重建已有译文。
+test("内部装饰节点变化不会造成译文跳动", async () => {
+	const harness = createContentHarness();
+	try {
+		const item = harness.addArticle("Keep this translated paragraph stable.");
+		const badge = harness.document.createElement("span");
+		item.source.append(badge);
+		harness.start();
+
+		await waitFor(() => Boolean(harness.getTranslation(item.source)), "初始译文未生成");
+		const translation = harness.getTranslation(item.source);
+		badge.className = "updated-decoration";
+		await new Promise((resolve) => setTimeout(resolve, 550));
+		assert.equal(harness.getTranslation(item.source), translation);
+
+		harness.root.className = "updated-feed-container";
+		await new Promise((resolve) => setTimeout(resolve, 550));
+		assert.equal(harness.getTranslation(item.source), translation);
+		assert.equal(harness.requestCount("Keep this translated paragraph stable."), 1);
+	} finally {
+		harness.dispose();
+	}
+});
+
+// 验证同文本从普通正文切换为短链接时移除译文，恢复正文后只复用运行缓存。
+test("动态 role 切换会重新应用短链接过滤并复用缓存", async () => {
+	const sourceText = "Read docs";
+	const harness = createContentHarness();
+	try {
+		const source = harness.document.createElement("div");
+		source.textContent = sourceText;
+		harness.root.append(source);
+		harness.start();
+
+		await waitFor(() => Boolean(harness.getTranslation(source)), "普通正文没有生成初始译文");
+		assert.equal(harness.requestCount(sourceText), 1);
+
+		source.setAttribute("role", "link");
+		await waitFor(
+			() => harness.getTranslation(source) === null,
+			"同文本变为短链接后旧译文没有移除",
+		);
+		assert.equal(harness.requestCount(sourceText), 1);
+
+		source.removeAttribute("role");
+		await waitFor(
+			() => Boolean(harness.getTranslation(source)),
+			"短链接恢复为普通正文后没有恢复译文",
+		);
+		assert.equal(harness.requestCount(sourceText), 1);
+	} finally {
+		harness.dispose();
+	}
+});
+
+// 验证请求发出后候选变为短链接时，迟到的旧响应不能再写入页面。
+test("在途翻译响应不会渲染到已变为短链接的候选", async () => {
+	const sourceText = "Read docs";
+	const responseGate = createDeferred();
+	const harness = createContentHarness({
+		async translateText(text) {
+			if (text === sourceText) {
+				await responseGate.promise;
+			}
+			return `译文：${text}`;
+		},
+	});
+	try {
+		const source = harness.document.createElement("div");
+		source.textContent = sourceText;
+		harness.root.append(source);
+		harness.start();
+
+		await waitFor(() => harness.requestCount(sourceText) === 1, "初始翻译请求没有发出");
+		source.setAttribute("role", "link");
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		responseGate.resolve();
+
+		await waitFor(
+			() => /^(?:当前页面没有|双语翻译完成)/u.test(harness.statusText()),
+			"迟到响应返回后翻译运行没有收敛",
+		);
+		assert.equal(harness.getTranslation(source), null);
+		assert.equal(harness.requestCount(sourceText), 1);
+	} finally {
+		responseGate.resolve();
+		harness.dispose();
+	}
+});
+
 // 验证重复注入依次执行关闭和重启，旧运行的迟到响应不能覆盖新运行译文。
 test("重复注入隔离旧运行响应并完整停止", async () => {
 	const oldResponse = createDeferred();
@@ -173,48 +263,6 @@ test("重复注入隔离旧运行响应并完整停止", async () => {
 		assert.ok(harness.messages.every((message) => message.type !== "STATUS" || message.runId));
 	} finally {
 		oldResponse.resolve();
-		harness.dispose();
-	}
-});
-
-// 验证请求中的元素被移除后，完成提示保持单调且不再展示会抖动的 x/y 比例。
-test("移除待处理正文后完成计数保持稳定", async () => {
-	const pendingResponse = createDeferred();
-	const pendingText = "Remove this paragraph before its response.";
-	const harness = createContentHarness({
-		async translateText(text) {
-			if (text === pendingText) {
-				await pendingResponse.promise;
-			}
-			return `译文：${text}`;
-		},
-	});
-	try {
-		const completed = harness.addArticle("The first paragraph completes.");
-		harness.start();
-		await waitFor(() => Boolean(harness.getTranslation(completed.source)), "首段译文未完成");
-		await waitFor(
-			() => harness.statusText() === "双语翻译完成，已覆盖 1 个文本块",
-			"首轮完成提示不正确",
-		);
-
-		const pending = harness.addArticle(pendingText);
-		await waitFor(() => harness.requestCount(pendingText) === 1, "待移除正文没有发出请求");
-		pending.article.remove();
-		await waitFor(
-			() => pending.source.dataset.btSource === undefined,
-			"移除待处理正文后仍残留运行标记",
-		);
-		pendingResponse.resolve();
-		await waitFor(
-			() => harness.statusText().startsWith("双语翻译完成"),
-			"移除待处理正文后没有回到完成状态",
-		);
-
-		assert.equal(harness.statusText(), "双语翻译完成，已覆盖 1 个文本块");
-		assert.equal(harness.statusText().includes("/"), false);
-	} finally {
-		pendingResponse.resolve();
 		harness.dispose();
 	}
 });

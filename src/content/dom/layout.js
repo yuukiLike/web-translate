@@ -22,11 +22,11 @@ export class LayoutInspector {
 		}
 	}
 
-	update(element, assumeChangedIfUnknown = false) {
+	update(element) {
 		const signature = getLayoutSignature(getComputedStyle(element));
 		const previous = this.elementStore.getLayoutSignature(element);
 		this.elementStore.setLayoutSignature(element, signature);
-		return previous === undefined ? assumeChangedIfUnknown : previous !== signature;
+		return previous !== undefined && previous !== signature;
 	}
 
 	isEligible(element) {

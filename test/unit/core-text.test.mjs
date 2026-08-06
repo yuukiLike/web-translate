@@ -38,13 +38,74 @@ test("显式来源固定为相反目标语言", () => {
 	});
 });
 
-// 验证目标语言过滤会忽略 URL、空文本和已经属于目标语言的正文。
-test("正文过滤只保留需要翻译的文本", () => {
+// 验证核心文本门始终过滤 URL、数字展示和目标语言内容，不受候选策略配置影响。
+test("核心文本门始终过滤无需翻译的基础文本", () => {
 	assert.equal(core.shouldTranslateText("Hello world", "zh"), true);
 	assert.equal(core.shouldTranslateText("已经是中文", "zh"), false);
 	assert.equal(core.shouldTranslateText("已经是中文", "en"), true);
 	assert.equal(core.shouldTranslateText("https://example.com", "zh"), false);
 	assert.equal(core.shouldTranslateText("a", "zh"), false);
+	for (const numericDisplay of [
+		"11",
+		"1.6K",
+		"99+",
+		"12,345",
+		"3.5%",
+		"$99",
+		"2026-08-06",
+		"14:30",
+		"1K / 2K",
+		"1920×1080",
+	]) {
+		assert.equal(core.shouldTranslateText(numericDisplay, "zh"), false, numericDisplay);
+	}
+	assert.equal(core.shouldTranslateText("Version 2", "zh"), true);
+	assert.equal(core.shouldTranslateText("11 issues found", "zh"), true);
+	assert.equal(core.shouldTranslateText("1.8m", "zh"), true);
+});
+
+// 验证技术标识和社交元数据能通过语言门，以便 Planner 按用户开关处理。
+test("可配置内容候选能够到达 Planner", () => {
+	for (const configurableCandidate of [
+		"hello@example.com",
+		"yuukiLike/cc-md-vault",
+		"README.md",
+		"v1.2.3",
+		"a1b2c3d",
+		"@xudong8834",
+		"@alice_dev",
+		"@foo@mastodon.social",
+		"4h",
+		"4 hours",
+		"4 hours ago",
+		"3d",
+		"@xudong8834 4h",
+		"@xudong8834 15m",
+		"@xudong8834 · 4h",
+	]) {
+		assert.equal(
+			core.shouldTranslateText(configurableCandidate, "zh"),
+			true,
+			configurableCandidate,
+		);
+	}
+	assert.equal(core.shouldTranslateText("2小时前", "en"), true);
+
+	for (const prose of [
+		"4h battery life",
+		"Battery lasts 4 hours",
+		"Thanks @xudong8834 for the fix",
+		"3D printing guide",
+		"3D",
+		"1.8m",
+		"12m",
+		"15m",
+		"Yesterday",
+	]) {
+		assert.equal(core.shouldTranslateText(prose, "zh"), true, prose);
+	}
+	assert.equal(core.shouldTranslateText("昨天我们发布了版本", "en"), true);
+	assert.equal(core.shouldTranslateText("刚刚修复了问题", "en"), true);
 });
 
 // 验证清洗文本时保留段落语义，仅折叠段落内部多余空白。
