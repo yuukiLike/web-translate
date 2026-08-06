@@ -59,15 +59,29 @@ export class TranslationRenderer {
 		const sourceStyle = getComputedStyle(source);
 		this.layout.remember(source, sourceStyle);
 		const fontSize = Number.parseFloat(sourceStyle.fontSize);
-		const fontScale = source.matches("h1, h2, h3, h4, h5, h6") ? 0.72 : 0.94;
+		const fontScale = source.matches("h1, h2, h3, h4, h5, h6") ? 0.76 : 1;
 		if (Number.isFinite(fontSize)) {
 			translation.style.setProperty("--bt-source-font-size", `${fontSize * fontScale}px`);
+		}
+		translation.style.setProperty(
+			"--bt-translation-line-height",
+			getTranslationLineHeight(sourceStyle.lineHeight, fontScale),
+		);
+		const marginBottom = getTransferableMarginBottom(sourceStyle);
+		translation.style.setProperty("--bt-source-margin-bottom", `${marginBottom}px`);
+		const fontWeight = getTranslationFontWeight(sourceStyle.fontWeight);
+		if (fontWeight) {
+			translation.style.setProperty("--bt-translation-font-weight", fontWeight);
+		}
+		if (
+			source.matches("button, [role='button']") &&
+			isHorizontalFlex(sourceStyle)
+		) {
+			translation.dataset.btControlLayout = "row-flex";
 		}
 		for (const [property, value] of [
 			["--bt-source-color", sourceStyle.color],
 			["--bt-source-font-family", sourceStyle.fontFamily],
-			["--bt-source-font-weight", sourceStyle.fontWeight],
-			["--bt-source-line-height", sourceStyle.lineHeight],
 			["--bt-source-text-align", sourceStyle.textAlign],
 		]) {
 			if (value) {
@@ -75,6 +89,39 @@ export class TranslationRenderer {
 			}
 		}
 	}
+}
+
+function getTranslationLineHeight(value, fontScale) {
+	const numericLineHeight = Number.parseFloat(value);
+	return Number.isFinite(numericLineHeight)
+		? `${numericLineHeight * fontScale}px`
+		: "normal";
+}
+
+function getTransferableMarginBottom(style) {
+	const display = String(style.display);
+	if (!display || display === "contents" || display.startsWith("inline")) {
+		return 0;
+	}
+	return Math.max(0, Number.parseFloat(style.marginBottom) || 0);
+}
+
+function isHorizontalFlex(style) {
+	return (
+		String(style.display).includes("flex") &&
+		!String(style.flexDirection).startsWith("column")
+	);
+}
+
+function getTranslationFontWeight(value) {
+	if (value === "normal") {
+		return "500";
+	}
+	if (value === "bold") {
+		return "700";
+	}
+	const numericWeight = Number.parseInt(value, 10);
+	return Number.isFinite(numericWeight) ? String(Math.max(500, numericWeight)) : "";
 }
 
 function placeTranslation(source, translation, placementAnchor, partial) {

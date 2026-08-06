@@ -17,7 +17,7 @@ function requestedTexts(harness) {
 	return harness.translationRequests.flatMap(({ texts }) => texts);
 }
 
-// 验证默认策略过滤数字、技术标识、社交元数据及三片段以内的英文链接和按钮。
+// 验证默认策略过滤数字、技术标识、社交元数据及三片段以内的英文链接，但保留按钮。
 test("默认内容过滤策略只提交有翻译价值的候选", async () => {
 	const harness = createContentHarness();
 	try {
@@ -48,6 +48,8 @@ test("默认内容过滤策略只提交有翻译价值的候选", async () => {
 			"yuukiLike/cc-md-vault",
 		);
 		const technicalFile = appendElement(harness.document, harness.root, "div", "README.md");
+		const ignoredVersion = appendElement(harness.document, harness.root, "div", "v2");
+		const ignoredTerm = appendElement(harness.document, harness.root, "div", "bug");
 		const numberDisplay = appendElement(harness.document, harness.root, "div", "144");
 		const shortUsername = appendElement(harness.document, harness.root, "a", "Xu Dong");
 		const shortLink = appendElement(harness.document, harness.root, "a", "Read useful docs");
@@ -73,6 +75,8 @@ test("默认内容过滤策略只提交有翻译价值的候选", async () => {
 		const nonAsciiLink = appendElement(harness.document, harness.root, "a", "Résumé docs");
 		const body = harness.addArticle("Thanks @xudong8834 — 4h battery life.");
 		const expectedRequests = [
+			shortButton.textContent,
+			roleButton.textContent,
 			descriptiveLink.textContent,
 			descriptiveButton.textContent,
 			nonAsciiLink.textContent,
@@ -82,6 +86,8 @@ test("默认内容过滤策略只提交有翻译价值的候选", async () => {
 
 		await waitFor(
 			() =>
+				Boolean(harness.getTranslation(shortButton)) &&
+				Boolean(harness.getTranslation(roleButton)) &&
 				Boolean(harness.getTranslation(descriptiveLink)) &&
 				Boolean(harness.getTranslation(descriptiveButton)) &&
 				Boolean(harness.getTranslation(nonAsciiLink)) &&
@@ -104,12 +110,12 @@ test("默认内容过滤策略只提交有翻译价值的候选", async () => {
 			compactTime,
 			technicalRepository,
 			technicalFile,
+			ignoredVersion,
+			ignoredTerm,
 			numberDisplay,
 			shortUsername,
 			shortLink,
-			shortButton,
 			roleLink,
-			roleButton,
 		]) {
 			assert.equal(metadata.dataset.btSource, undefined);
 		}
@@ -175,14 +181,13 @@ test("正文中的元数据语义不会被静默删除", async () => {
 	}
 });
 
-// 验证关闭全部可选过滤后四类候选恢复翻译，而数字展示和 URL 仍由核心规则跳过。
+// 验证关闭全部三项可选过滤后候选恢复翻译，而数字展示和 URL 仍由核心规则跳过。
 test("可选内容过滤可以关闭且不影响始终过滤规则", async () => {
 	const harness = createContentHarness({
 		contentFilters: {
 			skipTechnicalIdentifiers: false,
 			skipSocialMetadata: false,
 			skipShortLinks: false,
-			skipShortButtons: false,
 		},
 	});
 	try {

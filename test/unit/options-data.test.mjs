@@ -28,7 +28,6 @@ test("设置页回退数据包含全部内容过滤默认值", () => {
 		skipTechnicalIdentifiers: true,
 		skipSocialMetadata: true,
 		skipShortLinks: true,
-		skipShortButtons: true,
 	});
 });
 

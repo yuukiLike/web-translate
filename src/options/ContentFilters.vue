@@ -36,12 +36,6 @@ const FILTER_OPTIONS = Object.freeze([
 		label: "跳过短链接",
 		description: "过滤 3 个以内（含 3 个）英文单词的链接",
 	}),
-	Object.freeze({
-		key: "skipShortButtons",
-		id: "filter-short-buttons",
-		label: "跳过短按钮",
-		description: "过滤 3 个以内（含 3 个）英文单词的按钮",
-	}),
 ]);
 
 function updateFilter(key, enabled) {
@@ -57,7 +51,7 @@ function updateFilter(key, enabled) {
 	<details id="content-filters" class="fold">
 		<summary>
 			<strong>内容过滤</strong>
-			<span>纯数字与计数始终跳过</span>
+			<span>纯数字、计数、常用技术词与界面标签始终跳过</span>
 		</summary>
 		<div class="fold-body behavior-grid">
 			<label v-for="filter in FILTER_OPTIONS" :key="filter.key" class="toggle-row">

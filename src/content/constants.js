@@ -34,6 +34,7 @@ export const SELECTORS = Object.freeze({
 		"[data-testid='User-Name']",
 	].join(","),
 	root: "main, article, [role='main']",
+	codeLike: "code, pre",
 	excluded: [
 		"script",
 		"style",
@@ -41,8 +42,6 @@ export const SELECTORS = Object.freeze({
 		"template",
 		"svg",
 		"canvas",
-		"code",
-		"pre",
 		"kbd",
 		"samp",
 		"input",

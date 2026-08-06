@@ -49,7 +49,6 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			skipTechnicalIdentifiers: true,
 			skipSocialMetadata: true,
 			skipShortLinks: true,
-			skipShortButtons: true,
 		};
 	}
 
@@ -108,10 +107,6 @@ export function createSettingsApi(catalog, providerDefinitions) {
 				typeof input.skipShortLinks === "boolean"
 					? input.skipShortLinks
 					: defaults.skipShortLinks,
-			skipShortButtons:
-				typeof input.skipShortButtons === "boolean"
-					? input.skipShortButtons
-					: defaults.skipShortButtons,
 		};
 	}
 
@@ -239,7 +234,11 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			targetMode: normalized.targetMode,
 			translateDynamicContent: normalized.translateDynamicContent,
 			concurrency: normalized.concurrency,
-			contentFilters: { ...normalized.contentFilters },
+			contentFilters: {
+				...normalized.contentFilters,
+				// 已注入页面的旧版 controller 仍读取此字段；固定 false 可避免它继续跳过按钮。
+				skipShortButtons: false,
+			},
 		};
 	}
 

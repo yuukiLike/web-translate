@@ -9,7 +9,6 @@ const DEFAULT_CONTENT_FILTERS = {
 	skipTechnicalIdentifiers: true,
 	skipSocialMetadata: true,
 	skipShortLinks: true,
-	skipShortButtons: true,
 };
 
 function getLanguageSettings(settings) {
@@ -49,14 +48,14 @@ test("内容过滤设置补齐默认值并保留显式关闭项", () => {
 	);
 });
 
-// 验证四个开关只接受布尔值，固定阈值、纯数字规则和未知字段不能混入设置。
+// 验证三个开关只接受布尔值，旧短按钮字段与其他未声明字段不能混入设置。
 test("内容过滤设置拒绝非法值和未声明字段", () => {
 	const contentFilters = core.normalizeSettings({
 		contentFilters: {
 			skipTechnicalIdentifiers: false,
 			skipSocialMetadata: "false",
 			skipShortLinks: 0,
-			skipShortButtons: null,
+			skipShortButtons: true,
 			shortControlWordLimit: 99,
 			skipNumericCounts: false,
 		},
@@ -66,6 +65,7 @@ test("内容过滤设置拒绝非法值和未声明字段", () => {
 		...DEFAULT_CONTENT_FILTERS,
 		skipTechnicalIdentifiers: false,
 	});
+	assert.equal(Object.hasOwn(contentFilters, "skipShortButtons"), false);
 });
 
 // 验证旧版复用 targetMode 的三个值能无损迁移，缺失设置仍采用自动识别并译为中文。
@@ -153,7 +153,10 @@ test("公开任务设置不会泄露凭据", () => {
 		targetMode: "zh",
 		translateDynamicContent: true,
 		concurrency: 2,
-		contentFilters: DEFAULT_CONTENT_FILTERS,
+		contentFilters: {
+			...DEFAULT_CONTENT_FILTERS,
+			skipShortButtons: false,
+		},
 	});
 	assert.ok(!JSON.stringify(core.publicSettings(settings)).includes("secret"));
 });

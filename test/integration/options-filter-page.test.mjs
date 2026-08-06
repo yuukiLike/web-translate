@@ -11,7 +11,6 @@ const FILTER_INPUTS = {
 	skipTechnicalIdentifiers: "#filter-technical-identifiers",
 	skipSocialMetadata: "#filter-social-metadata",
 	skipShortLinks: "#filter-short-links",
-	skipShortButtons: "#filter-short-buttons",
 };
 
 function changeCheckbox(page, selector, checked) {
@@ -21,7 +20,7 @@ function changeCheckbox(page, selector, checked) {
 	input.dispatchEvent(new page.window.Event("change", { bubbles: true }));
 }
 
-// 验证设置页展示四个默认开启的过滤开关，并明确固定短控件阈值与纯数字规则。
+// 验证设置页只展示三个默认开启的过滤开关，短按钮不再向用户提供过滤选项。
 test("内容过滤设置展示完整默认值和固定规则说明", async () => {
 	const page = await createOptionsPageHarness();
 	try {
@@ -30,8 +29,12 @@ test("内容过滤设置展示完整默认值和固定规则说明", async () =>
 		for (const selector of Object.values(FILTER_INPUTS)) {
 			assert.equal(page.document.querySelector(selector)?.checked, true, selector);
 		}
+		assert.equal(page.document.querySelector("#filter-short-buttons"), null);
 		assert.match(section.textContent, /3 个以内（含 3 个）/u);
-		assert.match(section.textContent, /纯数字与计数始终跳过/u);
+		assert.match(
+			section.textContent,
+			/纯数字、计数、常用技术词与界面标签始终跳过/u,
+		);
 	} finally {
 		page.cleanup();
 	}
@@ -43,17 +46,15 @@ test("内容过滤草稿完整保存且不会因浅合并丢字段", async () =>
 		settings: {
 			provider: "deepseek",
 			deepseek: { apiKey: "deepseek-key", model: "deepseek-v4-flash" },
-			contentFilters: { skipShortLinks: false },
+			contentFilters: { skipShortLinks: false, skipShortButtons: true },
 		},
 	});
 	try {
 		assert.equal(page.document.querySelector(FILTER_INPUTS.skipTechnicalIdentifiers).checked, true);
 		assert.equal(page.document.querySelector(FILTER_INPUTS.skipSocialMetadata).checked, true);
 		assert.equal(page.document.querySelector(FILTER_INPUTS.skipShortLinks).checked, false);
-		assert.equal(page.document.querySelector(FILTER_INPUTS.skipShortButtons).checked, true);
 
 		changeCheckbox(page, FILTER_INPUTS.skipSocialMetadata, false);
-		changeCheckbox(page, FILTER_INPUTS.skipShortButtons, false);
 		await settle();
 		page.clearCalls();
 		page.document.querySelector("#test-provider").click();
@@ -67,7 +68,6 @@ test("内容过滤草稿完整保存且不会因浅合并丢字段", async () =>
 			skipTechnicalIdentifiers: true,
 			skipSocialMetadata: false,
 			skipShortLinks: false,
-			skipShortButtons: false,
 		});
 	} finally {
 		page.cleanup();

@@ -52,9 +52,7 @@ button {
 }
 .reader-card {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 92px;
 	overflow: hidden;
-	min-height: 238px;
 	border: 1px solid var(--line-strong);
 	border-radius: 7px 24px 7px 7px;
 	background: var(--surface);
@@ -67,6 +65,7 @@ button {
 }
 .language-fields {
 	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 9px;
 	min-width: 0;
 	margin: 0;
@@ -77,6 +76,7 @@ button {
 	opacity: 0.62;
 }
 .language-fields legend {
+	grid-column: 1 / -1;
 	margin-bottom: 8px;
 	color: var(--leaf);
 	font-size: 11px;
@@ -109,9 +109,9 @@ button {
 	outline-offset: 1px;
 }
 .language-note {
+	grid-column: 1 / -1;
 	line-height: 1.45;
 }
-
 .status {
 	display: block;
 	min-height: 33px;
@@ -122,30 +122,27 @@ button {
 	font-size: 11px;
 	line-height: 1.45;
 }
-
 .status[data-tone="ready"] {
 	border-left-color: var(--leaf-light);
 }
-
 .status[data-error="true"] {
 	border-left-color: var(--danger);
 	color: var(--danger);
 }
 .main-action {
-	display: flex;
-	flex-direction: column;
-	gap: 13px;
+	display: grid;
+	grid-template-columns: 42px minmax(0, 1fr) auto;
+	gap: 16px;
 	align-items: center;
-	justify-content: center;
-	min-width: 0;
-	padding: 16px 10px;
+	width: 100%;
+	min-height: 80px;
+	padding: 16px 18px;
 	border: 0;
-	border-left: 1px solid var(--pine-dark);
-	border-radius: 0 23px 0 0;
+	border-bottom: 1px solid var(--pine-dark);
 	background: var(--pine);
 	color: #fff;
 	cursor: pointer;
-	text-align: center;
+	text-align: left;
 }
 
 .main-action:hover:not(:disabled) {
@@ -155,11 +152,14 @@ button {
 	cursor: not-allowed;
 	opacity: 0.52;
 }
+.main-action[aria-busy="true"] {
+	cursor: wait;
+	opacity: 1;
+}
 .main-action strong {
-	max-width: 5em;
-	font-size: 12px;
+	font-size: 18px;
 	font-weight: 750;
-	line-height: 1.45;
+	line-height: 1.2;
 }
 .bilingual-mark {
 	display: grid;
@@ -179,6 +179,10 @@ button {
 .bilingual-mark i:last-child {
 	width: 72%;
 	background: var(--seed);
+}
+.action-arrow {
+	font-size: 28px;
+	line-height: 1;
 }
 .main-action:focus-visible {
 	outline: 0;

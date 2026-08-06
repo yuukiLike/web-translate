@@ -7,7 +7,6 @@ const ENABLED_FILTERS = Object.freeze({
 	skipTechnicalIdentifiers: true,
 	skipSocialMetadata: true,
 	skipShortLinks: true,
-	skipShortButtons: true,
 });
 
 function candidate(text, { metadataOnly = false, interactiveKind = null } = {}) {
@@ -17,6 +16,36 @@ function candidate(text, { metadataOnly = false, interactiveKind = null } = {}) 
 function filters(overrides = {}) {
 	return { ...ENABLED_FILTERS, ...overrides };
 }
+
+// 验证独立的常用技术词始终跳过，而包含该词的完整句子仍保留翻译价值。
+test("常用技术词只按完整候选过滤", () => {
+	for (const term of [
+		"v1",
+		"V2",
+		"bug",
+		"API",
+		"GitHub",
+		"open",
+		"closed",
+		"Linux",
+		"Windows",
+		"main branch",
+		"code",
+		"add file",
+		"star",
+		"fork",
+		"watch",
+	]) {
+		assert.equal(shouldSkipCandidate(candidate(term), {}), true, term);
+		assert.equal(
+			shouldSkipCandidate(candidate(term, { interactiveKind: "button" }), {}),
+			true,
+			`${term} button`,
+		);
+	}
+	assert.equal(shouldSkipCandidate(candidate("Fix this bug before release"), {}), false);
+	assert.equal(shouldSkipCandidate(candidate("Open the settings"), {}), false);
+});
 
 // 验证技术标识默认过滤，关闭对应配置后不会被其他正文策略误拦截。
 test("技术标识过滤可以独立关闭", () => {
@@ -102,20 +131,23 @@ test("短链接过滤使用三片段闭区间", () => {
 	);
 });
 
-// 验证短按钮与链接分别配置，并且只对全部字母均为 ASCII 的独立交互候选生效。
-test("短按钮过滤保持交互类型和字符边界", () => {
+// 验证短按钮不再受旧开关或缺失字段影响，同时短链接仍保留字符边界规则。
+test("短按钮始终进入翻译判断且短链接保持字符边界", () => {
 	const optionalFilters = filters({ skipTechnicalIdentifiers: false, skipSocialMetadata: false });
-	assert.equal(
-		shouldSkipCandidate(candidate("Try it now", { interactiveKind: "button" }), optionalFilters),
-		true,
-	);
-	assert.equal(
-		shouldSkipCandidate(
-			candidate("Try it now", { interactiveKind: "button" }),
-			filters({ skipTechnicalIdentifiers: false, skipSocialMetadata: false, skipShortButtons: false }),
-		),
-		false,
-	);
+	for (const legacyFilters of [
+		optionalFilters,
+		{ ...optionalFilters, skipShortButtons: true },
+		{ ...optionalFilters, skipShortButtons: false },
+		{},
+	]) {
+		assert.equal(
+			shouldSkipCandidate(
+				candidate("Try it now", { interactiveKind: "button" }),
+				legacyFilters,
+			),
+			false,
+		);
+	}
 	for (const text of ["Résumé docs", "查看 文档"]) {
 		assert.equal(
 			shouldSkipCandidate(candidate(text, { interactiveKind: "link" }), optionalFilters),

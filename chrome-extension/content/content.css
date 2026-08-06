@@ -2,24 +2,59 @@
 	display: block !important;
 	box-sizing: border-box !important;
 	width: auto !important;
-	margin: 0.16em 0 0 !important;
+	margin: 0.1em 0 0 !important;
 	padding: 0 !important;
 	border: 0 !important;
 	background: transparent !important;
 	color: var(--bt-source-color, inherit) !important;
 	font-family: var(--bt-source-font-family, inherit) !important;
-	font-size: var(--bt-source-font-size, 0.94em) !important;
+	font-size: var(--bt-source-font-size, 1em) !important;
 	font-style: normal !important;
 	font-variant: normal !important;
-	font-weight: var(--bt-source-font-weight, inherit) !important;
+	font-weight: var(--bt-translation-font-weight, 500) !important;
 	letter-spacing: normal !important;
-	line-height: var(--bt-source-line-height, 1.5) !important;
+	line-height: var(--bt-translation-line-height, normal) !important;
 	text-align: var(--bt-source-text-align, inherit) !important;
 	text-decoration: none !important;
 	text-indent: 0 !important;
 	text-transform: none !important;
 	white-space: pre-wrap !important;
-	opacity: 0.72 !important;
+	opacity: 1 !important;
+}
+
+.bt-translation[data-bt-owned="true"]:lang(zh) {
+	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC",
+		"Microsoft YaHei", sans-serif !important;
+	letter-spacing: 0.01em !important;
+}
+
+[data-bt-source] + .bt-translation[data-bt-owned="true"] {
+	margin-top: calc(0.1em - var(--bt-source-margin-bottom, 0px)) !important;
+	margin-bottom: var(--bt-source-margin-bottom, 0) !important;
+}
+
+button > .bt-translation[data-bt-owned="true"],
+[role="button"] > .bt-translation[data-bt-owned="true"] {
+	width: 100% !important;
+	grid-column: 1 / -1 !important;
+	margin: 0.08em 0 0 !important;
+	font-size: 0.8em !important;
+	line-height: 1.25 !important;
+}
+
+button:has(> .bt-translation[data-bt-owned="true"]),
+[role="button"]:has(> .bt-translation[data-bt-owned="true"]) {
+	height: auto !important;
+}
+
+button:has(> .bt-translation[data-bt-control-layout="row-flex"]),
+[role="button"]:has(> .bt-translation[data-bt-control-layout="row-flex"]) {
+	flex-wrap: wrap !important;
+}
+
+button > .bt-translation[data-bt-control-layout="row-flex"],
+[role="button"] > .bt-translation[data-bt-control-layout="row-flex"] {
+	flex-basis: 100% !important;
 }
 
 .bt-translation[data-bt-owned="true"]::before,

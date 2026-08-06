@@ -157,7 +157,6 @@ export function createFallbackSettings(catalog) {
 			skipTechnicalIdentifiers: true,
 			skipSocialMetadata: true,
 			skipShortLinks: true,
-			skipShortButtons: true,
 		},
 		debugLogging: false,
 		debugRequestPayload: false,

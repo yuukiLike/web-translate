@@ -105,6 +105,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		const copy = ACTION_COPY[action];
 		elements.toggle.dataset.action = action;
 		elements.toggle.dataset.available = String(available);
+		elements.toggle.setAttribute("aria-busy", "false");
 		elements.toggle.disabled = busy || languageBusy || !available;
 		elements.label.textContent = copy.idle;
 		elements.toggle.setAttribute("aria-label", copy.accessibleIdle);
@@ -113,13 +114,18 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 	function setBusy(nextBusy) {
 		const copy = ACTION_COPY[elements.toggle.dataset.action] ?? ACTION_COPY[ACTIONS.translate];
 		busy = nextBusy;
+		setLanguageControlsDisabled(
+			nextBusy || languageBusy || elements.toggle.dataset.action === ACTIONS.reload,
+		);
 		elements.toggle.disabled =
 			nextBusy || languageBusy || elements.toggle.dataset.available !== "true";
+		elements.toggle.setAttribute("aria-busy", String(nextBusy));
 		elements.label.textContent = nextBusy ? copy.busy : copy.idle;
 		elements.toggle.setAttribute(
 			"aria-label",
 			nextBusy ? copy.accessibleBusy : copy.accessibleIdle,
 		);
+		if (nextBusy) showStatus(copy.accessibleBusy);
 	}
 
 	function showAvailability() {
@@ -179,7 +185,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 	}
 
 	async function saveLanguagePair(nextPair) {
-		if (languageBusy) return;
+		if (languageBusy || busy) return;
 		const previousPair = savedLanguagePair;
 		renderLanguagePair(nextPair);
 		setLanguageBusy(true);

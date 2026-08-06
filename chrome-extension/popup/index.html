@@ -15,6 +15,22 @@
 			</header>
 
 			<section class="reader-card" aria-label="语言方向与网页翻译操作">
+				<button
+					id="toggle-translation"
+					class="main-action"
+					type="button"
+					aria-label="翻译 / 恢复当前网页"
+					aria-busy="false"
+					disabled
+				>
+					<span class="bilingual-mark" aria-hidden="true">
+						<i></i>
+						<i></i>
+					</span>
+					<strong id="toggle-label">翻译 / 恢复</strong>
+					<span class="action-arrow" aria-hidden="true">→</span>
+				</button>
+
 				<div class="language-panel">
 					<fieldset
 						id="language-fields"
@@ -46,20 +62,6 @@
 						正在连接扩展后台…
 					</output>
 				</div>
-
-				<button
-					id="toggle-translation"
-					class="main-action"
-					type="button"
-					aria-label="翻译 / 恢复当前网页"
-					disabled
-				>
-					<span class="bilingual-mark" aria-hidden="true">
-						<i></i>
-						<i></i>
-					</span>
-					<strong id="toggle-label">翻译 / 恢复</strong>
-				</button>
 			</section>
 
 			<button id="open-settings" class="provider-action" type="button">

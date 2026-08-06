@@ -1,3 +1,5 @@
+import { isIgnoredTranslationTerm } from "./ignored-terms.js";
+
 const SHORT_INTERACTIVE_FRAGMENT_LIMIT = 3;
 
 const SOCIAL_HANDLE_SOURCE = String.raw`@[A-Za-z0-9_]{1,64}(?:@[A-Za-z0-9.-]+\.[A-Za-z]{2,})?`;
@@ -18,6 +20,9 @@ export function shouldSkipCandidate(candidate, contentFilters = {}) {
 	if (!text) {
 		return false;
 	}
+	if (isIgnoredTranslationTerm(text)) {
+		return true;
+	}
 	if (
 		isFilterEnabled(contentFilters, "skipTechnicalIdentifiers") &&
 		isTechnicalIdentifier(text)
@@ -32,13 +37,10 @@ export function shouldSkipCandidate(candidate, contentFilters = {}) {
 	}
 
 	const interactiveKind = candidate?.traits?.interactiveKind;
-	if (interactiveKind === "link" && !isFilterEnabled(contentFilters, "skipShortLinks")) {
+	if (interactiveKind !== "link") {
 		return false;
 	}
-	if (interactiveKind === "button" && !isFilterEnabled(contentFilters, "skipShortButtons")) {
-		return false;
-	}
-	if (interactiveKind !== "link" && interactiveKind !== "button") {
+	if (!isFilterEnabled(contentFilters, "skipShortLinks")) {
 		return false;
 	}
 	return isShortEnglishLabel(text);

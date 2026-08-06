@@ -1,4 +1,5 @@
 import { SELECTORS } from "../constants.js";
+import { isTranslationExcluded } from "./node-utils.js";
 
 /**
  * 把任意 DOM 根节点转换成“正文候选块”。
@@ -25,7 +26,7 @@ export class DomScanner {
 	}
 
 	findContentUnit(element, styleCache = new WeakMap()) {
-		if (!element || element.closest(SELECTORS.excluded)) {
+		if (!element || isTranslationExcluded(element)) {
 			return null;
 		}
 		const atomic = element.closest(SELECTORS.atomic);

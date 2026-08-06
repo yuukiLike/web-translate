@@ -38,10 +38,10 @@ const DEFAULT_CONTENT_FILTERS = Object.freeze({
 	skipTechnicalIdentifiers: true,
 	skipSocialMetadata: true,
 	skipShortLinks: true,
-	skipShortButtons: true,
 });
 
 export function createContentHarness({
+	contentType = "text/html",
 	sourceMode = "auto",
 	targetMode = "zh",
 	translateText,
@@ -49,6 +49,7 @@ export function createContentHarness({
 } = {}) {
 	const window = new Window({ url: "https://example.com/article" });
 	const { document } = window;
+	Object.defineProperty(document, "contentType", { configurable: true, value: contentType });
 	const messages = [];
 	const translationRequests = [];
 	const normalizedContentFilters = { ...DEFAULT_CONTENT_FILTERS, ...contentFilters };
