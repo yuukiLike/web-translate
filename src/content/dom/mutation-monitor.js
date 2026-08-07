@@ -47,7 +47,7 @@ export class MutationMonitor {
 		});
 		this.#observer.observe(document.body, {
 			attributes: true,
-			attributeFilter: ["class", "hidden", "lang", "style"],
+			attributeFilter: ["class", "hidden", "lang", "role", "style"],
 			characterData: true,
 			childList: true,
 			subtree: true,
@@ -95,6 +95,9 @@ export class MutationMonitor {
 			return false;
 		}
 		if (mutation.attributeName === "hidden") {
+			this.invalidator.invalidateTrackedSubtree(mutation.target);
+		}
+		if (mutation.attributeName === "role") {
 			this.invalidator.invalidateTrackedSubtree(mutation.target);
 		}
 		this.rootQueue.add(mutation.target);

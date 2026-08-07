@@ -1,4 +1,5 @@
 import { SOURCE_PART_CHARACTER_LIMIT } from "../constants.js";
+import { shouldSkipCandidate } from "./content-filter.js";
 
 /** 从正文候选块生成去重后的翻译段落。 */
 export class TranslationPlanner {
@@ -66,7 +67,7 @@ export class TranslationPlanner {
 		}
 
 		const revision = this.elementStore.nextRevision(element);
-		if (!this.#shouldTranslate(text, languagePair)) {
+		if (!this.#shouldTranslate(candidate, languagePair)) {
 			this.elementStore.setState(element, createSkippedState(originalHash, revision, languagePair));
 			return null;
 		}
@@ -109,11 +110,14 @@ export class TranslationPlanner {
 		return record;
 	}
 
-	#shouldTranslate(text, languagePair) {
-		if (this.settings.targetMode === "auto" && languagePair.sourceLanguage === "zh") {
+	#shouldTranslate(candidate, languagePair) {
+		if (languagePair.sourceLanguage === languagePair.targetLanguage) {
 			return false;
 		}
-		return this.core.shouldTranslateText(text, languagePair.targetLanguage);
+		if (shouldSkipCandidate(candidate, this.settings.contentFilters)) {
+			return false;
+		}
+		return this.core.shouldTranslateText(candidate.text, languagePair.targetLanguage);
 	}
 
 	#getLanguagePair(element, text) {
@@ -130,7 +134,12 @@ export class TranslationPlanner {
 			declaredElement === document.body || declaredElement === document.documentElement
 				? ""
 				: declaredElement?.getAttribute("lang") || "";
-		return this.core.getLanguagePair(declaredLanguage, text, this.settings.targetMode);
+		return this.core.getLanguagePair(
+			declaredLanguage,
+			text,
+			this.settings.sourceMode,
+			this.settings.targetMode,
+		);
 	}
 }
 

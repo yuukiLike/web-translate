@@ -77,6 +77,7 @@ Color is not decorative. Use seed for the mark, pine for the primary action and 
 - **Surfaces:** One primary form surface. Do not create a card for every subsection.
 - **Provider selection:** A two-column 2×2 radio grid for DeepSeek, OpenAI, Gemini, and more. Secondary Providers expand only on demand; switch to one column below 520px.
 - **Radius:** 5–8px for controls, 14px for the primary action corner, and one 24px corner on the main surface.
+- **Popup:** Use one vertical input/output language path with a compact side action, followed by a service row and quiet utility footer. Avoid mirrored language cards, a swap button, a full-width hero button, feature grids, and app-like bottom navigation.
 
 ## Icon
 
@@ -105,3 +106,4 @@ Color is not decorative. Use seed for the mark, pine for the primary action and 
 | 2026-08-05 | Moved debug into a dedicated view | Preserves rich diagnostics without slowing initial configuration |
 | 2026-08-05 | Replaced the Provider dropdown with a compact 2×2 radio grid | Makes service differences glanceable while keeping secondary services out of the default path |
 | 2026-08-05 | Kept the request-first debug panel self-built with zero new dependencies | Existing Vue primitives and Chrome APIs cover filtering, search, disclosure, bottom-following, safe JSON copy, and live Port updates; avoiding a log-viewer dependency keeps the Manifest V3 package small and the metadata security boundary easy to audit |
+| 2026-08-06 | Made the Popup a compact language-direction tool | Gives input and output selection first-class utility while avoiding the mirrored cards, oversized button, and bottom navigation used by established translation extensions |

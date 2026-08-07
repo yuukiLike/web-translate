@@ -126,54 +126,77 @@ export function createBatchTranslator({
 
 	async function translateMissing(context, missingSegments, signal) {
 		const { settings, request, tabId, batchIndex, queueDepth, incognito } = context;
-		const providerResult = await providerService.translate(
-			settings,
-			request.sourceLanguage,
-			request.targetLanguage,
-			missingSegments,
-			signal,
-			{ tabId, runId: request.runId, batchIndex, queueDepth, incognito },
-		);
-		assertNotAborted(signal);
-		if (providerResult.translations.length !== missingSegments.length) {
-			throw new Error("翻译服务返回的段落数量不一致");
+		let providerResult;
+		try {
+			providerResult = await providerService.translate(
+				settings,
+				request.sourceLanguage,
+				request.targetLanguage,
+				missingSegments,
+				signal,
+				{ tabId, runId: request.runId, batchIndex, queueDepth, incognito },
+			);
+			assertNotAborted(signal);
+			if (providerResult.translations.length !== missingSegments.length) {
+				throw new Error("翻译服务返回的段落数量不一致");
+			}
+			debug.record({
+				component: "provider",
+				eventType: "provider.usage",
+				tabId,
+				runId: request.runId,
+				provider: settings.provider,
+				model: core.getProviderModel(settings),
+				segmentCount: missingSegments.length,
+				sourceCharacters: sumSegmentCharacters(missingSegments),
+				batchIndex,
+				queueDepth,
+				inputTokens: numberOrUndefined(providerResult.usage.inputTokens),
+				outputTokens: numberOrUndefined(providerResult.usage.outputTokens),
+				cacheReadTokens: numberOrUndefined(providerResult.usage.cachedInputTokens),
+				noCacheTokens:
+					typeof providerResult.usage.inputTokens === "number"
+						? Math.max(
+								0,
+								providerResult.usage.inputTokens -
+									numberOrZero(providerResult.usage.cachedInputTokens),
+							)
+						: undefined,
+				billedCharacters: numberOrUndefined(providerResult.usage.billedCharacters),
+				status: "completed",
+			});
+			return {
+				entries: missingSegments.map((segment, index) => ({
+					id: segment.id,
+					text: segment.text,
+					translation: validateTranslationOutput(
+						providerResult.translations[index],
+						segment.text,
+					),
+				})),
+				usage: providerResult.usage,
+			};
+		} catch (error) {
+			await persistFailedUsage(settings.provider, missingSegments, providerResult, error);
+			throw error;
 		}
-		debug.record({
-			component: "provider",
-			eventType: "provider.usage",
-			tabId,
-			runId: request.runId,
-			provider: settings.provider,
-			model: core.getProviderModel(settings),
-			segmentCount: missingSegments.length,
-			sourceCharacters: sumSegmentCharacters(missingSegments),
-			batchIndex,
-			queueDepth,
-			inputTokens: numberOrUndefined(providerResult.usage.inputTokens),
-			outputTokens: numberOrUndefined(providerResult.usage.outputTokens),
-			cacheReadTokens: numberOrUndefined(providerResult.usage.cachedInputTokens),
-			noCacheTokens:
-				typeof providerResult.usage.inputTokens === "number"
-					? Math.max(
-							0,
-							providerResult.usage.inputTokens -
-								numberOrZero(providerResult.usage.cachedInputTokens),
-						)
-					: undefined,
-			billedCharacters: numberOrUndefined(providerResult.usage.billedCharacters),
-			status: "completed",
-		});
-		return {
-			entries: missingSegments.map((segment, index) => ({
-				id: segment.id,
-				text: segment.text,
-				translation: validateTranslationOutput(
-					providerResult.translations[index],
-					segment.text,
-				),
-			})),
-			usage: providerResult.usage,
-		};
+	}
+
+	async function persistFailedUsage(provider, segments, providerResult, error) {
+		const errorUsage =
+			error && typeof error === "object" ? error.translationUsage : undefined;
+		const usage = core.isRecord(errorUsage) ? errorUsage : providerResult?.usage;
+		if (!core.isRecord(usage)) {
+			return;
+		}
+		await usageStore
+			.record(provider, {
+				apiCalls: 1,
+				charactersSubmitted: sumSegmentCharacters(segments),
+				cachedCharacters: 0,
+				...usage,
+			})
+			.catch(() => {});
 	}
 
 	async function persistTranslation(

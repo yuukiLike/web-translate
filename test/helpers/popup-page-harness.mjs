@@ -62,12 +62,14 @@ export async function createPopupPageHarness(options = {}) {
 	const createdTabs = [];
 	let closeCount = 0;
 	let optionsOpenCount = 0;
+	let reloadCount = 0;
 	const popupState = {
 		ok: true,
+		popupProtocolVersion: 2,
 		version: "0.4.0",
 		providerLabel: "DeepSeek",
 		model: "deepseek-v4-flash",
-		targetLanguage: "简体中文",
+		languagePair: { sourceMode: "auto", targetLanguage: "zh" },
 		debugLogging: false,
 		configured: true,
 		canTranslate: true,
@@ -79,6 +81,10 @@ export async function createPopupPageHarness(options = {}) {
 			getURL(path = "") {
 				return `chrome-extension://popup-test/${path}`;
 			},
+			reload() {
+				reloadCount += 1;
+				if (options.reloadError) throw options.reloadError;
+			},
 			async openOptionsPage() {
 				optionsOpenCount += 1;
 				if (options.optionsError) throw options.optionsError;
@@ -87,6 +93,18 @@ export async function createPopupPageHarness(options = {}) {
 				calls.push(structuredClone(message));
 				if (message.type === "GET_POPUP_STATE") {
 					return options.getPopupState ? await options.getPopupState() : structuredClone(popupState);
+				}
+				if (message.type === "SET_LANGUAGE_PAIR") {
+					if (options.setLanguagePair) return options.setLanguagePair(message);
+					popupState.languagePair = {
+						sourceMode: message.sourceMode,
+						targetLanguage: message.targetLanguage,
+					};
+					return {
+						ok: true,
+						popupProtocolVersion: 2,
+						languagePair: structuredClone(popupState.languagePair),
+					};
 				}
 				if (message.type === "TOGGLE_ACTIVE_TAB") {
 					return options.toggleActiveTab
@@ -130,6 +148,9 @@ export async function createPopupPageHarness(options = {}) {
 		},
 		get optionsOpenCount() {
 			return optionsOpenCount;
+		},
+		get reloadCount() {
+			return reloadCount;
 		},
 		cleanup() {
 			restoreGlobals();

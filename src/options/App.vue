@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from "vue";
 
+import ContentFilters from "./ContentFilters.vue";
 import DebugPanel from "./DebugPanel.vue";
 import Mark from "./Mark.vue";
 import ProviderFields from "./ProviderFields.vue";
@@ -21,10 +22,15 @@ const {
 	fatal,
 	providers,
 	ready,
+	reloadRequired,
 	saveDebug,
 	saveDebugRequestPayload,
 	selectedProvider,
+	selectedSource,
 	selectedTarget,
+	setSourceMode,
+	setTargetMode,
+	sources,
 	status,
 	targets,
 	testProvider,
@@ -46,6 +52,12 @@ function show(nextView) {
 	if (globalThis.location?.hash !== hash) {
 		globalThis.location.hash = hash;
 	}
+}
+
+function getSubmitLabel() {
+	if (busy.value === "test") return "正在连接…";
+	if (reloadRequired.value) return "重新载入扩展";
+	return connected.value ? "重新测试" : "保存并测试";
 }
 </script>
 
@@ -121,7 +133,7 @@ function show(nextView) {
 
 					<div class="submit-row">
 						<button id="test-provider" class="primary" type="submit" :disabled="Boolean(busy)">
-							{{ busy === "test" ? "正在连接…" : connected ? "重新测试" : "保存并测试" }}
+							{{ getSubmitLabel() }}
 						</button>
 						<output id="status" :data-error="String(status.error)" role="status" aria-live="polite">
 							{{ status.text }}
@@ -136,12 +148,20 @@ function show(nextView) {
 					<details id="behavior" class="fold">
 						<summary>
 							<strong>翻译方式</strong>
-							<span>{{ selectedTarget.cue }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
+							<span>{{ selectedSource.name }} → {{ selectedTarget.name }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
 						</summary>
 						<div class="fold-body behavior-grid">
 							<label class="field">
-								<span>中英方向</span>
-								<select id="target-mode" v-model="draft.targetMode">
+								<span>输入语言</span>
+								<select id="source-mode" :value="draft.sourceMode" @change="setSourceMode($event.target.value)">
+									<option v-for="source in sources" :key="source.id" :value="source.id">
+										{{ source.name }}
+									</option>
+								</select>
+							</label>
+							<label class="field">
+								<span>输出语言</span>
+								<select id="target-mode" :value="draft.targetMode" @change="setTargetMode($event.target.value)">
 									<option v-for="target in targets" :key="target.id" :value="target.id">
 										{{ target.name }}
 									</option>
@@ -158,6 +178,8 @@ function show(nextView) {
 							</label>
 						</div>
 					</details>
+
+					<ContentFilters v-model="draft.contentFilters" />
 
 					<details class="fold catalog-fold">
 						<summary>

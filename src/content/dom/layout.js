@@ -1,4 +1,5 @@
 import { PRIORITY, SELECTORS } from "../constants.js";
+import { isTranslationExcluded } from "./node-utils.js";
 
 /** 与布局有关的浏览器读取集中在此，避免扫描和监听器各自实现一套。 */
 export class LayoutInspector {
@@ -22,15 +23,15 @@ export class LayoutInspector {
 		}
 	}
 
-	update(element, assumeChangedIfUnknown = false) {
+	update(element) {
 		const signature = getLayoutSignature(getComputedStyle(element));
 		const previous = this.elementStore.getLayoutSignature(element);
 		this.elementStore.setLayoutSignature(element, signature);
-		return previous === undefined ? assumeChangedIfUnknown : previous !== signature;
+		return previous !== undefined && previous !== signature;
 	}
 
 	isEligible(element) {
-		if (!element.isConnected || element.closest(SELECTORS.excluded)) {
+		if (!element.isConnected || isTranslationExcluded(element)) {
 			return false;
 		}
 		const style = getComputedStyle(element);

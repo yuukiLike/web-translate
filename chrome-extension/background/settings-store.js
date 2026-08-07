@@ -45,9 +45,16 @@ export function createSettingsStore({
 
 	function save(settings) {
 		return writeQueue.run(async () => {
-			await chrome.storage.local.set({ [core.SETTINGS_KEY]: settings });
-			await notifyDebugSettings(settings);
-			return settings;
+			// 语言只由 SET_LANGUAGE_PAIR 写入，避免设置页的旧全量快照覆盖 Popup 新选择。
+			const current = await getSettings();
+			const updated = core.normalizeSettings({
+				...settings,
+				sourceMode: current.sourceMode,
+				targetMode: current.targetMode,
+			});
+			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
+			await notifyDebugSettings(updated);
+			return updated;
 		});
 	}
 
@@ -74,6 +81,18 @@ export function createSettingsStore({
 			});
 			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
 			await notifyDebugSettings(updated);
+			return updated;
+		});
+	}
+
+	function updateLanguagePair(sourceMode, targetMode) {
+		return writeQueue.run(async () => {
+			const settings = await getSettings();
+			const updated = core.normalizeSettings({ ...settings, sourceMode, targetMode });
+			if (updated.sourceMode !== sourceMode || updated.targetMode !== targetMode) {
+				throw new Error("翻译语言组合无效");
+			}
+			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
 			return updated;
 		});
 	}
@@ -138,5 +157,6 @@ export function createSettingsStore({
 		save,
 		updateDebugLogging,
 		updateDebugRequestPayload,
+		updateLanguagePair,
 	};
 }

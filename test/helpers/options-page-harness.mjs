@@ -46,7 +46,6 @@ function createPort() {
 		},
 	};
 }
-
 function exposeWindow(window) {
 	const browserGlobals = {
 		CustomEvent: window.CustomEvent,
@@ -78,9 +77,8 @@ function exposeWindow(window) {
 				delete globalThis[name];
 			}
 		}
-	};
-}
-
+		};
+	}
 function installControlledTimers() {
 	const nativeTimers = {
 		clearInterval: globalThis.clearInterval,
@@ -144,7 +142,6 @@ export function inputValue(window, input, value) {
 	input.value = value;
 	input.dispatchEvent(new window.Event("input", { bubbles: true }));
 }
-
 export async function chooseProvider(window, document, providerId) {
 	const input = document.querySelector(`#provider-${providerId}`);
 	assert.ok(input, `找不到 Provider：${providerId}`);
@@ -152,15 +149,13 @@ export async function chooseProvider(window, document, providerId) {
 	input.dispatchEvent(new window.Event("change", { bubbles: true }));
 	await settle();
 }
-
 async function loadGeneratedGlobals() {
 	await import(catalogUrl.href);
 	await import(coreUrl.href);
 	assert.ok(globalThis.BilingualTranslatorProviderCatalog, "模型目录未载入");
 	assert.ok(globalThis.BilingualTranslatorCore, "核心运行时未载入");
 }
-
-export async function createOptionsPageHarness() {
+export async function createOptionsPageHarness(options = {}) {
 	await loadGeneratedGlobals();
 	const core = globalThis.BilingualTranslatorCore;
 	const window = new Window({ url: "chrome-extension://options-test/options/index.html" });
@@ -175,7 +170,7 @@ export async function createOptionsPageHarness() {
 	const ports = [];
 	const storageChanged = createEventHub();
 	let debugEvents = [];
-	let settings = core.normalizeSettings({
+	let settings = core.normalizeSettings(options.settings ?? {
 		provider: "deepseek",
 		deepseek: { apiKey: "deepseek-key", model: "deepseek-v4-flash" },
 	});
@@ -186,6 +181,9 @@ export async function createOptionsPageHarness() {
 	};
 	const chromeApi = {
 		runtime: {
+			reload() {
+				options.onReload?.();
+			},
 			connect() {
 				const port = createPort();
 				ports.push(port);
@@ -196,13 +194,35 @@ export async function createOptionsPageHarness() {
 				calls.push(structuredClone(message));
 				switch (message.type) {
 					case "GET_OPTIONS_STATE":
+						if (options.getOptionsState) {
+							return options.getOptionsState({ core, settings, storageChanged, usage });
+						}
 						return {
 							ok: true,
 							settings: structuredClone(settings),
 							usage,
 						};
+					case "SET_LANGUAGE_PAIR":
+						if (options.setLanguagePair) return options.setLanguagePair(message);
+						settings = core.normalizeSettings({
+							...settings,
+							sourceMode: message.sourceMode,
+							targetMode: message.targetLanguage,
+						});
+						return {
+							ok: true,
+							popupProtocolVersion: 2,
+							languagePair: {
+								sourceMode: settings.sourceMode,
+								targetLanguage: settings.targetMode,
+							},
+						};
 					case "SAVE_SETTINGS":
-						settings = core.normalizeSettings(message.settings);
+						settings = core.normalizeSettings({
+							...message.settings,
+							sourceMode: settings.sourceMode,
+							targetMode: settings.targetMode,
+						});
 						return { ok: true, settings: structuredClone(settings) };
 					case "SET_DEBUG_LOGGING":
 						settings = core.normalizeSettings({ ...settings, debugLogging: message.enabled });

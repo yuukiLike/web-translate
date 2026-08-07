@@ -17,7 +17,7 @@
 		"check:popup": "node scripts/build-popup.mjs --check",
 		"check:runtime": "node scripts/build-extension-runtime.mjs --check",
 		"check:source": "node scripts/check-javascript.mjs",
-		"test": "node --test test/*/*.test.mjs",
+		"test": "node --test --test-concurrency=4 test/*/*.test.mjs",
 		"test:catalog": "node --test test/contract/provider-config.test.mjs",
 		"test:unit": "node --test test/unit/*.test.mjs",
 		"validate:provider-catalog": "node scripts/validate-provider-config.mjs"

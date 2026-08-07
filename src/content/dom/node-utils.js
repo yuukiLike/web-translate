@@ -1,4 +1,27 @@
-import { OWNED_NODE_SELECTOR } from "../constants.js";
+import { OWNED_NODE_SELECTOR, SELECTORS } from "../constants.js";
+
+const READABLE_PLAIN_TEXT_TYPES = new Set([
+	"text/markdown",
+	"text/plain",
+	"text/x-markdown",
+]);
+
+/** 普通代码区保持排除，但允许浏览器为纯文本响应生成的根级 pre。 */
+export function isTranslationExcluded(element) {
+	if (element?.closest?.(SELECTORS.excluded)) {
+		return true;
+	}
+	const codeLikeAncestor = element?.closest?.(SELECTORS.codeLike);
+	return Boolean(codeLikeAncestor && !isReadablePlainTextRoot(codeLikeAncestor));
+}
+
+function isReadablePlainTextRoot(element) {
+	const rootPre = element.matches("pre") ? element : element.closest("pre");
+	return Boolean(
+		rootPre?.parentElement === document.body &&
+		READABLE_PLAIN_TEXT_TYPES.has(String(document.contentType).toLowerCase()),
+	);
+}
 
 export function isOwnedNode(node) {
 	const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
