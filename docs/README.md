@@ -18,6 +18,7 @@
 | [`chrome-extension-basics.md`](./chrome-extension-basics.md) | 从加载扩展开始，解释 Chrome 的 popup、Service Worker、内容脚本、设置页、权限和 DevTools | 第一次开发 Chrome 扩展的人 | 需要运行项目、理解浏览器上下文时 |
 | [`debugging.md`](./debugging.md) | 解释受控事件、DeepSeek 请求正文投影、复制/清空、Network 交叉验证和常见故障诊断路径 | 开发者、测试人员、排查 Provider 问题的人 | 需要核对实际请求、重试、无请求或无译文时 |
 | [`provider-catalog.md`](./provider-catalog.md) | 解释固定 models.dev snapshot、JSON Schema、allowlist、SDK runtime、价格元数据、DeepSeek 三层请求转换和更新流程 | 维护 Provider、模型、目录数据或构建安全边界的人 | 修改模型、价格、API 地址、依赖或目录数据前 |
+| [`x-hover-rendering-postmortem.md`](./x-hover-rendering-postmortem.md) | 记录 X hover fresh 节点替换导致布局跳动的根因、失败方案、最终状态迁移设计，以及相邻 HN 布局契约 | 内容脚本维护者、DOM/SPA 故障排查者 | 修改 X 站点策略、generated presentation、MutationObserver、虚拟列表或 HN 标题布局前 |
 
 ## 按任务选择
 
@@ -29,9 +30,12 @@
 - 想修改模型价格展示：读 [`provider-catalog.md`](./provider-catalog.md) 的价格 snapshot、schema 和更新流程。
 - 想改设置页但保持现有 UI：先读根目录 [`DESIGN.md`](../DESIGN.md)，再看代码地图中的 `src/options/`。
 - 想增加测试：看代码地图的 `test/` 分层；所有 `test(...)` 前都必须有紧邻的中文意图注释。
+- 想排查 X hover、虚拟列表或 fresh DOM replacement：先读 [`x-hover-rendering-postmortem.md`](./x-hover-rendering-postmortem.md)，再看其中链接的 replacement 与 lifecycle 回归。
+- 想修改 Hacker News 标题换行、来源站点同行延续或元信息过滤：读同一份复盘的“Hacker News 相邻回归”，再对照代码地图中的站点策略与 HN 集成测试。
 
 ## 文档维护规则
 
 - `src/**` 和 `chrome-extension/background/**` 是手写源码，文档应引用它们说明行为。
 - `chrome-extension/generated/*.js`、`chrome-extension/options/options.{js,css}` 与 `chrome-extension/popup/popup.{js,css}` 是构建产物，只用于说明 Chrome 实际加载什么，不应作为可编辑源码指导读者。`chrome-extension/popup/index.html` 仍是手写入口。
 - 文件重命名、消息协议或构建脚本改变时，应同步更新本索引、代码地图和受影响的专题文档。
+- 修改 X 的 `generated` 呈现、replacement key、MutationObserver 边界、停止清理或 HN `line-start-inline` 契约时，应同步更新故障复盘中的“最终设计”“回归保护”和“当前设计边界”；已经发生的排查阶段与用户验收记录保持不变。

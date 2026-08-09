@@ -4,6 +4,7 @@ import { RootQueue } from "./root-queue.js";
 import { StatusReporter } from "./status-reporter.js";
 import { RunTranslationCache } from "./translation/run-cache.js";
 import { LayoutInspector } from "./dom/layout.js";
+import { cleanupGeneratedPresentations } from "./dom/generated-presentation.js";
 import { DomScanner } from "./dom/scanner.js";
 import { ElementInvalidator } from "./dom/invalidation.js";
 import { TranslationRenderer } from "./dom/renderer.js";
@@ -188,6 +189,7 @@ export class TranslationRun {
 }
 
 function removeRunArtifacts(runId) {
+	cleanupGeneratedPresentations(document, runId);
 	for (const node of document.querySelectorAll(`[data-bt-run="${CSS.escape(runId)}"]`)) {
 		node.remove();
 	}

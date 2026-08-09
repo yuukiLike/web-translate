@@ -1,4 +1,5 @@
 import { TIMING } from "../constants.js";
+import { SITE_PRESENTATION } from "../site-profile.js";
 import { sourceSelector } from "./node-utils.js";
 
 /** 延迟处理 class/style 引起的布局与可见性变化。 */
@@ -48,8 +49,11 @@ export class VisibilityMonitor {
 	}
 
 	schedule() {
-		if (!this.isCurrent() || this.#timer !== null) {
+		if (!this.isCurrent()) {
 			return;
+		}
+		if (this.#timer !== null) {
+			clearTimeout(this.#timer);
 		}
 		this.#timer = setTimeout(() => {
 			this.#timer = null;
@@ -118,7 +122,13 @@ export class VisibilityMonitor {
 			const scanRoot = hasTrackedDescendant
 				? element
 				: this.elementStore.findTrackedAncestor(element) ?? element;
-			this.invalidator.invalidateTrackedSubtree(element, !hasTrackedDescendant);
+			this.invalidator.invalidateTrackedSubtree(
+				element,
+				!hasTrackedDescendant,
+				(source) =>
+					this.elementStore.getState(source)?.presentation !==
+					SITE_PRESENTATION.generated,
+			);
 			this.rootQueue.add(scanRoot);
 			invalidated = true;
 		}
@@ -129,9 +139,15 @@ export class VisibilityMonitor {
 		for (const element of trackedElements) {
 			const elementState = this.elementStore.getState(element);
 			if (!this.layout.isEligible(element)) {
+				if (elementState?.presentation === SITE_PRESENTATION.generated) {
+					continue;
+				}
 				this.invalidator.invalidate(element);
 				this.elementStore.deferredElements.add(element);
-			} else if (elementState?.translationNode) {
+			} else if (
+				elementState?.translationNode &&
+				elementState.presentation !== SITE_PRESENTATION.generated
+			) {
 				this.renderer.copySourcePresentation(element, elementState.translationNode);
 			}
 		}

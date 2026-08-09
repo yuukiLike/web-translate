@@ -1,3 +1,6 @@
+import { SITE_PRESENTATION } from "../site-profile.js";
+import { createGeneratedTranslation } from "./generated-presentation.js";
+
 /** 负责创建翻译节点、继承源样式并选择插入位置。 */
 export class TranslationRenderer {
 	constructor({ core, scanner, layout, elementStore, progress, invalidator, rootQueue, onNeedsRescan }) {
@@ -36,22 +39,39 @@ export class TranslationRenderer {
 			return;
 		}
 
-		const translation = document.createElement("span");
-		translation.className = "bt-translation";
-		translation.dataset.btOwned = "true";
-		translation.dataset.btRun = runId;
-		translation.lang = record.targetLanguage === "zh" ? "zh-CN" : "en";
-		translation.textContent = record.translations.join("\n");
-		this.copySourcePresentation(record.element, translation);
-		if (record.element.parentElement) {
-			this.layout.remember(record.element.parentElement, getComputedStyle(record.element.parentElement));
+		const translationText = record.translations.join("\n").trim();
+		const presentation = this.scanner.getPresentation(record.element);
+		let translation = null;
+		if (!isRedundantTranslation(this.core, candidate.text, translationText)) {
+			translation = presentation === SITE_PRESENTATION.generated
+				? createGeneratedTranslation({
+						source: record.element,
+						text: translationText,
+						language: normalizeTargetLanguage(record.targetLanguage),
+						runId,
+					})
+				: createFlowTranslation({
+						renderer: this,
+						source: record.element,
+						text: translationText,
+						targetLanguage: record.targetLanguage,
+						runId,
+						presentation,
+						placementAnchor: candidate.placementAnchor,
+						partial: candidate.partial,
+					});
 		}
-		placeTranslation(record.element, translation, candidate.placementAnchor, candidate.partial);
 
 		record.rendered = true;
 		elementState.status = "translated";
 		elementState.translationNode = translation;
-		this.elementStore.rememberTranslationSource(translation, record.element);
+		elementState.presentation = translation ? presentation ?? "flow" : "none";
+		if (elementState.presentation === SITE_PRESENTATION.generated) {
+			this.elementStore.generatedSources.add(record.element);
+		}
+		if (translation) {
+			this.elementStore.rememberTranslationSource(translation, record.element);
+		}
 		this.progress.complete(record.element, record.progressKey);
 	}
 
@@ -89,6 +109,43 @@ export class TranslationRenderer {
 			}
 		}
 	}
+}
+
+function createFlowTranslation({
+	renderer,
+	source,
+	text,
+	targetLanguage,
+	runId,
+	presentation,
+	placementAnchor,
+	partial,
+}) {
+	const translation = document.createElement("span");
+	translation.className = "bt-translation";
+	translation.dataset.btOwned = "true";
+	translation.dataset.btRun = runId;
+	translation.lang = normalizeTargetLanguage(targetLanguage);
+	if (presentation === SITE_PRESENTATION.lineStartInline) {
+		translation.dataset.btLayout = SITE_PRESENTATION.lineStartInline;
+		translation.append(document.createElement("br"), text);
+	} else {
+		translation.textContent = text;
+	}
+	renderer.copySourcePresentation(source, translation);
+	if (source.parentElement) {
+		renderer.layout.remember(source.parentElement, getComputedStyle(source.parentElement));
+	}
+	placeTranslation(source, translation, placementAnchor, partial);
+	return translation;
+}
+
+function normalizeTargetLanguage(language) {
+	return language === "zh" ? "zh-CN" : "en";
+}
+
+function isRedundantTranslation(core, sourceText, translationText) {
+	return core.normalizeSourceText(sourceText) === core.normalizeSourceText(translationText);
 }
 
 function getTranslationLineHeight(value, fontScale) {

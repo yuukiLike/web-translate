@@ -7,6 +7,7 @@ export class ElementStore {
 	#translationSources = new WeakMap();
 
 	deferredElements = new Set();
+	generatedSources = new Set();
 
 	getState(element) {
 		return this.#states.get(element);

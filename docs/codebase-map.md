@@ -128,8 +128,9 @@ chrome-extension/manifest.json
 | `constants.js` | 集中维护选择器、时间窗口、优先级、批次上限和 750 条运行缓存上限。 |
 | `controller.js` | 串行用户开关，创建/停止 `TranslationRun`，并清理上次异常遗留的 DOM。 |
 | `translation-run.js` | 组装一次运行的所有服务，串行扫描轮次，吸收重扫请求并协调启动/停止。 |
+| `site-profile.js` | 按精确 hostname 集中定义 X 与 Hacker News 的内容边界和安全呈现方式；未匹配站点保留通用扫描行为。 |
 | `runtime-client.js` | 内容脚本与后台通信的唯一出口，统一检查 `{ ok: true }` 响应。 |
-| `element-store.js` | 用 WeakMap 保存元素状态、修订号、布局签名、文本归属和译文来源。 |
+| `element-store.js` | 用 WeakMap 保存元素状态、修订号、布局签名、文本归属和译文来源，并用运行级集合跟踪需要确定性清理的 generated source。 |
 | `root-queue.js` | 合并重叠待扫描根节点，避免同一轮重复遍历子树。 |
 | `progress-tracker.js` | 按元素、方向和原文哈希去重计数；完成数只增不减，避免虚拟列表导致数字回退。 |
 | `status-reporter.js` | 协调页面提示与后台徽标，等待稳定快照，并用 runId 使旧状态失效。 |
@@ -141,10 +142,12 @@ chrome-extension/manifest.json
 | --- | --- |
 | `scanner.js` | 用 TreeWalker 把文本节点归属到正文候选块并保留段落边界；不决定翻译，也不改 DOM。 |
 | `layout.js` | 集中读取样式、可见性、布局签名和视口优先级，避免各模块重复布局逻辑。 |
-| `renderer.js` | 校验原文仍未变化，用 `textContent` 创建译文，复制必要样式并选择安全插入位置。 |
+| `renderer.js` | 校验原文仍未变化；为普通站点创建 flow 译文，为 X 创建不进入宿主 child tree 的 generated presentation。 |
+| `generated-presentation.js` | 管理 generated source 属性、离屏 description、ARIA 引用、完整性恢复和跨运行幂等清理。 |
+| `generated-replacement-transfer.js` | 在同一 MutationObserver 批次内，把已跟踪 generated surface 原子迁移到语义等价的 fresh Element。 |
 | `invalidation.js` | 统一使过期元素失效，清除旧译文，恢复被网站删除的译文，并清理移除子树。 |
-| `mutation-monitor.js` | 把 MutationObserver 事件归一化为失效元素和待扫描根节点，再防抖触发新一轮。 |
-| `visibility-monitor.js` | 延迟处理 class/style 带来的布局和可见性变化，恢复重新可见的延期元素。 |
+| `mutation-monitor.js` | 先迁移同批 fresh replacement，再把其他 MutationObserver 事件归一化为待复核 source 和扫描根节点。 |
+| `visibility-monitor.js` | 真正防抖处理 class/style 的布局与可见性变化；瞬时状态不清除 generated presentation。 |
 | `node-utils.js` | 识别扩展自有节点、遍历文本节点并构造当前运行的 source 选择器。 |
 
 ### `src/content/translation/`：翻译计划与云调度
@@ -280,6 +283,11 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `background-storage-failures.test.mjs` | 验证 cancelled 写入失败时的删除兜底，以及 Badge API 挂起不能锁死取消、重启或后续任务。 |
 | `background-usage.test.mjs` | 验证 Provider 缺少 usage 时，后台保留未知语义而不是持久化成零 token。 |
 | `content-script.test.mjs` | 验证中文过滤、显式中译英、动态 DOM、运行缓存、重复注入和稳定进度。 |
+| `content-hacker-news.test.mjs` | 验证 HN 标题的换行后同行延续、元信息过滤、动态条目和 hostname 隔离。 |
+| `content-x-hover.test.mjs` | 验证 X 帖子 hover 不修改原始 child tree，且站点策略、相同译文兜底与 hostname 隔离稳定。 |
+| `content-x-replacement.test.mjs` | 验证 fresh source/article/右栏/重复同文 replacement 在下一次绘制前迁移 generated surface。 |
+| `content-x-surfaces.test.mjs` | 验证 Explore、Show more、瞬时 hidden/role/class/style、重挂和旧上下文清理。 |
+| `content-x-stop-lifecycle.test.mjs` | 验证停止运行早于 removal record 交付时，脱离的 generated source 仍会完整清理。 |
 | `options-page.test.mjs` | 验证本地资产/CSP、首屏契约、Provider 草稿、付费 API 标签与计费提示、保存测试顺序和调试 Port 生命周期。 |
 | `provider-runtime.test.mjs` | 验证非法 Provider 预先拒绝、四家官方 SDK endpoint/低推理参数，以及缺失 usage 不会伪装成零 token。 |
 
@@ -295,6 +303,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `background-status.test.mjs` | 验证完成稳定窗口、settling 失效、旧任务忽略和取消覆盖。 |
 | `background-validation.test.mjs` | 消息长度/唯一性边界、扩展页身份和自定义域名权限。 |
 | `content-services.test.mjs` | 运行缓存隔离/上限、只增完成数、待处理取消和完成状态失效。 |
+| `content-site-profile.test.mjs` | 验证 X/Hacker News 精确 hostname、站点选择器、呈现方式和通用站点回退。 |
 | `core-cache.test.mjs` | 缓存语义边界、DeepL host 和译文长度上限。 |
 | `core-settings.test.mjs` | 默认值、枚举、并发、模型 allowlist、自定义 URL、公开设置和错误提示。 |
 | `core-text.test.mjs` | 语言判断、正文过滤、规范化、长文切分、批次顺序和模型 JSON ID。 |
@@ -310,6 +319,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `chrome-extension-basics.md` | 加载扩展并理解 Manifest V3 运行上下文、权限和 DevTools。 |
 | `debugging.md` | 查看受控请求事件与 DeepSeek 请求正文投影，并用三类 DevTools 排查运行问题。 |
 | `provider-catalog.md` | 解释固定 snapshot、allowlist、模型 SDK、DeepSeek 三层请求转换和目录更新流程。 |
+| `x-hover-rendering-postmortem.md` | 记录 X hover 跳动的根因、修复演进、fresh Element 状态迁移约束和完整回归矩阵。 |
 
 ## 从点击图标到看到译文
 
@@ -329,9 +339,9 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 12. `batch-translator.js` 先调用 `cache-store.js`。缓存键包含站点、Provider、模型、协议、语言方向和原文，因此不会跨语义误用。
 13. 全命中时后台直接返回。未命中时 `provider-service.js` 选择 `model-translator.js` 或 `rest-translators.js`；请求层统一处理取消、超时、有限重试和安全调试事件。
 14. Provider 响应通过完成原因、JSON、ID、数量和译文长度校验后，后台记录普通用量统计，写入持久缓存，再把 ID 对齐的结果返回内容脚本。
-15. `cloud-translator.js` 写入运行缓存并回填所有去重目标；`dom/renderer.js` 确认原文未变化，再用 `textContent` 插入译文；`progress-tracker.js` 只增加已完成数。
+15. `cloud-translator.js` 写入运行缓存并回填所有去重目标；`dom/renderer.js` 确认原文未变化，普通页面用 `textContent` 创建 flow 译文，X 则把文本写入 generated source 属性并关联离屏 description；`progress-tracker.js` 只增加已完成数。
 16. `status-reporter.js` 等待 DOM 和计数稳定后发送完成状态；`status-controller.js` 先按消息到达顺序分配修订，再做后台稳定窗口检查；`action-ui.js` 在慢 Badge API 返回后重放最新修订，因此旧完成或旧进度都不能覆盖新状态。
-17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。它们只把受影响根节点放回队列；已有译文优先从运行缓存恢复。
+17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。同批 fresh replacement 会先迁移 generated surface；其他受影响根节点再进入防抖复核，已有译文优先从运行缓存恢复。
 18. 用户再次打开 popup 并点击恢复时，后台重复注入内容脚本，已有控制器收到 toggle。`TranslationRun.stop()` 停止监听器、清理当前 runId 的 DOM、清空运行缓存并发送取消与关闭状态。后台先尝试把 current-run 持久化为 cancelled；若存储写失败，则至少删除 current 指针或快照，并保留当前 Worker 的取消屏障。在途旧删除结束前，同一 runId 不能复用。
 19. 用户直接关闭标签页时，`tabs.onRemoved` 调用 `app.onTabRemoved()`；`run-store.js` 立即中止该标签页的活动请求并建立 removed-tab 屏障，再处理持久终态与 session 快照。所有可能迟到的清理结束前不会释放 tabId，避免复用标签页的新任务被旧清理误删。
 
@@ -342,7 +352,8 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | 中文过滤、语言方向、切分 | `src/core/text.js`、`src/content/translation/planner.js` | `test/unit/core-text.test.mjs`、`test/integration/content-script.test.mjs` |
 | 重复翻译与缓存 | `src/content/translation/run-cache.js`、`chrome-extension/background/cache-store.js` | content service、background cache 与集成测试 |
 | 进度抖动或旧状态 | `src/content/progress-tracker.js`、`src/content/status-reporter.js`、`chrome-extension/background/status-controller.js` | content service、background status 与内容脚本集成测试 |
-| DOM 识别或插入位置 | `src/content/dom/scanner.js`、`renderer.js` | content DOM harness 与内容脚本集成测试 |
+| DOM 识别或插入位置 | `src/content/dom/scanner.js`、`src/content/dom/renderer.js`、`src/content/site-profile.js` | content DOM harness、X/HN 集成测试与 [X hover 故障复盘](./x-hover-rendering-postmortem.md) |
+| X hover、虚拟列表或 fresh replacement | `src/content/dom/generated-presentation.js`、`src/content/dom/generated-replacement-transfer.js`、`src/content/dom/mutation-monitor.js` | `test/integration/content-x-*.test.mjs` 与 [X hover 故障复盘](./x-hover-rendering-postmortem.md) |
 | Provider 请求、重试 | `provider-service.js`、`providers/`、`src/provider/` | Provider runtime 集成测试和调试文档 |
 | Provider 标签或价格展示 | `src/options/ProviderPicker.vue`、`catalogData.js`、`data/models-dev-subset.json` | options data 单元测试、options page 集成测试和 `docs/provider-catalog.md` |
 | popup 主动作或入口 | `src/popup/`、`message-router.js`、`action-ui.js` | Manifest、`background-app.test.mjs`、`npm run check:popup` 和 Chrome 手工验证 |

@@ -1,4 +1,5 @@
 import { TRANSLATION_NODE_SELECTOR } from "../constants.js";
+import { clearGeneratedPresentation } from "./generated-presentation.js";
 import { sourceSelector } from "./node-utils.js";
 
 /** 统一清理过期元素状态，避免各类 Mutation 各自删一半状态。 */
@@ -19,15 +20,20 @@ export class ElementInvalidator {
 			const translation = elementState.translationNode;
 			elementState.translationNode = null;
 			elementState.status = "invalidated";
-			translation.remove();
+			if (elementState.presentation === "generated") {
+				clearGeneratedPresentation(element, { descriptionId: translation.id });
+			} else {
+				translation.remove();
+			}
 		}
+		this.elementStore.generatedSources.delete(element);
 		this.elementStore.deleteState(element);
 		if (element.dataset.btSource === this.getRunId()) {
 			delete element.dataset.btSource;
 		}
 	}
 
-	invalidateTrackedSubtree(root, includeAncestor = true) {
+	invalidateTrackedSubtree(root, includeAncestor = true, shouldInvalidate = () => true) {
 		const elements = new Set();
 		const runId = this.getRunId();
 		if (includeAncestor) {
@@ -43,7 +49,9 @@ export class ElementInvalidator {
 			elements.add(source);
 		}
 		for (const element of elements) {
-			this.invalidate(element);
+			if (shouldInvalidate(element)) {
+				this.invalidate(element);
+			}
 		}
 	}
 
@@ -68,7 +76,7 @@ export class ElementInvalidator {
 		return recovered;
 	}
 
-	cleanupRemovedSubtree(node) {
+	cleanupRemovedSubtree(node, shouldInvalidate = () => true) {
 		const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
 		if (!element) {
 			return;
@@ -86,7 +94,9 @@ export class ElementInvalidator {
 		}
 		sources.push(...(element.querySelectorAll?.(sourceSelector(runId)) ?? []));
 		for (const source of sources) {
-			this.invalidate(source);
+			if (shouldInvalidate(source)) {
+				this.invalidate(source);
+			}
 		}
 	}
 }

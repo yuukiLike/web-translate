@@ -35,10 +35,13 @@ function createElementStub(dataset = {}) {
 	};
 }
 
-function createVisibilityHarness(updateLayout) {
+function createVisibilityHarness(updateLayout, { generated = false } = {}) {
 	const runId = "run-layout";
 	const parent = createElementStub();
-	const source = createElementStub({ btSource: runId });
+	const source = createElementStub({
+		btSource: runId,
+		...(generated ? { btPresentation: "generated" } : {}),
+	});
 	const child = createElementStub();
 	source.parentElement = parent;
 	child.parentElement = source;
@@ -51,7 +54,13 @@ function createVisibilityHarness(updateLayout) {
 		elementStore: {
 			deferredElements: new Set(),
 			findTrackedAncestor: (element) => (element === child ? source : null),
-			getState: (element) => (element === source ? { translationNode: null } : null),
+			getState: (element) =>
+				element === source
+					? {
+							presentation: generated ? "generated" : "flow",
+							translationNode: null,
+						}
+					: null,
 		},
 		layout: {
 			isEligible: () => true,
@@ -60,7 +69,11 @@ function createVisibilityHarness(updateLayout) {
 		renderer: { copySourcePresentation() {} },
 		invalidator: {
 			invalidate() {},
-			invalidateTrackedSubtree: (...arguments_) => invalidations.push(arguments_),
+			invalidateTrackedSubtree: (element, includeAncestor, shouldInvalidate) => {
+				if (!shouldInvalidate || shouldInvalidate(source)) {
+					invalidations.push([element, includeAncestor]);
+				}
+			},
 		},
 		rootQueue: { add() {} },
 		onScan: async () => {
@@ -168,6 +181,26 @@ test("已知正文布局变化仍会触发布局失效", async () => {
 			harness.invalidations.map(([element]) => element),
 			[harness.source, harness.parent],
 		);
+	} finally {
+		harness.monitor.stop();
+		globalThis.CSS = previousCss;
+	}
+});
+
+// 验证 X generated 呈现遇到已知布局变化时保持属性不变，不进入删除和重建路径。
+test("生成呈现忽略布局签名引起的重建", async () => {
+	const previousCss = globalThis.CSS;
+	globalThis.CSS = { escape: (value) => value };
+	const harness = createVisibilityHarness(
+		(element) => element === harness.source || element === harness.parent,
+		{ generated: true },
+	);
+	try {
+		harness.monitor.queue(harness.child);
+		harness.monitor.schedule();
+		await waitFor(() => harness.scans() === 1);
+
+		assert.deepEqual(harness.invalidations, []);
 	} finally {
 		harness.monitor.stop();
 		globalThis.CSS = previousCss;

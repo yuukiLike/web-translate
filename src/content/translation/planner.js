@@ -1,4 +1,6 @@
 import { SOURCE_PART_CHARACTER_LIMIT } from "../constants.js";
+import { SITE_PRESENTATION } from "../site-profile.js";
+import { isGeneratedPresentationIntact } from "../dom/generated-presentation.js";
 import { shouldSkipCandidate } from "./content-filter.js";
 
 /** 从正文候选块生成去重后的翻译段落。 */
@@ -58,7 +60,8 @@ export class TranslationPlanner {
 		if (
 			existingState?.originalHash === originalHash &&
 			existingState.sourceLanguage === languagePair.sourceLanguage &&
-			existingState.targetLanguage === languagePair.targetLanguage
+			existingState.targetLanguage === languagePair.targetLanguage &&
+			this.#isExistingPresentationIntact(element, existingState)
 		) {
 			return null;
 		}
@@ -108,6 +111,20 @@ export class TranslationPlanner {
 			translationNode: null,
 		});
 		return record;
+	}
+
+	#isExistingPresentationIntact(element, state) {
+		if (
+			state.status !== "translated" ||
+			state.presentation !== SITE_PRESENTATION.generated
+		) {
+			return true;
+		}
+		return isGeneratedPresentationIntact(
+			element,
+			state.translationNode,
+			this.runId,
+		);
 	}
 
 	#shouldTranslate(candidate, languagePair) {

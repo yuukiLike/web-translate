@@ -1,4 +1,5 @@
 import { CONTROLLER_KEY } from "./constants.js";
+import { cleanupGeneratedPresentations } from "./dom/generated-presentation.js";
 import { RuntimeClient } from "./runtime-client.js";
 import { StatusView } from "./status-view.js";
 import { TranslationRun } from "./translation-run.js";
@@ -76,6 +77,7 @@ export function installController(core) {
 }
 
 function cleanupStaleArtifacts() {
+	cleanupGeneratedPresentations(document);
 	for (const node of document.querySelectorAll(
 		".bt-translation[data-bt-owned='true'], .bt-status[data-bt-owned='true']",
 	)) {

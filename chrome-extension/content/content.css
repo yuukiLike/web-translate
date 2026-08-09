@@ -19,6 +19,7 @@
 	text-indent: 0 !important;
 	text-transform: none !important;
 	white-space: pre-wrap !important;
+	overflow-anchor: none !important;
 	opacity: 1 !important;
 }
 
@@ -26,6 +27,65 @@
 	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC",
 		"Microsoft YaHei", sans-serif !important;
 	letter-spacing: 0.01em !important;
+}
+
+[data-bt-source][data-bt-generated-owned="true"][data-bt-presentation="generated"][data-bt-presentation-run][data-bt-translation]::after {
+	all: unset !important;
+	content: attr(data-bt-translation) !important;
+	display: block !important;
+	box-sizing: border-box !important;
+	inline-size: 100% !important;
+	min-inline-size: 0 !important;
+	max-inline-size: 100% !important;
+	margin-block-start: 0.24em !important;
+	margin-block-end: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	position: static !important;
+	float: none !important;
+	clear: none !important;
+	background: transparent !important;
+	color: inherit !important;
+	font-family: inherit !important;
+	font-size: 0.92em !important;
+	font-style: normal !important;
+	font-weight: inherit !important;
+	letter-spacing: normal !important;
+	line-height: 1.45 !important;
+	text-align: inherit !important;
+	text-decoration: none !important;
+	white-space: pre-wrap !important;
+	overflow-wrap: anywhere !important;
+	word-break: normal !important;
+	unicode-bidi: plaintext !important;
+	overflow-anchor: none !important;
+	pointer-events: none !important;
+	transform: none !important;
+	transition: none !important;
+	animation: none !important;
+}
+
+.bt-translation[data-bt-owned="true"][data-bt-layout="line-start-inline"] {
+	display: inline !important;
+	width: auto !important;
+	margin: 0 !important;
+}
+
+.bt-translation.bt-translation-description[data-bt-owned="true"] {
+	all: initial !important;
+	position: fixed !important;
+	inset: 0 auto auto 0 !important;
+	display: block !important;
+	box-sizing: border-box !important;
+	inline-size: 1px !important;
+	block-size: 1px !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	overflow: hidden !important;
+	clip-path: inset(50%) !important;
+	white-space: nowrap !important;
+	pointer-events: none !important;
 }
 
 [data-bt-source] + .bt-translation[data-bt-owned="true"] {

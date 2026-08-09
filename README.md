@@ -146,7 +146,7 @@ DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试�
   → cache-store / batch-translator / provider-service：缓存、批次、限流/重试与 Provider 调用
   → Provider API：返回译文和用量
   → 后台模块：校验结束原因、JSON、段落 ID、数量和长度
-  → 生成的内容脚本：通过 textContent 把译文插入原文下方
+  → 生成的内容脚本：普通页面用 textContent 创建 flow 译文；X 用受控 data 属性和 CSS ::after 呈现译文
 ```
 
 主要文件：
@@ -169,6 +169,7 @@ DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试�
 - [docs/README.md](docs/README.md)：每份文档解决什么问题，以及推荐阅读顺序
 - [docs/codebase-map.md](docs/codebase-map.md)：逐目录、逐手写文件理解职责、依赖方向和完整调用链
 - [docs/chrome-extension-basics.md](docs/chrome-extension-basics.md)：从加载扩展到理解 Manifest V3 运行上下文
+- [docs/x-hover-rendering-postmortem.md](docs/x-hover-rendering-postmortem.md)：X hover fresh DOM replacement 跳动的根因、状态迁移设计、回归矩阵与相邻 HN 布局修复
 - [docs/debugging.md](docs/debugging.md)：查看受控调试事件、DeepSeek 请求正文投影，并用三类 DevTools 定位故障
 - [docs/provider-catalog.md](docs/provider-catalog.md)：固定模型目录、allowlist、Provider 构建、DeepSeek 请求转换与安全边界
 
@@ -192,7 +193,7 @@ DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试�
 - Key 保存在本机 `chrome.storage.local`，访问级别限制为 `TRUSTED_CONTEXTS`。
 - 用户主动开启调试时，DeepSeek `messages` 可能把网页原文短暂写入 `chrome.storage.session`；日志不含 Key、Authorization、请求头或响应体，排查后应主动清空。
 - 无痕标签页不读写持久翻译缓存。
-- Provider 返回值只通过 `textContent` 写入网页。
+- Provider 返回值只通过 DOM 文本或受控 data 属性写入页面，不解析或执行返回的 HTML。
 - 所有可执行 JavaScript 随扩展打包，不从网络下载代码。
 
 浏览器端 BYOK 不是服务端密钥保险箱。若面向他人发布并由开发者统一付费，应使用带鉴权、配额和速率限制的自有后端代理，不能把开发者 Key 写进扩展。

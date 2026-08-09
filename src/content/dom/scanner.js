@@ -1,4 +1,5 @@
 import { SELECTORS } from "../constants.js";
+import { createSiteProfile } from "../site-profile.js";
 import { isTranslationExcluded } from "./node-utils.js";
 
 /**
@@ -10,6 +11,7 @@ export class DomScanner {
 		this.core = core;
 		this.elementStore = elementStore;
 		this.layout = layout;
+		this.siteProfile = createSiteProfile(window.location);
 	}
 
 	collect(roots) {
@@ -25,9 +27,22 @@ export class DomScanner {
 		return this.collect([element]).find((item) => item.element === element) ?? null;
 	}
 
+	matchesCurrentCandidate(element, originalHash) {
+		const candidate = this.currentCandidate(element);
+		return Boolean(candidate && this.core.hashText(candidate.text) === originalHash);
+	}
+
 	findContentUnit(element, styleCache = new WeakMap()) {
-		if (!element || isTranslationExcluded(element)) {
+		if (
+			!element ||
+			isTranslationExcluded(element) ||
+			this.siteProfile.isExcluded(element)
+		) {
 			return null;
+		}
+		const siteContentUnit = this.siteProfile.findContentUnit(element);
+		if (siteContentUnit) {
+			return siteContentUnit;
 		}
 		const atomic = element.closest(SELECTORS.atomic);
 		if (atomic) {
@@ -54,6 +69,10 @@ export class DomScanner {
 			}
 		}
 		return document.body;
+	}
+
+	getPresentation(element) {
+		return this.siteProfile.getPresentation(element);
 	}
 
 	#assignTextNodes(roots) {
@@ -124,7 +143,7 @@ export class DomScanner {
 				text: this.#serializeAssignedText(draft.nodes),
 				traits: {
 					interactiveKind: getInteractiveKind(draft.element),
-					metadataOnly: containsOnlyMetadata(draft),
+					metadataOnly: containsOnlyMetadata(draft, this.siteProfile),
 				},
 			}))
 			.filter((candidate) => /[\p{L}\p{N}]/u.test(candidate.text));
@@ -166,17 +185,20 @@ export class DomScanner {
 	}
 }
 
-function containsOnlyMetadata({ element, nodes }) {
+function containsOnlyMetadata({ element, nodes }, siteProfile) {
 	const meaningfulEntries = nodes.filter(({ node }) =>
 		/[\p{L}\p{N}]/u.test(node.textContent ?? ""),
 	);
 	return (
 		meaningfulEntries.length > 0 &&
-		meaningfulEntries.every(({ node }) => isMetadataEntry(node, element))
+		meaningfulEntries.every(({ node }) => isMetadataEntry(node, element, siteProfile))
 	);
 }
 
-function isMetadataEntry(node, candidate) {
+function isMetadataEntry(node, candidate, siteProfile) {
+	if (siteProfile.isMetadata(node.parentElement)) {
+		return true;
+	}
 	if (node.parentElement?.closest(SELECTORS.metadata)) {
 		return true;
 	}
