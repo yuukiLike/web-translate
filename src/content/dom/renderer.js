@@ -1,4 +1,7 @@
-import { SITE_PRESENTATION } from "../site-profile.js";
+import {
+	findSiteTranslationLinkAnchor,
+	SITE_PRESENTATION,
+} from "../site-profile.js";
 import { createGeneratedTranslation } from "./generated-presentation.js";
 
 /** 负责创建翻译节点、继承源样式并选择插入位置。 */
@@ -136,7 +139,11 @@ function createFlowTranslation({
 	if (source.parentElement) {
 		renderer.layout.remember(source.parentElement, getComputedStyle(source.parentElement));
 	}
-	placeTranslation(source, translation, placementAnchor, partial);
+	placeTranslation(source, translation, {
+		partial,
+		placementAnchor,
+		presentation,
+	});
 	return translation;
 }
 
@@ -181,13 +188,24 @@ function getTranslationFontWeight(value) {
 	return Number.isFinite(numericWeight) ? String(Math.max(500, numericWeight)) : "";
 }
 
-function placeTranslation(source, translation, placementAnchor, partial) {
+function placeTranslation(
+	source,
+	translation,
+	{ partial, placementAnchor, presentation },
+) {
 	if (partial && placementAnchor !== source && placementAnchor.parentElement) {
 		if (placementAnchor.nodeType === Node.ELEMENT_NODE) {
 			placementAnchor.insertAdjacentElement("afterend", translation);
 		} else {
 			placementAnchor.parentElement.insertBefore(translation, placementAnchor.nextSibling);
 		}
+		return;
+	}
+	const linkAnchor = presentation === SITE_PRESENTATION.lineStartInline
+		? null
+		: findTranslationLinkAnchor(source);
+	if (linkAnchor) {
+		linkAnchor.append(translation);
 		return;
 	}
 	if (source.matches("li, td, th, caption, summary, dt, dd, button, [role='button']")) {
@@ -205,4 +223,23 @@ function placeTranslation(source, translation, placementAnchor, partial) {
 		return;
 	}
 	source.insertAdjacentElement("afterend", translation);
+}
+
+function findTranslationLinkAnchor(source) {
+	let sharedAnchor = null;
+	const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (!/[\p{L}\p{N}]/u.test(node.textContent ?? "")) {
+			continue;
+		}
+		const anchor = node.parentElement?.closest("a[href]");
+		if (!anchor || !source.contains(anchor)) {
+			return findSiteTranslationLinkAnchor(source);
+		}
+		if (sharedAnchor && anchor !== sharedAnchor) {
+			return findSiteTranslationLinkAnchor(source);
+		}
+		sharedAnchor = anchor;
+	}
+	return sharedAnchor;
 }

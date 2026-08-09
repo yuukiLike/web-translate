@@ -1,5 +1,8 @@
 import { TIMING } from "../constants.js";
-import { SITE_PRESENTATION } from "../site-profile.js";
+import {
+	findSiteProfileMutationRoot,
+	SITE_PRESENTATION,
+} from "../site-profile.js";
 import {
 	isGeneratedPresentationIntact,
 	restoreGeneratedPresentation,
@@ -71,9 +74,12 @@ export class MutationMonitor {
 		});
 		this.#observer.observe(document.body, {
 			attributes: true,
+			attributeOldValue: window.location.hostname === "github.com",
 			attributeFilter: [
+				"aria-label",
 				"aria-describedby",
 				"class",
+				"data-hovercard-type",
 				"data-bt-description-id",
 				"data-bt-generated-owned",
 				"data-bt-presentation",
@@ -82,6 +88,7 @@ export class MutationMonitor {
 				"data-bt-translation",
 				"data-bt-translation-lang",
 				"hidden",
+				"href",
 				"lang",
 				"role",
 				"style",
@@ -138,11 +145,20 @@ export class MutationMonitor {
 			this.#restoreGeneratedAttributes(mutation.target);
 			return false;
 		}
+		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
 		if (mutation.attributeName === "class" || mutation.attributeName === "style") {
 			this.onActivity();
 			this.visibilityMonitor.queue(mutation.target);
 			this.visibilityMonitor.schedule();
-			return false;
+			if (!siteMutationRoot) {
+				return false;
+			}
+		}
+		if (siteMutationRoot) {
+			const trackedSource = this.elementStore.findTrackedAncestor(siteMutationRoot);
+			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
+			this.rootQueue.add(trackedSource ?? siteMutationRoot);
+			return true;
 		}
 		if (mutation.attributeName === "hidden" || mutation.attributeName === "role") {
 			this.invalidator.invalidateTrackedSubtree(
@@ -182,7 +198,12 @@ export class MutationMonitor {
 
 		const affectedElements = new Set();
 		const styleCache = new WeakMap();
-		let shouldScan = false;
+		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
+		let shouldScan = Boolean(siteMutationRoot);
+		if (siteMutationRoot) {
+			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
+			this.rootQueue.add(siteMutationRoot);
+		}
 		for (const node of removedNodes) {
 			if (isOwnedNode(node)) {
 				shouldScan = this.invalidator.recoverRemovedTranslation(node) || shouldScan;
