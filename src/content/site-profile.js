@@ -40,6 +40,18 @@ const HACKER_NEWS_PROFILE = Object.freeze({
 	},
 });
 
+const GITHUB_YEARLY_CONTRIBUTIONS = ".js-yearly-contributions";
+const GITHUB_CONTRIBUTION_GRAPH_REGION = ".graph-before-activity-overview";
+
+const GITHUB_PROFILE = Object.freeze({
+	findContentUnit: () => null,
+	getPresentation: () => null,
+	isExcluded(element) {
+		return isGitHubContributionGraph(element);
+	},
+	isMetadata: () => false,
+});
+
 const X_APP_HOSTNAMES = new Set([
 	"x.com",
 	"www.x.com",
@@ -80,6 +92,9 @@ export function createSiteProfile(locationRef = globalThis.location) {
 	if (hostname === "news.ycombinator.com") {
 		return HACKER_NEWS_PROFILE;
 	}
+	if (hostname === "github.com") {
+		return GITHUB_PROFILE;
+	}
 	if (X_APP_HOSTNAMES.has(hostname)) {
 		return X_PROFILE;
 	}
@@ -95,6 +110,11 @@ function isHackerNewsStoryLink(element) {
 		titleLine?.matches(".athing td.title > .titleline") &&
 			titleLine.querySelector(":scope > a") === element,
 	);
+}
+
+function isGitHubContributionGraph(element) {
+	const graphRegion = element.closest(GITHUB_CONTRIBUTION_GRAPH_REGION);
+	return Boolean(graphRegion?.closest(GITHUB_YEARLY_CONTRIBUTIONS));
 }
 
 function isXControlLabel(element) {

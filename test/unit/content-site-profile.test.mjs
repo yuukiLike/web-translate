@@ -75,3 +75,42 @@ test("Hacker News 站点策略识别标题呈现和元信息容器", () => {
 		window.close();
 	}
 });
+
+// 验证 GitHub 只排除贡献图的固定布局区域，不吞掉同一年度区内的正文。
+test("GitHub 站点策略隔离 contribution calendar 与活动正文", () => {
+	const window = new Window();
+	try {
+		const { document } = window;
+		document.body.innerHTML = `
+			<div class="js-yearly-contributions">
+				<div class="position-relative">
+					<h2>626 contributions in the last year</h2>
+					<a>Skip to contributions year list</a>
+					<div class="graph-before-activity-overview">
+						<div class="js-calendar-graph ContributionCalendar">
+							<table class="ContributionCalendar-grid"><tbody><tr><td class="ContributionCalendar-label">Aug</td></tr></tbody></table>
+						</div>
+					</div>
+				</div>
+				<div id="user-activity-overview"><p>Activity overview remains translatable.</p></div>
+			</div>
+		`;
+		const graphRegion = document.querySelector(".graph-before-activity-overview");
+		const graphLabel = document.querySelector(".ContributionCalendar-label");
+		const yearlyHeading = document.querySelector("h2");
+		const activityText = document.querySelector("#user-activity-overview p");
+		const github = createSiteProfile({ hostname: "github.com" });
+
+		assert.equal(github.isExcluded(graphRegion), true);
+		assert.equal(github.isExcluded(graphLabel), true);
+		assert.equal(github.isExcluded(yearlyHeading), false);
+		assert.equal(github.isExcluded(activityText), false);
+
+		for (const hostname of ["www.github.com", "gist.github.com", "github.com.evil.test"]) {
+			const otherSite = createSiteProfile({ hostname });
+			assert.equal(otherSite.isExcluded(graphLabel), false);
+		}
+	} finally {
+		window.close();
+	}
+});

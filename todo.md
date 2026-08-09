@@ -85,7 +85,7 @@ getSiteContentPolicy(hostname) => {
 }
 ```
 
-具体选择器必须先用保存的静态 DOM fixture 确认。当前环境无法访问 GitHub 页面源码，因此不能把未经确认的 GitHub 类名直接实现为规则。
+具体选择器必须先用保存的静态 DOM fixture 确认。2026-08-10 已通过 GitHub 个人主页的异步 contributions fragment 确认 `.js-yearly-contributions`、`.graph-before-activity-overview`、`.js-calendar-graph.ContributionCalendar` 和 `.ContributionCalendar-grid` 的边界，并将最小 fixture 固化到集成测试。
 
 ## TODO 2：修复 Hacker News 元信息残片
 
@@ -104,11 +104,13 @@ getSiteContentPolicy(hostname) => {
 
 ## TODO 3：保护 GitHub contribution calendar 布局
 
-- [ ] 为 `github.com` 确认 contribution calendar 的最小稳定根容器。
-- [ ] 将整个固定布局可视组件加入 `excludedContainers`，不要逐个排除月份、星期或色块。
-- [ ] 规则范围只覆盖图表及其紧耦合标签，不能吞掉下方 contribution activity 正文。
-- [ ] 排除规则同时作用于初次扫描、动态内容扫描和渲染前复核。
-- [ ] 不通过调整 `.bt-translation` 字号、定位或 `z-index` 掩盖问题。
+- [x] 为 `github.com` 确认 contribution calendar 的最小稳定根容器。
+- [x] 将整个固定布局可视组件加入 `excludedContainers`，不要逐个排除月份、星期或色块。
+- [x] 规则范围只覆盖图表及其紧耦合标签，不能吞掉下方 contribution activity 正文。
+- [x] 排除规则同时作用于初次扫描、动态内容扫描和渲染前复核。
+- [x] 不通过调整 `.bt-translation` 字号、定位或 `z-index` 掩盖问题。
+
+已确认的排除根是 `github.com` 下 `.js-yearly-contributions` 内的 `.graph-before-activity-overview`。它覆盖日历表格、坐标、日格辅助文本和图例，但不排除上方年度汇总，也不排除下方 `#user-activity-overview`。识别逻辑保留在站点策略层，不扩展成全局 table、ARIA grid、月份或星期文本规则。
 
 验收标准：
 
@@ -174,7 +176,7 @@ getSiteContentPolicy(hostname) => {
 
 - [x] 为站点策略模块增加主机名和选择器匹配单元测试。
 - [x] 为 Hacker News 增加静态 DOM 集成测试。
-- [ ] 为 GitHub contribution calendar 增加固定布局组件排除测试。
+- [x] 为 GitHub contribution calendar 增加固定布局组件排除测试。
 - [ ] 为 GitHub 仓库语言占比组件增加已知、歧义和未知技术标签测试。
 - [ ] 为句内技术标识增加单个、多个、重复、相邻标点和换行场景测试。
 - [ ] 增加模型删除、复制或修改占位标记时的失败路径测试。
