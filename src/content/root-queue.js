@@ -19,6 +19,10 @@ export class RootQueue {
 		}
 
 		for (const queued of this.#roots) {
+			if (!queued.isConnected) {
+				this.#roots.delete(queued);
+				continue;
+			}
 			if (queued === element || queued.contains(element)) {
 				return;
 			}

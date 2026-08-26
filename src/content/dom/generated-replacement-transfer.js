@@ -1,11 +1,16 @@
 import { SITE_PRESENTATION } from "../site-profile.js";
-import { transferTrackedGeneratedPresentation } from "./generated-presentation.js";
+import {
+	canTransferTrackedGeneratedPresentation,
+	transferTrackedGeneratedPresentation,
+} from "./generated-presentation.js";
 import { forEachTextNode, isOwnedNode, sourceSelector } from "./node-utils.js";
+import { groupClosedReplacementMutations } from "./replacement-batch.js";
 
 /** 同一宿主替换批次内，把已翻译 surface 迁移到语义等价的新 Element。 */
 export function transferGeneratedReplacements({
 	mutations,
 	elementStore,
+	progress,
 	scanner,
 	runId,
 	rootQueue,
@@ -23,6 +28,7 @@ export function transferGeneratedReplacements({
 				removedSources: removed,
 				addedCandidates: added,
 				elementStore,
+				progress,
 				scanner,
 				runId,
 				rootQueue,
@@ -31,19 +37,81 @@ export function transferGeneratedReplacements({
 	return transferred;
 }
 
+/** 返回可无损迁移的完整一一配对；任一节点不满足身份时整组拒绝。 */
+export function matchCompleteGeneratedReplacements({
+	removedSources,
+	addedCandidates,
+	elementStore,
+	runId,
+	scanner,
+}) {
+	if (removedSources.length === 0 || removedSources.length !== addedCandidates.length) {
+		return null;
+	}
+	if (
+		removedSources.some(
+			(source) => source.isConnected || !elementStore.generatedSources.has(source),
+		) ||
+		addedCandidates.some(
+			(candidate) =>
+				!candidate.isConnected ||
+				elementStore.hasState(candidate) ||
+				scanner.getPresentation(candidate) !== SITE_PRESENTATION.generated,
+		)
+	) {
+		return null;
+	}
+	const removedByKey = groupByKey(removedSources, (source) =>
+		getReplacementKey(source, elementStore.getState(source)?.originalHash),
+	);
+	const addedByKey = groupByKey(addedCandidates, (candidate) => {
+		const current = scanner.currentCandidate(candidate);
+		return current
+			? getReplacementKey(candidate, scanner.core.hashText(current.text))
+			: null;
+	});
+	if (
+		countGrouped(removedByKey) !== removedSources.length ||
+		countGrouped(addedByKey) !== addedCandidates.length
+	) {
+		return null;
+	}
+	const pairs = [];
+	for (const [key, sources] of removedByKey) {
+		const candidates = addedByKey.get(key);
+		if (!candidates || sources.length !== candidates.length) {
+			return null;
+		}
+		for (const [index, source] of sources.entries()) {
+			const target = candidates[index];
+			if (
+				!canTransferTrackedGeneratedPresentation({
+					target,
+					description: elementStore.getState(source)?.translationNode,
+					runId,
+				})
+			) {
+				return null;
+			}
+			pairs.push({ source, target });
+		}
+	}
+	return pairs;
+}
+
 function collectReplacementBoundaries(mutations, elementStore, scanner, runId) {
-	const replacements = new Map();
-	for (const mutation of mutations) {
-		if (mutation.type !== "childList") {
-			continue;
+	const replacements = [];
+	for (const boundaryMutations of groupClosedReplacementMutations(mutations)) {
+		const boundary = { added: new Set(), removed: new Set() };
+		for (const mutation of boundaryMutations) {
+			for (const node of mutation.removedNodes) {
+				collectRemovedSources(node, boundary.removed, elementStore, runId);
+			}
+			for (const node of mutation.addedNodes) {
+				collectAddedCandidates(node, boundary.added, elementStore, scanner);
+			}
 		}
-		const boundary = getReplacementBoundary(replacements, mutation.target);
-		for (const node of mutation.removedNodes) {
-			collectRemovedSources(node, boundary.removed, elementStore, runId);
-		}
-		for (const node of mutation.addedNodes) {
-			collectAddedCandidates(node, boundary.added, elementStore, scanner);
-		}
+		replacements.push(boundary);
 	}
 	return replacements;
 }
@@ -93,6 +161,7 @@ function transferReplacementGroup({
 	removedSources,
 	addedCandidates,
 	elementStore,
+	progress,
 	scanner,
 	runId,
 	rootQueue,
@@ -114,14 +183,21 @@ function transferReplacementGroup({
 		}
 		for (const [index, source] of sources.entries()) {
 			transferred =
-				transferReplacement(source, candidates[index], elementStore, runId, rootQueue) ||
+				transferReplacement(
+					source,
+					candidates[index],
+					elementStore,
+					progress,
+					runId,
+					rootQueue,
+				) ||
 				transferred;
 		}
 	}
 	return transferred;
 }
 
-function transferReplacement(source, target, elementStore, runId, rootQueue) {
+function transferReplacement(source, target, elementStore, progress, runId, rootQueue) {
 	const state = elementStore.getState(source);
 	if (
 		!state?.translationNode ||
@@ -133,6 +209,7 @@ function transferReplacement(source, target, elementStore, runId, rootQueue) {
 		...state,
 		revision: elementStore.nextRevision(target),
 	});
+	progress.transfer(source, target);
 	elementStore.deleteState(source);
 	elementStore.deferredElements.delete(target);
 	elementStore.generatedSources.delete(source);
@@ -140,15 +217,6 @@ function transferReplacement(source, target, elementStore, runId, rootQueue) {
 	elementStore.rememberTranslationSource(state.translationNode, target);
 	rootQueue.add(target);
 	return true;
-}
-
-function getReplacementBoundary(replacements, target) {
-	let boundary = replacements.get(target);
-	if (!boundary) {
-		boundary = { added: new Set(), removed: new Set() };
-		replacements.set(target, boundary);
-	}
-	return boundary;
 }
 
 function getReplacementKey(element, hash) {
@@ -171,4 +239,8 @@ function groupByKey(elements, getKey) {
 		groups.set(key, group);
 	}
 	return groups;
+}
+
+function countGrouped(groups) {
+	return [...groups.values()].reduce((total, group) => total + group.length, 0);
 }

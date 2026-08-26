@@ -2,6 +2,7 @@ import { ElementStore } from "./element-store.js";
 import { ProgressTracker } from "./progress-tracker.js";
 import { RootQueue } from "./root-queue.js";
 import { StatusReporter } from "./status-reporter.js";
+import { ContentVolatilityTracker } from "./volatile-content-tracker.js";
 import { RunTranslationCache } from "./translation/run-cache.js";
 import { LayoutInspector } from "./dom/layout.js";
 import { cleanupGeneratedPresentations } from "./dom/generated-presentation.js";
@@ -107,11 +108,13 @@ export class TranslationRun {
 
 	#createServices() {
 		this.elementStore = new ElementStore();
+		this.volatilityTracker = new ContentVolatilityTracker();
 		this.layout = new LayoutInspector(this.elementStore);
 		this.scanner = new DomScanner({
 			core: this.core,
 			elementStore: this.elementStore,
 			layout: this.layout,
+			volatilityTracker: this.volatilityTracker,
 		});
 		this.invalidator = new ElementInvalidator({
 			elementStore: this.elementStore,
@@ -162,6 +165,7 @@ export class TranslationRun {
 			isCurrent: () => this.active,
 			elementStore: this.elementStore,
 			invalidator: this.invalidator,
+			progress: this.progress,
 			rootQueue: this.rootQueue,
 			onScan: () => this.runTranslationPass(),
 			onActivity: () => this.statusReporter.invalidatePendingCompletion(),
@@ -175,6 +179,7 @@ export class TranslationRun {
 		this.mutationMonitor = new MutationMonitor({
 			...monitorDependencies,
 			scanner: this.scanner,
+			volatilityTracker: this.volatilityTracker,
 			visibilityMonitor: this.visibilityMonitor,
 		});
 	}
@@ -182,7 +187,8 @@ export class TranslationRun {
 	#hasPendingWork() {
 		return (
 			this.rootQueue.size > 0 ||
-			(this.visibilityMonitor?.size ?? 0) > 0 ||
+			this.mutationMonitor?.hasPendingWork ||
+			this.visibilityMonitor?.hasBlockingWork ||
 			this.rescanRequested
 		);
 	}

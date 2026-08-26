@@ -55,6 +55,7 @@ export class CloudTranslator {
 			if (this.rootQueue.size > 0) {
 				this.#enqueueSegments(queue, this.planner.collectSegments(this.rootQueue.take()));
 			}
+			this.#discardStaleTargets(queue);
 			if (queue.length === 0) {
 				continue;
 			}
@@ -76,6 +77,23 @@ export class CloudTranslator {
 				throw failed.reason;
 			}
 			await this.reportProgress();
+		}
+	}
+
+	#discardStaleTargets(queue) {
+		for (let index = queue.length - 1; index >= 0; index -= 1) {
+			const segment = queue[index];
+			segment.targets = segment.targets.filter(({ record }) => {
+				const state = this.elementStore.getState(record.element);
+				return (
+					record.element.isConnected &&
+					state?.revision === record.revision &&
+					state.originalHash === record.originalHash
+				);
+			});
+			if (segment.targets.length === 0) {
+				queue.splice(index, 1);
+			}
 		}
 	}
 

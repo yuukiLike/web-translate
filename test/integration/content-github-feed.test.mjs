@@ -56,7 +56,7 @@ test("GitHub feed 保持卡片布局和标题链接语义", async () => {
 	}
 });
 
-// 动态卡片继续应用 GitHub 边界，且相同结构不会误伤其他主机名。
+// 动态卡片继续应用 GitHub 边界，非 GitHub href hydration 不重建现有译文。
 test("GitHub feed 规则覆盖动态内容并隔离主机名", async () => {
 	for (const [url, expectChromeTranslation] of [
 		["https://github.com/", false],
@@ -157,11 +157,11 @@ test("GitHub feed 规则覆盖动态内容并隔离主机名", async () => {
 			} else {
 				card.issueLink.remove();
 				await waitFor(() => harness.getTranslation(card.title)?.parentElement === card.titleLink);
+				const linkedTranslation = harness.getTranslation(card.title);
 				card.titleLink.removeAttribute("href");
-				await waitFor(() => {
-					const translation = harness.getTranslation(card.title);
-					return Boolean(translation && !translation.closest("a"));
-				});
+				await new Promise((resolve) => setTimeout(resolve, 230));
+				assert.equal(harness.getTranslation(card.title), linkedTranslation);
+				assert.equal(linkedTranslation.parentElement, card.titleLink);
 			}
 		} finally {
 			harness.dispose();

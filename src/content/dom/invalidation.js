@@ -12,9 +12,27 @@ export class ElementInvalidator {
 	}
 
 	invalidate(element) {
+		this.#clearElement(element, false);
+	}
+
+	discard(element) {
+		this.#clearElement(element, true);
+	}
+
+	discardTrackedSubtree(root, includeAncestor = true) {
+		for (const element of this.#collectTrackedSubtree(root, includeAncestor)) {
+			this.discard(element);
+		}
+	}
+
+	#clearElement(element, discardProgress) {
 		this.elementStore.deferredElements.delete(element);
 		const elementState = this.elementStore.getState(element);
-		this.progress.cancelPending(element, elementState?.progressKey);
+		if (discardProgress) {
+			this.progress.discard(element);
+		} else {
+			this.progress.cancelPending(element, elementState?.progressKey);
+		}
 
 		if (elementState?.translationNode) {
 			const translation = elementState.translationNode;
@@ -34,6 +52,14 @@ export class ElementInvalidator {
 	}
 
 	invalidateTrackedSubtree(root, includeAncestor = true, shouldInvalidate = () => true) {
+		for (const element of this.#collectTrackedSubtree(root, includeAncestor)) {
+			if (shouldInvalidate(element)) {
+				this.invalidate(element);
+			}
+		}
+	}
+
+	#collectTrackedSubtree(root, includeAncestor) {
 		const elements = new Set();
 		const runId = this.getRunId();
 		if (includeAncestor) {
@@ -48,11 +74,7 @@ export class ElementInvalidator {
 		for (const source of root.querySelectorAll?.(sourceSelector(runId)) ?? []) {
 			elements.add(source);
 		}
-		for (const element of elements) {
-			if (shouldInvalidate(element)) {
-				this.invalidate(element);
-			}
-		}
+		return elements;
 	}
 
 	recoverRemovedTranslation(node) {

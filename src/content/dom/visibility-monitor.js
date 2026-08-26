@@ -5,7 +5,10 @@ import { sourceSelector } from "./node-utils.js";
 /** 延迟处理 class/style 引起的布局与可见性变化。 */
 export class VisibilityMonitor {
 	#targets = new Set();
+	#blockingTargets = new Set();
+	#knownLayoutChanges = new Set();
 	#timer = null;
+	#blockingTimer = null;
 
 	constructor({
 		runId,
@@ -16,6 +19,7 @@ export class VisibilityMonitor {
 		invalidator,
 		rootQueue,
 		onScan,
+		onActivity = () => {},
 		onError,
 	}) {
 		this.runId = runId;
@@ -26,39 +30,73 @@ export class VisibilityMonitor {
 		this.invalidator = invalidator;
 		this.rootQueue = rootQueue;
 		this.onScan = onScan;
+		this.onActivity = onActivity;
 		this.onError = onError;
 	}
 
 	get size() {
-		return this.#targets.size;
+		return this.#targets.size + this.#blockingTargets.size;
+	}
+
+	get hasBlockingWork() {
+		return this.#blockingTargets.size > 0;
 	}
 
 	queue(element) {
 		if (!element?.isConnected) {
 			return;
 		}
-		for (const queued of this.#targets) {
+		const layoutChanged = this.layout.update(element);
+		if (layoutChanged) {
+			this.#knownLayoutChanges.add(element);
+		}
+		const blocksCompletion =
+			this.#hasRestoredDeferredElement(element) ||
+			this.#hasHiddenTrackedElement(element);
+		if (blocksCompletion) {
+			if (this.#addTarget(this.#blockingTargets, element)) {
+				this.onActivity();
+			}
+			this.#removeCoveredTargets(element);
+			return;
+		}
+		if (!this.#isCoveredByBlockingTarget(element)) {
+			this.#addTarget(this.#targets, element);
+		}
+	}
+
+	#addTarget(targets, element) {
+		for (const queued of targets) {
 			if (queued === element || queued.contains(element)) {
-				return;
+				return false;
 			}
 			if (element.contains(queued)) {
-				this.#targets.delete(queued);
+				targets.delete(queued);
 			}
 		}
-		this.#targets.add(element);
+		targets.add(element);
+		return true;
 	}
 
 	schedule() {
 		if (!this.isCurrent()) {
 			return;
 		}
-		if (this.#timer !== null) {
-			clearTimeout(this.#timer);
+		if (this.#blockingTargets.size > 0 && this.#blockingTimer === null) {
+			this.#blockingTimer = setTimeout(() => {
+				this.#blockingTimer = null;
+				this.#sweep(this.#takeBlockingTargets());
+			}, TIMING.visibilityDebounce);
 		}
-		this.#timer = setTimeout(() => {
-			this.#timer = null;
-			this.#sweep();
-		}, TIMING.visibilityDebounce);
+		if (this.#targets.size > 0) {
+			if (this.#timer !== null) {
+				clearTimeout(this.#timer);
+			}
+			this.#timer = setTimeout(() => {
+				this.#timer = null;
+				this.#sweep(this.#takeTargets());
+			}, TIMING.visibilityDebounce);
+		}
 	}
 
 	stop() {
@@ -66,39 +104,34 @@ export class VisibilityMonitor {
 			clearTimeout(this.#timer);
 			this.#timer = null;
 		}
+		if (this.#blockingTimer !== null) {
+			clearTimeout(this.#blockingTimer);
+			this.#blockingTimer = null;
+		}
 		this.#targets.clear();
+		this.#blockingTargets.clear();
+		this.#knownLayoutChanges.clear();
 	}
 
-	#sweep() {
+	#sweep({ targets, layoutRoots }) {
 		if (!this.isCurrent()) {
 			return;
 		}
-		const targets = [...this.#targets].filter((element) => element?.isConnected);
-		this.#targets.clear();
-		const { trackedElements, layoutRoots } = this.#collectAffectedElements(targets);
-		this.#invalidateChangedLayouts(layoutRoots);
-		this.#reconcileTrackedVisibility(trackedElements);
-		this.#restoreDeferredElements(targets);
+		const connectedTargets = targets.filter((element) => element?.isConnected);
+		const affected = this.#collectAffectedElements(connectedTargets, layoutRoots);
+		this.#invalidateChangedLayouts(affected.layoutRoots);
+		this.#reconcileTrackedVisibility(affected.trackedElements);
+		this.#restoreDeferredElements(connectedTargets);
 		// 即使布局未改变，也要让被 DOM 活动取消的完成状态重新收敛。
 		void this.onScan().catch(this.onError);
 	}
 
-	#collectAffectedElements(targets) {
-		const trackedElements = new Set();
-		const layoutRoots = new Set();
+	#collectAffectedElements(targets, knownLayoutRoots) {
+		const trackedElements = this.#findTrackedElements(targets);
+		const layoutRoots = new Set(knownLayoutRoots);
 		for (const element of targets) {
-			const trackedAncestor = this.elementStore.findTrackedAncestor(element);
 			if (this.layout.update(element)) {
 				layoutRoots.add(element);
-			}
-			if (element.dataset?.btSource === this.runId) {
-				trackedElements.add(element);
-			}
-			for (const source of element.querySelectorAll?.(sourceSelector(this.runId)) ?? []) {
-				trackedElements.add(source);
-			}
-			if (trackedAncestor) {
-				trackedElements.add(trackedAncestor);
 			}
 		}
 		for (const element of trackedElements) {
@@ -110,6 +143,92 @@ export class VisibilityMonitor {
 			}
 		}
 		return { trackedElements, layoutRoots };
+	}
+
+	#findTrackedElements(targets) {
+		const trackedElements = new Set();
+		for (const element of targets) {
+			const trackedAncestor = this.elementStore.findTrackedAncestor(element);
+			if (element.dataset?.btSource === this.runId) {
+				trackedElements.add(element);
+			}
+			for (const source of element.querySelectorAll?.(sourceSelector(this.runId)) ?? []) {
+				trackedElements.add(source);
+			}
+			if (trackedAncestor) {
+				trackedElements.add(trackedAncestor);
+			}
+		}
+		return trackedElements;
+	}
+
+	#hasRestoredDeferredElement(target) {
+		for (const element of this.elementStore.deferredElements) {
+			const related =
+				target === element || target.contains(element) || element.contains(target);
+			if (related && this.layout.isEligible(element)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	#hasHiddenTrackedElement(target) {
+		const trackedElements = this.#findTrackedElements([target]);
+		if (trackedElements.size === 0) {
+			return false;
+		}
+		if (!this.layout.isEligible(target)) {
+			return true;
+		}
+		for (const element of trackedElements) {
+			if (!this.layout.isEligible(element)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	#removeCoveredTargets(blockingTarget) {
+		for (const target of this.#targets) {
+			if (blockingTarget === target || blockingTarget.contains(target)) {
+				this.#targets.delete(target);
+			}
+		}
+	}
+
+	#isCoveredByBlockingTarget(element) {
+		for (const target of this.#blockingTargets) {
+			if (target === element || target.contains(element)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	#takeBlockingTargets() {
+		return this.#takeTargetsFrom(this.#blockingTargets);
+	}
+
+	#takeTargets() {
+		return this.#takeTargetsFrom(this.#targets);
+	}
+
+	#takeTargetsFrom(targetSet) {
+		const targets = [...targetSet];
+		targetSet.clear();
+		const layoutRoots = new Set();
+		for (const element of this.#knownLayoutChanges) {
+			const related = targets.some(
+				(target) =>
+					target === element || target.contains(element) || element.contains(target),
+			);
+			if (related) {
+				layoutRoots.add(element);
+				this.#knownLayoutChanges.delete(element);
+			}
+		}
+		return { targets, layoutRoots };
 	}
 
 	#invalidateChangedLayouts(layoutRoots) {

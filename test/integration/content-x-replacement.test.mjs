@@ -46,7 +46,10 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 		nestedReplacement.dataset.testid = "tweetText";
 		replacementArticle.append(nestedReplacement);
 		article.replaceWith(replacementArticle);
-		await nextMutationTurn();
+		await waitFor(
+			() => nestedReplacement.dataset.btDescriptionId === descriptionId,
+			"嵌套 X replacement 没有完成原子迁移",
+		);
 		assert.equal(nestedReplacement.dataset.btTranslation, translation);
 		assert.equal(nestedReplacement.dataset.btDescriptionId, descriptionId);
 
@@ -54,7 +57,10 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 		const strippedReplacement = createElement(harness.document, "div", sourceText);
 		strippedReplacement.dataset.testid = "tweetText";
 		nestedReplacement.replaceWith(strippedReplacement);
-		await nextMutationTurn();
+		await waitFor(
+			() => strippedReplacement.dataset.btDescriptionId === descriptionId,
+			"属性被宿主清理后，fresh replacement 没有恢复迁移",
+		);
 		assert.equal(strippedReplacement.dataset.btTranslation, translation);
 		assert.equal(strippedReplacement.dataset.btDescriptionId, descriptionId);
 
@@ -73,6 +79,7 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 
 		await assertRightRailReplacement(harness);
 		await assertRepeatedReplacement(harness);
+		await assertReorderedReplacement(harness);
 		await assertLanguageBoundary(harness);
 	} finally {
 		harness.dispose();
@@ -100,7 +107,13 @@ async function assertRightRailReplacement(harness) {
 		stripGeneratedAttributes(source);
 	}
 	trendRow.replaceWith(replacement);
-	await nextMutationTurn();
+	await waitFor(
+		() =>
+			[...replacement.querySelectorAll("p, h3")].every(
+				(source, index) => source.dataset.btDescriptionId === descriptionIds[index],
+			),
+		"X 右栏 generated replacement 没有完成迁移",
+	);
 	assert.deepEqual(
 		[...replacement.querySelectorAll("p, h3")].map(
 			(source) => source.dataset.btDescriptionId,
@@ -125,11 +138,58 @@ async function assertRepeatedReplacement(harness) {
 	const descriptionIds = sources.map((source) => source.dataset.btDescriptionId);
 	const replacements = sources.map(() => createElement(harness.document, "p", text));
 	container.replaceChildren(...replacements);
-	await nextMutationTurn();
+	await waitFor(
+		() =>
+			replacements.every(
+				(source, index) => source.dataset.btDescriptionId === descriptionIds[index],
+			),
+		"重复 generated replacement 没有完成一一迁移",
+	);
 	assert.deepEqual(
 		replacements.map((source) => source.dataset.btDescriptionId),
 		descriptionIds,
 	);
+}
+
+async function assertReorderedReplacement(harness) {
+	const texts = [
+		"The first generated surface keeps its own replacement identity.",
+		"The second generated surface can move ahead of the first one.",
+	];
+	const container = createElement(harness.document, "section");
+	const sources = texts.map((text) => createElement(harness.document, "p", text));
+	container.append(...sources);
+	harness.root.append(container);
+	await waitFor(
+		() => sources.every((source) => source.dataset.btDescriptionId),
+		"待重排的 X 内容没有生成译文",
+	);
+	const descriptionByText = new Map(
+		sources.map((source) => [source.textContent, source.dataset.btDescriptionId]),
+	);
+	const replacements = [...texts]
+		.reverse()
+		.map((text) => createElement(harness.document, "p", text));
+
+	container.replaceChildren(...replacements);
+	await waitFor(
+		() =>
+			replacements.every(
+				(replacement) =>
+					replacement.dataset.btDescriptionId ===
+					descriptionByText.get(replacement.textContent),
+			),
+		"重排 generated replacement 没有按文本身份迁移",
+	);
+
+	for (const replacement of replacements) {
+		assert.equal(
+			replacement.dataset.btDescriptionId,
+			descriptionByText.get(replacement.textContent),
+		);
+		assert.equal(replacement.dataset.btTranslation, `译文：${replacement.textContent}`);
+		assert.equal(harness.requestCount(replacement.textContent), 1);
+	}
 }
 
 async function assertLanguageBoundary(harness) {

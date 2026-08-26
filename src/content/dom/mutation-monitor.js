@@ -1,14 +1,9 @@
-import { TIMING } from "../constants.js";
-import {
-	findSiteProfileMutationRoot,
-	SITE_PRESENTATION,
-} from "../site-profile.js";
-import {
-	isGeneratedPresentationIntact,
-	restoreGeneratedPresentation,
-} from "./generated-presentation.js";
+import { findSiteProfileMutationRoot } from "../site-profile.js";
+import { GeneratedMutationReconciler } from "./generated-mutation-reconciler.js";
 import { transferGeneratedReplacements } from "./generated-replacement-transfer.js";
+import { MutationScanQueue } from "./mutation-scan-queue.js";
 import { forEachTextNode, isOwnedNode } from "./node-utils.js";
+import { VolatileMutationFilter } from "./volatile-mutation-filter.js";
 
 const GENERATED_ATTRIBUTES = new Set([
 	"aria-describedby",
@@ -21,11 +16,26 @@ const GENERATED_ATTRIBUTES = new Set([
 	"data-bt-translation-lang",
 ]);
 
+const OBSERVED_ATTRIBUTES = [
+	...GENERATED_ATTRIBUTES,
+	"aria-hidden",
+	"aria-label",
+	"class",
+	"data-hovercard-type",
+	"hidden",
+	"inert",
+	"lang",
+	"role",
+	"style",
+];
+
+function getObservedAttributes(hostname) {
+	return hostname === "github.com" ? [...OBSERVED_ATTRIBUTES, "href"] : OBSERVED_ATTRIBUTES;
+}
+
 /** 把 MutationObserver 事件归一化为“失效元素 + 待扫描根节点”。 */
 export class MutationMonitor {
 	#observer = null;
-	#mutationTimer = null;
-	#pendingGeneratedSources = new Set();
 
 	constructor({
 		runId,
@@ -34,6 +44,8 @@ export class MutationMonitor {
 		scanner,
 		invalidator,
 		rootQueue,
+		progress,
+		volatilityTracker,
 		visibilityMonitor,
 		onScan,
 		onActivity,
@@ -44,11 +56,34 @@ export class MutationMonitor {
 		this.elementStore = elementStore;
 		this.scanner = scanner;
 		this.invalidator = invalidator;
-		this.rootQueue = rootQueue;
 		this.visibilityMonitor = visibilityMonitor;
-		this.onScan = onScan;
+		this.progress = progress;
 		this.onActivity = onActivity;
-		this.onError = onError;
+		this.scanQueue = new MutationScanQueue({
+			isCurrent,
+			rootQueue,
+			beforeFlush: () => this.generatedReconciler.reconcile(),
+			onScan,
+			onError,
+		});
+		this.generatedReconciler = new GeneratedMutationReconciler({
+			runId,
+			elementStore,
+			scanner,
+			invalidator,
+			rootQueue: this.scanQueue,
+		});
+		this.volatileFilter = new VolatileMutationFilter({
+			runId,
+			tracker: volatilityTracker,
+			elementStore,
+			scanner,
+			invalidator,
+		});
+	}
+
+	get hasPendingWork() {
+		return this.scanQueue.hasPendingWork;
 	}
 
 	start() {
@@ -57,14 +92,19 @@ export class MutationMonitor {
 			if (!this.isCurrent()) {
 				return;
 			}
+			const { accepted, volatileRoots } = this.volatileFilter.filter(mutations);
+			for (const root of volatileRoots) {
+				this.scanQueue.add(root);
+			}
 			let relevant = transferGeneratedReplacements({
-				mutations,
+				mutations: accepted,
 				elementStore: this.elementStore,
+				progress: this.progress,
 				scanner: this.scanner,
 				runId: this.runId,
-				rootQueue: this.rootQueue,
-			});
-			for (const mutation of mutations) {
+				rootQueue: this.scanQueue,
+			}) || volatileRoots.size > 0;
+			for (const mutation of accepted) {
 				relevant = this.#handleMutation(mutation) || relevant;
 			}
 			if (relevant) {
@@ -75,56 +115,28 @@ export class MutationMonitor {
 		this.#observer.observe(document.body, {
 			attributes: true,
 			attributeOldValue: window.location.hostname === "github.com",
-			attributeFilter: [
-				"aria-label",
-				"aria-describedby",
-				"class",
-				"data-hovercard-type",
-				"data-bt-description-id",
-				"data-bt-generated-owned",
-				"data-bt-presentation",
-				"data-bt-presentation-run",
-				"data-bt-source",
-				"data-bt-translation",
-				"data-bt-translation-lang",
-				"hidden",
-				"href",
-				"lang",
-				"role",
-				"style",
-			],
+			attributeFilter: getObservedAttributes(window.location.hostname),
 			characterData: true,
+			characterDataOldValue: true,
 			childList: true,
 			subtree: true,
 		});
 	}
 
 	scheduleScan() {
-		if (!this.isCurrent()) {
-			return;
-		}
-		if (this.#mutationTimer !== null) {
-			clearTimeout(this.#mutationTimer);
-		}
-		this.#mutationTimer = setTimeout(() => {
-			this.#mutationTimer = null;
-			this.#reconcileGeneratedSources();
-			void this.onScan().catch(this.onError);
-		}, TIMING.mutationDebounce);
+		this.scanQueue.schedule();
 	}
 
 	stop() {
 		this.#observer?.disconnect();
 		this.#observer = null;
-		if (this.#mutationTimer !== null) {
-			clearTimeout(this.#mutationTimer);
-			this.#mutationTimer = null;
-		}
+		this.scanQueue.stop();
 		this.visibilityMonitor.stop();
 		for (const source of [...this.elementStore.generatedSources]) {
 			this.invalidator.invalidate(source);
 		}
-		this.#pendingGeneratedSources.clear();
+		this.generatedReconciler.clear();
+		this.volatileFilter.clear();
 	}
 
 	#handleMutation(mutation) {
@@ -142,12 +154,11 @@ export class MutationMonitor {
 			return false;
 		}
 		if (GENERATED_ATTRIBUTES.has(mutation.attributeName)) {
-			this.#restoreGeneratedAttributes(mutation.target);
+			this.generatedReconciler.restoreAttributes(mutation.target);
 			return false;
 		}
 		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
 		if (mutation.attributeName === "class" || mutation.attributeName === "style") {
-			this.onActivity();
 			this.visibilityMonitor.queue(mutation.target);
 			this.visibilityMonitor.schedule();
 			if (!siteMutationRoot) {
@@ -157,34 +168,52 @@ export class MutationMonitor {
 		if (siteMutationRoot) {
 			const trackedSource = this.elementStore.findTrackedAncestor(siteMutationRoot);
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
-			this.rootQueue.add(trackedSource ?? siteMutationRoot);
+			this.scanQueue.add(trackedSource ?? siteMutationRoot);
+			return true;
+		}
+		if (mutation.attributeName === "href") {
+			return false;
+		}
+		const trackedSource = this.elementStore.findTrackedAncestor(mutation.target);
+		const scanRoot =
+			trackedSource ?? this.scanner.findContentUnit(mutation.target) ?? mutation.target;
+		if (mutation.attributeName === "aria-hidden" || mutation.attributeName === "inert") {
+			if (this.scanner.isExcluded(mutation.target)) {
+				this.invalidator.discardTrackedSubtree(mutation.target, true);
+			} else {
+				this.invalidator.invalidateTrackedSubtree(mutation.target, true);
+			}
+			this.scanQueue.add(scanRoot);
 			return true;
 		}
 		if (mutation.attributeName === "hidden" || mutation.attributeName === "role") {
 			this.invalidator.invalidateTrackedSubtree(
 				mutation.target,
 				true,
-				(source) => !this.#queueGeneratedSource(source),
+				(source) => !this.generatedReconciler.queue(source),
 			);
 		}
-		this.rootQueue.add(mutation.target);
+		this.scanQueue.add(scanRoot);
 		return true;
 	}
 
 	#handleTextMutation(mutation) {
-		if (isOwnedNode(mutation.target)) {
+		if (
+			isOwnedNode(mutation.target) ||
+			this.scanner.isExcluded(mutation.target.parentElement)
+		) {
 			return false;
 		}
 		const tracked =
 			this.elementStore.getTextOwner(mutation.target) ??
 			this.elementStore.findTrackedAncestor(mutation.target);
 		if (tracked) {
-			if (!this.#queueGeneratedSource(tracked)) {
+			if (!this.generatedReconciler.queue(tracked)) {
 				this.invalidator.invalidate(tracked);
-				this.rootQueue.add(tracked);
+				this.scanQueue.add(tracked);
 			}
 		} else {
-			this.rootQueue.add(mutation.target);
+			this.scanQueue.add(mutation.target);
 		}
 		return true;
 	}
@@ -199,10 +228,13 @@ export class MutationMonitor {
 		const affectedElements = new Set();
 		const styleCache = new WeakMap();
 		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
+		if (!siteMutationRoot && this.scanner.isExcluded(mutation.target)) {
+			return false;
+		}
 		let shouldScan = Boolean(siteMutationRoot);
 		if (siteMutationRoot) {
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
-			this.rootQueue.add(siteMutationRoot);
+			this.scanQueue.add(siteMutationRoot);
 		}
 		for (const node of removedNodes) {
 			if (isOwnedNode(node)) {
@@ -212,7 +244,7 @@ export class MutationMonitor {
 			forEachTextNode(node, (textNode) => {
 				const owner = this.elementStore.getTextOwner(textNode);
 				if (owner) {
-					if (this.#queueGeneratedSource(owner)) {
+					if (this.generatedReconciler.queue(owner)) {
 						shouldScan = true;
 					} else {
 						affectedElements.add(owner);
@@ -220,7 +252,7 @@ export class MutationMonitor {
 				}
 			});
 			this.invalidator.cleanupRemovedSubtree(node, (source) => {
-				if (!this.#queueGeneratedSource(source)) {
+				if (!this.generatedReconciler.queue(source)) {
 					return true;
 				}
 				shouldScan = true;
@@ -228,67 +260,30 @@ export class MutationMonitor {
 			});
 		}
 		for (const node of addedNodes) {
+			let hasCandidate = false;
 			forEachTextNode(node, (textNode) => {
 				const candidate = this.scanner.findContentUnit(textNode.parentElement, styleCache);
+				hasCandidate ||= Boolean(candidate);
 				if (
 					candidate &&
 					this.elementStore.hasState(candidate) &&
-					!this.#queueGeneratedSource(candidate)
+					!this.generatedReconciler.queue(candidate)
 				) {
 					affectedElements.add(candidate);
 				}
 			});
-			this.rootQueue.add(node);
-			shouldScan = true;
+			if (hasCandidate) {
+				this.scanQueue.add(node);
+				shouldScan = true;
+			}
 		}
 		for (const element of affectedElements) {
 			this.invalidator.invalidate(element);
 			if (element.isConnected) {
-				this.rootQueue.add(element);
+				this.scanQueue.add(element);
 				shouldScan = true;
 			}
 		}
 		return shouldScan;
-	}
-
-	#queueGeneratedSource(source) {
-		const state = this.elementStore.getState(source);
-		if (state?.presentation !== SITE_PRESENTATION.generated) {
-			return false;
-		}
-		this.#pendingGeneratedSources.add(source);
-		if (source.isConnected) {
-			this.rootQueue.add(source);
-		}
-		return true;
-	}
-
-	#reconcileGeneratedSources() {
-		for (const source of this.#pendingGeneratedSources) {
-			const state = this.elementStore.getState(source);
-			if (state?.presentation !== SITE_PRESENTATION.generated) {
-				continue;
-			}
-			if (!source.isConnected) {
-				this.invalidator.invalidate(source);
-				continue;
-			}
-			if (!this.scanner.matchesCurrentCandidate(source, state.originalHash)) {
-				this.invalidator.invalidate(source);
-			}
-			this.rootQueue.add(source);
-		}
-		this.#pendingGeneratedSources.clear();
-	}
-
-	#restoreGeneratedAttributes(source) {
-		const state = this.elementStore.getState(source);
-		if (state?.presentation !== SITE_PRESENTATION.generated) {
-			return;
-		}
-		if (isGeneratedPresentationIntact(source, state.translationNode, this.runId)) {
-			return;
-		}
-		restoreGeneratedPresentation(source, state.translationNode, this.runId);
 	}
 }

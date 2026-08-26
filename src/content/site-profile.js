@@ -122,9 +122,6 @@ export function findSiteTranslationLinkAnchor(element, locationRef = globalThis.
 
 /** 返回会因属性 hydration 改变 GitHub 排除或链接边界的最小重扫根。 */
 export function findSiteProfileMutationRoot(mutation, locationRef = globalThis.location) {
-	if (mutation.type === "attributes" && mutation.attributeName === "href") {
-		return mutation.target;
-	}
 	if (locationRef?.hostname !== "github.com") {
 		return null;
 	}
@@ -135,6 +132,9 @@ export function findSiteProfileMutationRoot(mutation, locationRef = globalThis.l
 		return null;
 	}
 	const element = mutation.target;
+	if (mutation.attributeName === "href") {
+		return findGitHubPullRequestTitleMutationRoot(element);
+	}
 	if (mutation.attributeName === "class") {
 		if (didBoundaryClassChange(element, mutation.oldValue)) {
 			return element.closest("details") ?? element;
@@ -234,6 +234,22 @@ function findGitHubPullRequestTitleLink(element) {
 		}
 	}
 	return hasPrimaryText ? primary : null;
+}
+
+function findGitHubPullRequestTitleMutationRoot(element) {
+	if (!element.matches?.("a")) {
+		return null;
+	}
+	const heading = element.closest(`${GITHUB_FEED_ITEM} h3`);
+	if (!heading) {
+		return null;
+	}
+	if (element.matches("a[data-hovercard-type='pull_request']")) {
+		return heading;
+	}
+	return heading.querySelector("a[data-hovercard-type='pull_request'][href]")
+		? heading
+		: null;
 }
 
 function didBoundaryClassChange(element, oldClassName) {

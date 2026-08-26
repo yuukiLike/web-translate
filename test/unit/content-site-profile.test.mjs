@@ -5,6 +5,7 @@ import { Window } from "happy-dom";
 
 import {
 	createSiteProfile,
+	findSiteProfileMutationRoot,
 	SITE_PRESENTATION,
 } from "../../src/content/site-profile.js";
 
@@ -114,3 +115,79 @@ test("GitHub 站点策略隔离 contribution calendar 与活动正文", () => {
 		window.close();
 	}
 });
+
+// 验证 href hydration 只能在精确 GitHub 主机上触发站点重扫。
+test("GitHub href mutation 使用精确主机边界", () => {
+	const window = new Window();
+	try {
+		const { document } = window;
+		document.body.innerHTML = `
+			<article class="js-feed-item-component">
+				<h3><a data-hovercard-type="pull_request" href="/owner/repo/pull/42">Title</a></h3>
+			</article>
+		`;
+		const primary = document.querySelector("a");
+		const mutation = createHrefMutation(primary);
+		assert.equal(
+			findSiteProfileMutationRoot(mutation, { hostname: "github.com" }),
+			primary.closest("h3"),
+		);
+		for (const hostname of [
+			"www.github.com",
+			"gist.github.com",
+			"github.com.evil.test",
+			"example.com",
+		]) {
+			assert.equal(findSiteProfileMutationRoot(mutation, { hostname }), null);
+		}
+	} finally {
+		window.close();
+	}
+});
+
+// 验证 PR 主链接与其 issue 副链接只使标题 h3 失效，不扩大到卡片或普通链接。
+test("GitHub href mutation 返回最窄 PR 标题边界", () => {
+	const window = new Window();
+	try {
+		const { document } = window;
+		document.body.innerHTML = `
+			<a id="outside" href="/outside">Outside</a>
+			<article class="js-feed-item-component">
+				<header><h3><a id="repository" href="/owner/repo">owner/repo</a></h3></header>
+				<h3 id="title">
+					<a id="primary" data-hovercard-type="pull_request" href="/owner/repo/pull/42">Title</a>
+					<a id="issue" href="/owner/repo/pull/42"><span>#42</span></a>
+				</h3>
+				<p><a id="body" data-hovercard-type="pull_request" href="/owner/repo/pull/43">Body</a></p>
+				<h3 id="orphan-heading"><a id="orphan" href="/owner/repo/issues/44">#44</a></h3>
+			</article>
+			<article><h3><a id="other-article" data-hovercard-type="pull_request" href="/pull/45">Other</a></h3></article>
+		`;
+		const title = document.querySelector("#title");
+		const primary = document.querySelector("#primary");
+		const issue = document.querySelector("#issue");
+		const github = { hostname: "github.com" };
+
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(primary), github), title);
+		primary.setAttribute("href", "/owner/repo/pull/420");
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(primary), github), title);
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(issue), github), title);
+		issue.removeAttribute("href");
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(issue), github), title);
+
+		for (const selector of ["#outside", "#repository", "#body", "#orphan", "#other-article"]) {
+			const link = document.querySelector(selector);
+			assert.equal(findSiteProfileMutationRoot(createHrefMutation(link), github), null);
+		}
+
+		primary.removeAttribute("href");
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(primary), github), title);
+		assert.equal(findSiteProfileMutationRoot(createHrefMutation(issue), github), null);
+	} finally {
+		window.close();
+	}
+});
+
+function createHrefMutation(target) {
+	return { attributeName: "href", target, type: "attributes" };
+}

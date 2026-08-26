@@ -72,14 +72,18 @@ export function isGeneratedPresentationIntact(source, description, runId) {
 /** ElementStore 已确认归属后，把 generated surface 原子迁移到同文新节点。 */
 export function transferTrackedGeneratedPresentation(source, target, description, runId) {
 	if (
-		!target?.isConnected ||
-		!isOwnedDescription(description, runId) ||
+		!canTransferTrackedGeneratedPresentation({ target, description, runId }) ||
 		!restoreGeneratedPresentation(target, description, runId)
 	) {
 		return false;
 	}
 	clearGeneratedSourceAttributes(source, description.id);
 	return true;
+}
+
+/** 与实际迁移共享的无副作用前置检查；不要求宿主仍保留 generated 属性。 */
+export function canTransferTrackedGeneratedPresentation({ target, description, runId }) {
+	return Boolean(target?.isConnected && isOwnedDescription(description, runId));
 }
 
 /** 幂等清理一个 source 的 generated 属性、aria 引用和离屏描述。 */

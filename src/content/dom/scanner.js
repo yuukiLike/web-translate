@@ -7,10 +7,11 @@ import { isTranslationExcluded } from "./node-utils.js";
  * 这里只识别和序列化文本，不决定是否翻译，也不改写 DOM。
  */
 export class DomScanner {
-	constructor({ core, elementStore, layout }) {
+	constructor({ core, elementStore, layout, volatilityTracker }) {
 		this.core = core;
 		this.elementStore = elementStore;
 		this.layout = layout;
+		this.volatilityTracker = volatilityTracker;
 		this.siteProfile = createSiteProfile(window.location);
 	}
 
@@ -32,12 +33,17 @@ export class DomScanner {
 		return Boolean(candidate && this.core.hashText(candidate.text) === originalHash);
 	}
 
-	findContentUnit(element, styleCache = new WeakMap()) {
-		if (
+	isExcluded(element) {
+		return Boolean(
 			!element ||
-			isTranslationExcluded(element) ||
-			this.siteProfile.isExcluded(element)
-		) {
+				this.volatilityTracker.isVolatile(element) ||
+				isTranslationExcluded(element) ||
+				this.siteProfile.isExcluded(element),
+		);
+	}
+
+	findContentUnit(element, styleCache = new WeakMap()) {
+		if (this.isExcluded(element)) {
 			return null;
 		}
 		const siteContentUnit = this.siteProfile.findContentUnit(element);

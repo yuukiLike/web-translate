@@ -8,11 +8,23 @@ const READABLE_PLAIN_TEXT_TYPES = new Set([
 
 /** 普通代码区保持排除，但允许浏览器为纯文本响应生成的根级 pre。 */
 export function isTranslationExcluded(element) {
-	if (element?.closest?.(SELECTORS.excluded)) {
+	if (isSemanticallyHidden(element) || element?.closest?.(SELECTORS.excluded)) {
 		return true;
 	}
 	const codeLikeAncestor = element?.closest?.(SELECTORS.codeLike);
 	return Boolean(codeLikeAncestor && !isReadablePlainTextRoot(codeLikeAncestor));
+}
+
+function isSemanticallyHidden(element) {
+	for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+		if (ancestor.hasAttribute?.("inert")) {
+			return true;
+		}
+		if (String(ancestor.getAttribute?.("aria-hidden") ?? "").toLowerCase() === "true") {
+			return true;
+		}
+	}
+	return false;
 }
 
 function isReadablePlainTextRoot(element) {

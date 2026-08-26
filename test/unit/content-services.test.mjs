@@ -107,7 +107,7 @@ test("运行期缓存遵守 750 条上限", () => {
 	assert.equal(cache.get(segment("text-750")), "translation-750");
 });
 
-// 验证已完成记录在元素失效后仍保持单调，虚拟列表回收不会让完成数倒退。
+// 验证常规取消不会撤销已完成记录，虚拟列表回收不会让完成数倒退。
 test("完成计数只增不减", () => {
 	const tracker = new ProgressTracker();
 	const element = {};
@@ -132,6 +132,25 @@ test("移除待处理元素会收敛进度总数", () => {
 
 	tracker.cancelPending(pendingElement, "second");
 	assert.deepEqual({ completed: tracker.completed, total: tracker.total }, { completed: 1, total: 1 });
+});
+
+// 验证明确丢弃易变元素时会撤销该元素的所有进度，且不影响其他元素。
+test("丢弃元素会撤销其全部进度记录", () => {
+	const tracker = new ProgressTracker();
+	const discardedElement = {};
+	const retainedElement = {};
+	tracker.count(discardedElement, "completed");
+	tracker.complete(discardedElement, "completed");
+	tracker.count(discardedElement, "pending");
+	tracker.count(retainedElement, "retained");
+	tracker.complete(retainedElement, "retained");
+
+	tracker.discard(discardedElement);
+
+	assert.deepEqual({ completed: tracker.completed, total: tracker.total }, { completed: 1, total: 1 });
+	tracker.count(discardedElement, "completed");
+	tracker.complete(discardedElement, "completed");
+	assert.deepEqual({ completed: tracker.completed, total: tracker.total }, { completed: 2, total: 2 });
 });
 
 // 验证相同元素和进度键只会计入一次，重复扫描不会制造虚假进度。
