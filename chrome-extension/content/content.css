@@ -87,9 +87,12 @@ button > .bt-translation[data-bt-control-layout="row-flex"],
 	content: none !important;
 }
 
-/* 只标记真实在途行；绝对定位使 spinner 不参与换行或帖子高度。 */
+/*
+ * 只标记真实在途行。reset 不能使用 !important，否则它会锁死关键帧的 rotate。
+ * 绝对定位避免 spinner 改变换行或帖子高度，独立 translate 只负责基线校正。
+ */
 [data-bt-source][data-bt-loading]:not([data-bt-presentation="generated"])::after {
-	all: unset !important;
+	all: unset;
 	content: "" !important;
 	display: inline-block !important;
 	position: absolute !important;
@@ -103,12 +106,17 @@ button > .bt-translation[data-bt-control-layout="row-flex"],
 	opacity: 0.55 !important;
 	pointer-events: none !important;
 	transform-origin: center !important;
+	translate: 0 0.08em !important;
 	animation: bt-inline-loading-spin 0.72s linear infinite !important;
 }
 
 @keyframes bt-inline-loading-spin {
+	from {
+		rotate: 0turn;
+	}
+
 	to {
-		transform: rotate(1turn);
+		rotate: 1turn;
 	}
 }
 
