@@ -5,18 +5,10 @@ import { createActionUi } from "../../chrome-extension/background/action-ui.js";
 import { createStatusController } from "../../chrome-extension/background/status-controller.js";
 import { createChromeHarness, flushMicrotasks } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 // 验证较早的慢 Badge 写入结束后会重放最新状态，最终不会覆盖后到的错误状态。
 test("慢 Badge 写入结束后会恢复最新状态", async () => {
 	const harness = createChromeHarness();
-	const releaseWorking = createDeferred();
+	const releaseWorking = Promise.withResolvers();
 	const appliedTexts = [];
 	harness.chrome.action.setBadgeText = async ({ text }) => {
 		if (text === "25") await releaseWorking.promise;
@@ -55,7 +47,7 @@ test("慢 Badge 写入结束后会恢复最新状态", async () => {
 
 // 验证冷启动并发恢复 current-run 时，以消息到达顺序而非存储读取完成顺序决定最新进度。
 test("冷启动反序恢复不会让进度倒退", async () => {
-	const releaseFirstRead = createDeferred();
+	const releaseFirstRead = Promise.withResolvers();
 	const updates = [];
 	let readCount = 0;
 	const controller = createStatusController({
@@ -90,7 +82,7 @@ test("冷启动反序恢复不会让进度倒退", async () => {
 
 // 验证冷启动下较早的 done 即使后完成恢复，也不能越过较新的 settling 显示 OK。
 test("冷启动反序恢复不会让旧完成状态越过 settling", async () => {
-	const releaseFirstRead = createDeferred();
+	const releaseFirstRead = Promise.withResolvers();
 	const updates = [];
 	let readCount = 0;
 	const controller = createStatusController({

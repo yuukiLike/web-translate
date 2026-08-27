@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { Window } from "happy-dom";
+
 import { pairReplacementNodes } from "../../src/content/dom/mutation-content.js";
 
 // 验证整窗 fresh 滑动只传播同文 survivor，离窗 head 与入窗 tail 不共享身份。
@@ -156,6 +158,62 @@ test("未匹配的唯一强键保持独立", () => {
 	assert.deepEqual(plan.unpairedRemoved, [oldDynamic, oldStable]);
 	assert.deepEqual(plan.unpairedAdded, [newStable, newDynamic]);
 });
+
+// 验证旧节点内的真实 generated 译文不会让无 testid 的重排退化为按槽位串线。
+test("真实 generated child 不污染重排文本身份", () => {
+	const window = new Window();
+	const previous = installDomGlobals(window);
+	try {
+		const oldFirst = createDomNode(window.document, "First source", "第一条译文");
+		const oldSecond = createDomNode(window.document, "Second source", "第二条译文");
+		const newSecond = createDomNode(window.document, "Second source");
+		const newFirst = createDomNode(window.document, "First source");
+
+		const plan = pairReplacementNodes(
+			[oldFirst, oldSecond],
+			[newSecond, newFirst],
+		);
+
+		assert.equal(hasPair(plan, oldFirst, newFirst), true);
+		assert.equal(hasPair(plan, oldSecond, newSecond), true);
+	} finally {
+		Object.assign(globalThis, previous);
+		window.close();
+	}
+});
+
+function createDomNode(document, sourceText, translationText = "") {
+	const source = document.createElement("p");
+	source.append(document.createTextNode(sourceText));
+	if (translationText) {
+		const translation = document.createElement("span");
+		translation.className = "bt-translation bt-translation-generated";
+		translation.dataset.btOwned = "true";
+		translation.textContent = translationText;
+		source.append(translation);
+	}
+	return source;
+}
+
+function installDomGlobals(window) {
+	const previous = {
+		document: globalThis.document,
+		Node: globalThis.Node,
+		NodeFilter: globalThis.NodeFilter,
+	};
+	Object.assign(globalThis, {
+		document: window.document,
+		Node: window.Node,
+		NodeFilter: window.NodeFilter,
+	});
+	return previous;
+}
+
+function hasPair(plan, removedNode, addedNode) {
+	return plan.pairs.some(
+		(pair) => pair.removedNode === removedNode && pair.addedNode === addedNode,
+	);
+}
 
 function createNodes(...texts) {
 	return texts.map((textContent) => {

@@ -1,4 +1,5 @@
 import { TRANSLATION_NODE_SELECTOR } from "../constants.js";
+import { SITE_PRESENTATION } from "../site-profile.js";
 import { clearGeneratedPresentation } from "./generated-presentation.js";
 import { sourceSelector } from "./node-utils.js";
 
@@ -28,6 +29,14 @@ export class ElementInvalidator {
 	#clearElement(element, discardProgress) {
 		this.elementStore.deferredElements.delete(element);
 		const elementState = this.elementStore.getState(element);
+		const runId = this.getRunId();
+		elementState?.loading?.requests.clear();
+		if (elementState) {
+			delete elementState.loading;
+		}
+		if (element.dataset.btLoading === runId) {
+			delete element.dataset.btLoading;
+		}
 		if (discardProgress) {
 			this.progress.discard(element);
 		} else {
@@ -38,15 +47,15 @@ export class ElementInvalidator {
 			const translation = elementState.translationNode;
 			elementState.translationNode = null;
 			elementState.status = "invalidated";
-			if (elementState.presentation === "generated") {
-				clearGeneratedPresentation(element, { descriptionId: translation.id });
+			if (elementState.presentation === SITE_PRESENTATION.generated) {
+				clearGeneratedPresentation(element, { translationNode: translation });
 			} else {
 				translation.remove();
 			}
 		}
 		this.elementStore.generatedSources.delete(element);
 		this.elementStore.deleteState(element);
-		if (element.dataset.btSource === this.getRunId()) {
+		if (element.dataset.btSource === runId) {
 			delete element.dataset.btSource;
 		}
 	}
@@ -79,17 +88,26 @@ export class ElementInvalidator {
 
 	recoverRemovedTranslation(node) {
 		const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-		const translations = [];
-		if (element?.matches?.(TRANSLATION_NODE_SELECTOR)) {
-			translations.push(element);
+		const translations = new Set();
+		if (this.elementStore.getTranslationSource(element)) {
+			translations.add(element);
 		}
-		translations.push(...(element?.querySelectorAll?.(TRANSLATION_NODE_SELECTOR) ?? []));
+		if (element?.matches?.(TRANSLATION_NODE_SELECTOR)) {
+			translations.add(element);
+		}
+		for (const translation of element?.querySelectorAll?.(TRANSLATION_NODE_SELECTOR) ?? []) {
+			translations.add(translation);
+		}
 
 		let recovered = false;
 		for (const translation of translations) {
 			const source = this.elementStore.getTranslationSource(translation);
 			const elementState = source ? this.elementStore.getState(source) : null;
-			if (source?.isConnected && elementState?.translationNode === translation) {
+			if (
+				source?.isConnected &&
+				elementState?.translationNode === translation &&
+				elementState.presentation !== SITE_PRESENTATION.generated
+			) {
 				this.invalidate(source);
 				this.rootQueue.add(source);
 				recovered = true;

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createContentHarness, waitFor } from "../helpers/content-dom-harness.mjs";
+import {
+	assertGeneratedTranslation,
+	assertHostNodes,
+	assertSelectableTranslation,
+	getGeneratedTranslation,
+} from "../helpers/generated-translation-assertions.mjs";
 
-const contentStyles = readFileSync(
-	new URL("../../chrome-extension/content/content.css", import.meta.url),
-	"utf8",
-);
-
-// 验证 X 的 hover mutation、宿主清理与虚拟行复用不会改变帖子原始 children 或重建译文呈现。
+// 验证 X 的 hover mutation、宿主清理与虚拟行复用不会改变帖子原始内容或重建可选择译文。
 test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 	const sourceText = "Keep the translated post stable while the pointer moves.";
 	const updatedText = "A recycled X row now contains different post text.";
@@ -38,21 +38,23 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 		);
 
 		const initialTranslation = tweet.text.dataset.btTranslation;
-		const initialDescriptionId = getGeneratedDescriptionId(
-			tweet.text,
-			hostDescription.id,
-		);
 		assert.equal(initialTranslation, `译文：${sourceText}`);
 		assert.equal(tweet.text.dataset.btPresentation, "generated");
 		assert.equal(tweet.text.dataset.btTranslationLang, "zh-CN");
-		assert.ok(initialDescriptionId);
-		assert.equal(
-			harness.document.getElementById(initialDescriptionId)?.textContent,
+		const initialTranslationNode = assertGeneratedTranslation(
+			tweet.text,
 			initialTranslation,
 		);
-		assertOriginalNodes(tweet.text, originalTweetChildren);
-		assertOriginalNodes(tweet.article, originalArticleChildren);
-		assert.equal(harness.getTranslation(tweet.text), null);
+		const initialTranslationId = initialTranslationNode.id;
+		assertSelectableTranslation(
+			harness.window,
+			initialTranslationNode,
+			initialTranslation,
+		);
+		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
+		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
+		assertHostNodes(tweet.article, originalArticleChildren);
+		assert.equal(harness.getTranslation(tweet.text), initialTranslationNode);
 		assert.equal(harness.requestCount(sourceText), 1);
 		assert.equal(harness.requestCount(navigation.textContent), 0);
 		assert.equal(harness.requestCount(tweet.author.textContent), 0);
@@ -74,40 +76,45 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 		simulatedHeights.push(getSimulatedTweetHeight(tweet.article));
 
 		assert.equal(tweet.text.dataset.btTranslation, initialTranslation);
-		assert.equal(
-			getGeneratedDescriptionId(tweet.text, hostDescription.id),
-			initialDescriptionId,
-		);
-		assertOriginalNodes(tweet.text, originalTweetChildren);
-		assertOriginalNodes(tweet.article, originalArticleChildren);
-		assert.equal(harness.getTranslation(tweet.text), null);
+		assert.equal(tweet.text.dataset.btDescriptionId, initialTranslationId);
+		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
+		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
+		assertHostNodes(tweet.article, originalArticleChildren);
+		assert.equal(harness.getTranslation(tweet.text), initialTranslationNode);
 		assert.equal(harness.requestCount(sourceText), 1);
 		assert.deepEqual(new Set(simulatedHeights), new Set([84]));
-		assert.match(
-			contentStyles,
-			/\[data-bt-presentation="generated"\][^}]*::after\s*\{[^}]*content:\s*attr\(data-bt-translation\)/su,
+
+		const initialTextNode = initialTranslationNode.firstChild;
+		initialTranslationNode.remove();
+		await waitFor(
+			() => tweet.text.lastChild === initialTranslationNode,
+			"X 删除真实译文后没有复挂同一个节点",
 		);
-		assert.match(contentStyles, /overflow-anchor:\s*none\s*!important/u);
-		assert.match(contentStyles, /pointer-events:\s*none\s*!important/u);
-		assert.match(contentStyles, /transition:\s*none\s*!important/u);
+		assert.equal(initialTranslationNode.firstChild, initialTextNode);
+		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
+		assert.equal(harness.requestCount(sourceText), 1);
 
 		tweet.text.firstElementChild.textContent = updatedText;
 		await waitFor(
 			() => tweet.text.dataset.btTranslation === `译文：${updatedText}`,
 			"X 虚拟行复用后没有更新生成译文",
 		);
-		const updatedDescriptionId = getGeneratedDescriptionId(
+		const updatedTranslationNode = assertGeneratedTranslation(
 			tweet.text,
-			hostDescription.id,
-		);
-		assert.notEqual(updatedDescriptionId, initialDescriptionId);
-		assert.equal(harness.document.getElementById(initialDescriptionId), null);
-		assert.equal(
-			harness.document.getElementById(updatedDescriptionId)?.textContent,
 			`译文：${updatedText}`,
 		);
-		assertOriginalNodes(tweet.text, originalTweetChildren);
-		assertOriginalNodes(tweet.article, originalArticleChildren);
+		const updatedTranslationId = updatedTranslationNode.id;
+		assert.notEqual(updatedTranslationId, initialTranslationId);
+		assert.equal(harness.document.getElementById(initialTranslationId), null);
+		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
+		assert.notEqual(updatedTranslationNode, initialTranslationNode);
+		assertSelectableTranslation(
+			harness.window,
+			updatedTranslationNode,
+			`译文：${updatedText}`,
+		);
+		assertHostNodes(tweet.text, originalTweetChildren, updatedTranslationNode);
+		assertHostNodes(tweet.article, originalArticleChildren);
 		assert.equal(harness.requestCount(updatedText), 1);
 
 		const dynamicText = "A dynamically loaded X post should use the same stable surface.";
@@ -118,9 +125,17 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 			() => dynamicTweet.text.dataset.btTranslation === `译文：${dynamicText}`,
 			"动态加载的 X 帖子没有使用生成呈现",
 		);
-		assert.equal(harness.getTranslation(dynamicTweet.text), null);
+		const dynamicTranslationNode = assertGeneratedTranslation(
+			dynamicTweet.text,
+			`译文：${dynamicText}`,
+		);
+		assertSelectableTranslation(
+			harness.window,
+			dynamicTranslationNode,
+			`译文：${dynamicText}`,
+		);
 		assert.equal(harness.requestCount(dynamicText), 1);
-		assertOriginalNodes(dynamicTweet.text, dynamicOriginalChildren);
+		assertHostNodes(dynamicTweet.text, dynamicOriginalChildren, dynamicTranslationNode);
 
 		harness.injectAgain();
 		await waitFor(
@@ -134,7 +149,7 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 		assert.equal(tweet.text.dataset.btDescriptionId, undefined);
 		assert.equal(tweet.text.dataset.btSource, undefined);
 		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
-		assert.equal(harness.document.getElementById(updatedDescriptionId), null);
+		assert.equal(harness.document.getElementById(updatedTranslationId), null);
 		assert.equal(dynamicTweet.text.dataset.btPresentation, undefined);
 		assert.equal(dynamicTweet.text.dataset.btTranslation, undefined);
 		assert.equal(dynamicTweet.text.dataset.btSource, undefined);
@@ -142,8 +157,12 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 			harness.document.querySelector(".bt-translation-description[data-bt-owned='true']"),
 			null,
 		);
-		assertOriginalNodes(tweet.text, originalTweetChildren);
-		assertOriginalNodes(tweet.article, originalArticleChildren);
+		assert.equal(
+			harness.document.querySelector(".bt-translation-generated[data-bt-owned='true']"),
+			null,
+		);
+		assertHostNodes(tweet.text, originalTweetChildren);
+		assertHostNodes(tweet.article, originalArticleChildren);
 	} finally {
 		harness.dispose();
 	}
@@ -162,7 +181,9 @@ test("X 站点策略只作用于精确的应用域名", async () => {
 				() => Boolean(tweet.text.dataset.btTranslation),
 				`${url} 没有使用 X 稳定呈现策略`,
 			);
-			assert.equal(harness.getTranslation(tweet.text), null);
+			const translation = harness.getTranslation(tweet.text);
+			assert.equal(translation?.parentElement, tweet.text);
+			assert.equal(translation?.classList.contains("bt-translation-generated"), true);
 		} finally {
 			harness.dispose();
 		}
@@ -186,7 +207,7 @@ test("X 站点策略只作用于精确的应用域名", async () => {
 	}
 });
 
-// 验证服务原样返回 X 帖子时只完成记录，不创建伪元素属性或离屏描述节点。
+// 验证服务原样返回 X 帖子时只完成记录，不创建生成属性或真实译文节点。
 test("原文与译文相同时不创建 X 生成呈现", async () => {
 	const sourceText = "This unchanged API sentence should not be displayed twice.";
 	const harness = createContentHarness({
@@ -250,24 +271,6 @@ function createTweet(document, text) {
 	actions.textContent = "Open detailed post analytics";
 	article.append(author, tweetText, actions);
 	return { actions, article, author, text: tweetText };
-}
-
-function assertOriginalNodes(parent, originalNodes) {
-	assert.equal(parent.querySelector(".bt-translation[data-bt-owned='true']"), null);
-	assert.equal(parent.childNodes.length, originalNodes.length);
-	for (const [index, node] of originalNodes.entries()) {
-		assert.equal(parent.childNodes[index], node);
-	}
-}
-
-function getGeneratedDescriptionId(source, hostDescriptionId) {
-	const references = (source.getAttribute("aria-describedby") ?? "")
-		.split(/\s+/u)
-		.filter(Boolean);
-	assert.equal(references.includes(hostDescriptionId), true);
-	const generated = references.filter((value) => value !== hostDescriptionId);
-	assert.equal(generated.length, 1);
-	return generated[0];
 }
 
 function removeUnknownChildren(parent, originalNodes) {

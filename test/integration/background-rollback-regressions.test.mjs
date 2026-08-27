@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness, providerRuntime = createProviderRuntimeFake()) {
 	return {
 		app: createBackgroundApp({
@@ -49,8 +41,8 @@ test("启动回滚双重写入失败不会留下幽灵任务", async () => {
 	await firstApp.start();
 	await sendAppMessage(firstApp, { type: "START_RUN", runId: "run-a" }, sender);
 
-	const commitEntered = createDeferred();
-	const releaseCommit = createDeferred();
+	const commitEntered = Promise.withResolvers();
+	const releaseCommit = Promise.withResolvers();
 	const originalSet = harness.session.set.bind(harness.session);
 	let rejectPreviousRestore = false;
 	harness.session.set = async (values) => {
@@ -86,8 +78,8 @@ test("启动回滚双重写入失败不会留下幽灵任务", async () => {
 		{ ok: false, error: "模拟新启动设置失败" },
 	);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-b") {
@@ -120,8 +112,8 @@ test("启动回滚会同步修正内存中的 current-run", async () => {
 
 	const working = createApp(harness);
 	await working.app.start();
-	const commitEntered = createDeferred();
-	const releaseCommit = createDeferred();
+	const commitEntered = Promise.withResolvers();
+	const releaseCommit = Promise.withResolvers();
 	const originalSet = harness.session.set.bind(harness.session);
 	harness.session.set = async (values) => {
 		await originalSet(values);
@@ -156,8 +148,8 @@ test("启动回滚会同步修正内存中的 current-run", async () => {
 		{ ok: true, ignored: true },
 	);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-b") {
@@ -189,8 +181,8 @@ test("启动回滚会等待慢 current 删除后恢复旧任务", async () => {
 	await running.app.start();
 	await sendAppMessage(running.app, { type: "START_RUN", runId: "run-a" }, sender);
 
-	const commitEntered = createDeferred();
-	const releaseCommit = createDeferred();
+	const commitEntered = Promise.withResolvers();
+	const releaseCommit = Promise.withResolvers();
 	const originalSet = harness.session.set.bind(harness.session);
 	harness.session.set = async (values) => {
 		const current = values["current-run:7"];
@@ -220,9 +212,9 @@ test("启动回滚会等待慢 current 删除后恢复旧任务", async () => {
 		{ ok: false, error: "模拟新启动设置失败" },
 	);
 
-	const currentDeleteEntered = createDeferred();
-	const currentDeleteFinished = createDeferred();
-	const releaseCurrentDelete = createDeferred();
+	const currentDeleteEntered = Promise.withResolvers();
+	const currentDeleteFinished = Promise.withResolvers();
+	const releaseCurrentDelete = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "current-run:7") {
@@ -264,9 +256,9 @@ test("快照清理期间不能复用相同 runId", async () => {
 	await running.app.start();
 	await sendAppMessage(running.app, { type: "START_RUN", runId: "run-a" }, sender);
 
-	const cleanupEntered = createDeferred();
-	const cleanupFinished = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const cleanupFinished = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-a") {

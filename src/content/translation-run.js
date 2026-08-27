@@ -57,6 +57,7 @@ export class TranslationRun {
 		}
 		this.active = false;
 		this.mutationMonitor?.stop();
+		this.cloudTranslator?.clearLoading();
 		removeRunArtifacts(this.runId);
 		this.rootQueue.clear();
 		this.elementStore?.deferredElements.clear();
@@ -196,10 +197,16 @@ export class TranslationRun {
 
 function removeRunArtifacts(runId) {
 	cleanupGeneratedPresentations(document, runId);
-	for (const node of document.querySelectorAll(`[data-bt-run="${CSS.escape(runId)}"]`)) {
+	const escapedRunId = CSS.escape(runId);
+	for (const node of document.querySelectorAll(`[data-bt-run="${escapedRunId}"]`)) {
 		node.remove();
 	}
-	for (const element of document.querySelectorAll(`[data-bt-source="${CSS.escape(runId)}"]`)) {
+	const sourceSelector = [
+		`[data-bt-source="${escapedRunId}"]`,
+		`[data-bt-loading="${escapedRunId}"]`,
+	].join(", ");
+	for (const element of document.querySelectorAll(sourceSelector)) {
+		delete element.dataset.btLoading;
 		delete element.dataset.btSource;
 	}
 }

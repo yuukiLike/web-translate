@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
 	createContentHarness,
-	createDeferred,
 	waitFor,
 } from "../helpers/content-dom-harness.mjs";
 
@@ -189,7 +188,7 @@ test("动态 role 切换会重新应用短链接过滤并复用缓存", async ()
 // 验证请求发出后候选变为短链接时，迟到的旧响应不能再写入页面。
 test("在途翻译响应不会渲染到已变为短链接的候选", async () => {
 	const sourceText = "Read docs";
-	const responseGate = createDeferred();
+	const responseGate = Promise.withResolvers();
 	const harness = createContentHarness({
 		async translateText(text) {
 			if (text === sourceText) {
@@ -223,7 +222,7 @@ test("在途翻译响应不会渲染到已变为短链接的候选", async () =>
 
 // 验证重复注入依次执行关闭和重启，旧运行的迟到响应不能覆盖新运行译文。
 test("重复注入隔离旧运行响应并完整停止", async () => {
-	const oldResponse = createDeferred();
+	const oldResponse = Promise.withResolvers();
 	const sourceText = "Do not render a stale response.";
 	const harness = createContentHarness({
 		async translateText(_text, { requestNumber }) {

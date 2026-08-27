@@ -29,42 +29,6 @@
 	letter-spacing: 0.01em !important;
 }
 
-[data-bt-source][data-bt-generated-owned="true"][data-bt-presentation="generated"][data-bt-presentation-run][data-bt-translation]::after {
-	all: unset !important;
-	content: attr(data-bt-translation) !important;
-	display: block !important;
-	box-sizing: border-box !important;
-	inline-size: 100% !important;
-	min-inline-size: 0 !important;
-	max-inline-size: 100% !important;
-	margin-block-start: 0.24em !important;
-	margin-block-end: 0 !important;
-	padding: 0 !important;
-	border: 0 !important;
-	position: static !important;
-	float: none !important;
-	clear: none !important;
-	background: transparent !important;
-	color: inherit !important;
-	font-family: inherit !important;
-	font-size: 0.92em !important;
-	font-style: normal !important;
-	font-weight: inherit !important;
-	letter-spacing: normal !important;
-	line-height: 1.45 !important;
-	text-align: inherit !important;
-	text-decoration: none !important;
-	white-space: pre-wrap !important;
-	overflow-wrap: anywhere !important;
-	word-break: normal !important;
-	unicode-bidi: plaintext !important;
-	overflow-anchor: none !important;
-	pointer-events: none !important;
-	transform: none !important;
-	transition: none !important;
-	animation: none !important;
-}
-
 .bt-translation[data-bt-owned="true"][data-bt-layout="line-start-inline"] {
 	display: inline !important;
 	width: auto !important;
@@ -123,6 +87,49 @@ button > .bt-translation[data-bt-control-layout="row-flex"],
 	content: none !important;
 }
 
+/*
+ * 只标记真实在途行。reset 不能使用 !important，否则它会锁死关键帧的 rotate。
+ * 绝对定位避免 spinner 改变换行或帖子高度，静态位置矩形按末行行盒垂直居中。
+ */
+[data-bt-source][data-bt-loading]:not([data-bt-presentation="generated"])::after {
+	all: unset;
+	content: "" !important;
+	display: inline-block !important;
+	position: absolute !important;
+	inset: auto !important;
+	box-sizing: border-box !important;
+	inline-size: 0.72em !important;
+	block-size: 0.72em !important;
+	margin: 0 !important;
+	margin-inline-start: 0.38em !important;
+	border: 0.12em solid currentColor !important;
+	border-inline-end-color: transparent !important;
+	border-radius: 50% !important;
+	opacity: 0.55 !important;
+	pointer-events: none !important;
+	transform-origin: center !important;
+	place-self: center start !important;
+	translate: none !important;
+	animation: bt-inline-loading-spin 0.72s linear infinite !important;
+}
+
+@keyframes bt-inline-loading-spin {
+	from {
+		rotate: 0turn;
+	}
+
+	to {
+		rotate: 1turn;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-bt-source][data-bt-loading]:not([data-bt-presentation="generated"])::after {
+		border-inline-end-color: currentColor !important;
+		animation: none !important;
+	}
+}
+
 h1 > .bt-translation[data-bt-owned="true"],
 h1[data-bt-source] + .bt-translation[data-bt-owned="true"],
 h2 > .bt-translation[data-bt-owned="true"],
@@ -136,6 +143,70 @@ h5[data-bt-source] + .bt-translation[data-bt-owned="true"],
 h6 > .bt-translation[data-bt-owned="true"],
 h6[data-bt-source] + .bt-translation[data-bt-owned="true"] {
 	font-size: var(--bt-source-font-size, 0.72em) !important;
+}
+
+/*
+ * Generated translations follow the host's final native text carrier. The
+ * outer node owns lifecycle metadata only; a real <br> starts the translated
+ * line and the inner node owns all visible, selectable text styling.
+ */
+.bt-translation.bt-translation-generated[data-bt-owned="true"] {
+	all: unset !important;
+	display: inline !important;
+	box-sizing: content-box !important;
+	width: auto !important;
+	inline-size: auto !important;
+	min-inline-size: 0 !important;
+	max-inline-size: none !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	position: static !important;
+	float: none !important;
+	clear: none !important;
+	overflow: visible !important;
+	overflow-anchor: none !important;
+	background: transparent !important;
+	transform: none !important;
+	transition: none !important;
+	animation: none !important;
+}
+
+.bt-translation.bt-translation-generated[data-bt-owned="true"]
+	> .bt-translation-break {
+	all: initial !important;
+	display: inline !important;
+}
+
+.bt-translation.bt-translation-generated[data-bt-owned="true"]
+	> .bt-translation-inner {
+	all: unset !important;
+	display: inline !important;
+	box-sizing: border-box !important;
+	min-inline-size: 0 !important;
+	color: inherit !important;
+	font-family: inherit !important;
+	font-size: 0.92em !important;
+	font-style: normal !important;
+	font-variant: normal !important;
+	font-weight: inherit !important;
+	letter-spacing: normal !important;
+	line-height: 1.45 !important;
+	text-align: inherit !important;
+	text-decoration: none !important;
+	text-indent: 0 !important;
+	text-transform: none !important;
+	white-space: pre-wrap !important;
+	overflow-wrap: anywhere !important;
+	word-break: normal !important;
+	unicode-bidi: plaintext !important;
+	-webkit-user-select: text !important;
+	user-select: text !important;
+	pointer-events: auto !important;
+	cursor: text !important;
+	transform: none !important;
+	transition: none !important;
+	animation: none !important;
 }
 
 .bt-status[data-bt-owned="true"] {

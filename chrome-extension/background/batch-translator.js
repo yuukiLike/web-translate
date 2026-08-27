@@ -212,9 +212,9 @@ export function createBatchTranslator({
 			usageStore.record(settings.provider, {
 				apiCalls: 1,
 				charactersSubmitted: sumSegmentCharacters(missingSegments),
-				cachedCharacters: request.segments
-					.filter((segment) => cachedTranslations.has(segment.id))
-					.reduce((sum, segment) => sum + segment.text.length, 0),
+				cachedCharacters: sumSegmentCharacters(
+					request.segments.filter((segment) => cachedTranslations.has(segment.id)),
+				),
 				...translatedBatch.usage,
 			}),
 		];

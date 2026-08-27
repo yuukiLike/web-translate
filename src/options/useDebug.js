@@ -1,12 +1,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 
-import {
-	createDebugRequests,
-	createDebugRows,
-	errorText,
-	isRecord,
-	normalizeDebugEvents,
-} from "./data.js";
+import { isRecord } from "../core/value-utils.js";
+import { normalizeDebugEvents } from "./debugFormat.js";
+import { createDebugRequests, createDebugRows } from "./debugRows.js";
+import { errorText } from "./formatters.js";
 
 const DEBUG_PORT_NAME = "debug-events-v1";
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -211,5 +208,5 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		disconnect();
 	});
 
-	return { enabled, events, rows, requests, connection, clear, sync };
+	return { rows, requests, connection, clear };
 }

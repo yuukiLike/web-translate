@@ -17,7 +17,8 @@ import { createRestTranslators } from "./providers/rest-translators.js";
 
 export function createBackgroundApp({ chrome, core, providerCatalog, providerRuntime }) {
 	const extensionVersion = chrome.runtime.getManifest().version;
-	const startup = createDeferred();
+	const startup = Promise.withResolvers();
+	void startup.promise.catch(() => {});
 	const debugMetadata = createDebugMetadata({ core, providerCatalog, extensionVersion });
 	const debug = createDebugStore({
 		chrome,
@@ -144,15 +145,4 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		onTabRemoved,
 		start,
 	};
-}
-
-function createDeferred() {
-	let resolve;
-	let reject;
-	const promise = new Promise((resolvePromise, rejectPromise) => {
-		resolve = resolvePromise;
-		reject = rejectPromise;
-	});
-	void promise.catch(() => {});
-	return { promise, reject, resolve };
 }

@@ -9,12 +9,16 @@ const GENERATED_ATTRIBUTES = new Set([
 	"aria-describedby",
 	"data-bt-description-id",
 	"data-bt-generated-owned",
+	"data-bt-owned",
 	"data-bt-presentation",
 	"data-bt-presentation-run",
+	"data-bt-run",
 	"data-bt-source",
 	"data-bt-translation",
 	"data-bt-translation-lang",
+	"id",
 ]);
+const EXCLUSION_ATTRIBUTES = new Set(["aria-hidden", "inert", "translate"]);
 
 const OBSERVED_ATTRIBUTES = [
 	...GENERATED_ATTRIBUTES,
@@ -27,6 +31,7 @@ const OBSERVED_ATTRIBUTES = [
 	"lang",
 	"role",
 	"style",
+	"translate",
 ];
 
 function getObservedAttributes(hostname) {
@@ -140,6 +145,11 @@ export class MutationMonitor {
 	}
 
 	#handleMutation(mutation) {
+		const trackedResult =
+			this.generatedReconciler.handleTrackedTranslationMutation(mutation);
+		if (trackedResult !== null) {
+			return trackedResult;
+		}
 		if (mutation.type === "attributes") {
 			return this.#handleAttributeMutation(mutation);
 		}
@@ -177,7 +187,7 @@ export class MutationMonitor {
 		const trackedSource = this.elementStore.findTrackedAncestor(mutation.target);
 		const scanRoot =
 			trackedSource ?? this.scanner.findContentUnit(mutation.target) ?? mutation.target;
-		if (mutation.attributeName === "aria-hidden" || mutation.attributeName === "inert") {
+		if (EXCLUSION_ATTRIBUTES.has(mutation.attributeName)) {
 			if (this.scanner.isExcluded(mutation.target)) {
 				this.invalidator.discardTrackedSubtree(mutation.target, true);
 			} else {
@@ -228,17 +238,16 @@ export class MutationMonitor {
 		const affectedElements = new Set();
 		const styleCache = new WeakMap();
 		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
-		if (!siteMutationRoot && this.scanner.isExcluded(mutation.target)) {
-			return false;
-		}
+		// target 被排除时，新增子树仍可能用 translate=yes 或正文根节点恢复资格。
 		let shouldScan = Boolean(siteMutationRoot);
 		if (siteMutationRoot) {
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
 			this.scanQueue.add(siteMutationRoot);
 		}
 		for (const node of removedNodes) {
+			const recovered = this.generatedReconciler.recoverRemovedTranslation(node);
+			shouldScan = recovered || this.invalidator.recoverRemovedTranslation(node) || shouldScan;
 			if (isOwnedNode(node)) {
-				shouldScan = this.invalidator.recoverRemovedTranslation(node) || shouldScan;
 				continue;
 			}
 			forEachTextNode(node, (textNode) => {

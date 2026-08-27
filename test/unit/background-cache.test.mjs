@@ -16,14 +16,6 @@ function createEntries() {
 	];
 }
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function saveSnapshot(runStore, tabId, runId, snapshot) {
 	const token = runStore.beginStart(tabId, runId);
 	return runStore.saveSnapshot(tabId, runId, snapshot, token).finally(() => {
@@ -165,8 +157,8 @@ test("任务持久化途中取消会回滚当前任务指针", async () => {
 	};
 	await saveSnapshot(runStore, 7, "run-previous", snapshot);
 
-	const writeEntered = createDeferred();
-	const releaseWrite = createDeferred();
+	const writeEntered = Promise.withResolvers();
+	const releaseWrite = Promise.withResolvers();
 	const originalSet = harness.session.set.bind(harness.session);
 	harness.session.set = async (values) => {
 		await originalSet(values);

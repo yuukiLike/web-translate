@@ -81,7 +81,7 @@ const selectedModel = computed(() => {
 				>
 					<option v-if="models.length === 0" value="">本地目录未载入</option>
 					<option v-for="entry in models" :key="entry.id" :value="entry.id">
-						{{ entry.optionLabel || entry.name || entry.label }}
+						{{ entry.name }}
 					</option>
 				</select>
 				<div v-if="selectedModel" class="model-meta" aria-live="polite">

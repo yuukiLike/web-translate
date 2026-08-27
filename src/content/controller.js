@@ -83,7 +83,8 @@ function cleanupStaleArtifacts() {
 	)) {
 		node.remove();
 	}
-	for (const element of document.querySelectorAll("[data-bt-source]")) {
+	for (const element of document.querySelectorAll("[data-bt-source], [data-bt-loading]")) {
+		delete element.dataset.btLoading;
 		delete element.dataset.btSource;
 	}
 }

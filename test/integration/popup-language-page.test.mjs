@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-	createDeferred,
 	createPopupPageHarness,
 	waitFor,
 } from "../helpers/popup-page-harness.mjs";
@@ -72,7 +71,7 @@ test("Popup 将 auto→zh 的输出语言改为英文时保持 auto→en", async
 
 // 验证语言方向保存期间锁定全部相关操作，重复事件不会发起第二次保存或网页翻译。
 test("Popup 保存语言方向时禁用选择器与主操作并阻止重复请求", async () => {
-	const saved = createDeferred();
+	const saved = Promise.withResolvers();
 	const page = await createPopupPageHarness({ setLanguagePair: () => saved.promise });
 	try {
 		await waitUntilLanguageControlsReady(page);

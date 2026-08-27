@@ -1,3 +1,4 @@
+import { safeString } from "../core/value-utils.js";
 import {
 	DEBUG_EVENT_NAMES,
 	DEBUG_REQUEST_END_EVENTS,
@@ -17,12 +18,11 @@ import {
 	urlParts,
 	withUnit,
 } from "./debugFormat.js";
-import { shortText } from "./formatters.js";
 
 export function createDebugRows(events) {
 	return normalizeDebugEvents(events).map((event, index) => {
 		const eventName = scalarText(event.eventType) || scalarText(event.operation) || "DEBUG_EVENT";
-		const timestamp = shortText(event.timestamp, 80);
+		const timestamp = safeString(event.timestamp, "", 80);
 		const status = debugStatus(event);
 		let id = `event-${index}`;
 		if (typeof event.seq === "number" && Number.isFinite(event.seq)) {
@@ -60,7 +60,7 @@ export function createDebugRequests(events) {
 		if (!started && !completed && !failed) {
 			continue;
 		}
-		const requestId = shortText(event.requestId, 300);
+		const requestId = safeString(event.requestId, "", 300);
 		const attempt =
 			typeof event.attempt === "number" && Number.isFinite(event.attempt)
 				? Math.max(0, Math.round(event.attempt))
@@ -77,7 +77,7 @@ export function createDebugRequests(events) {
 		}
 		requests.set(key, {
 			id: `request-${key}`,
-			dateTime: previous?.dateTime || shortText(event.timestamp, 80),
+			dateTime: previous?.dateTime || safeString(event.timestamp, "", 80),
 			event: mergedEvent,
 			eventNames,
 			status,

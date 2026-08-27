@@ -1,4 +1,4 @@
-import { isRecord } from "./data.js";
+import { isRecord } from "../core/value-utils.js";
 
 const REQUIRED_CORE_FUNCTIONS = Object.freeze([
 	"createDefaultSettings",

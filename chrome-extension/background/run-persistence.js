@@ -105,12 +105,7 @@ export function createRunPersistence({ chrome }) {
 	}
 
 	async function deleteTab(tabId) {
-		const stored = await chrome.storage.session.get(null);
-		const prefix = `${STORAGE_KEYS.runSnapshotPrefix}${tabId}:`;
-		const snapshotKeys = Object.keys(stored).filter((key) => key.startsWith(prefix));
-		if (snapshotKeys.length > 0) {
-			await chrome.storage.session.remove(snapshotKeys);
-		}
+		await deleteTabSnapshots(tabId);
 		await chrome.storage.session.remove(currentKey(tabId));
 	}
 

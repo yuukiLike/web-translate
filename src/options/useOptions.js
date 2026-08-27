@@ -1,15 +1,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 
-import {
-	PROVIDERS,
-	SOURCES,
-	TARGETS,
-	createCatalogInfo,
-	createFallbackSettings,
-	createUsageRows,
-	errorText,
-	isRecord,
-} from "./data.js";
+import { isRecord } from "../core/value-utils.js";
+import { createCatalogInfo, createFallbackSettings } from "./catalogData.js";
+import { errorText } from "./formatters.js";
+import { PROVIDERS, SOURCES, TARGETS } from "./optionDefinitions.js";
 import {
 	createRuntimeMessenger,
 	getCoreError,
@@ -17,6 +11,7 @@ import {
 } from "./optionsRuntime.js";
 import { useDebug } from "./useDebug.js";
 import { useDebugSettings } from "./useDebugSettings.js";
+import { createUsageRows } from "./usageData.js";
 
 export function useOptions() {
 	const core = globalThis.BilingualTranslatorCore;
@@ -92,12 +87,6 @@ export function useOptions() {
 		status.error = error;
 	}
 
-	function applySettings(value) {
-		const settings = core.normalizeSettings(value);
-		Object.assign(draft, settings);
-		return settings;
-	}
-
 	function setSourceMode(sourceMode) {
 		if (!SOURCES.some((source) => source.id === sourceMode)) {
 			return;
@@ -156,7 +145,8 @@ export function useOptions() {
 	}
 
 	function acceptSavedSettings(value) {
-		const settings = applySettings(value);
+		const settings = core.normalizeSettings(value);
+		Object.assign(draft, settings);
 		debugSettings.accept(settings);
 		return settings;
 	}
@@ -167,7 +157,7 @@ export function useOptions() {
 
 	function getProviderName(id) {
 		try {
-			return core.getProviderLabel(id, draft);
+			return core.getProviderLabel(id);
 		} catch {
 			return PROVIDERS.find((provider) => provider.id === id)?.name || id;
 		}

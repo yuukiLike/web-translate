@@ -1,19 +1,15 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { glob, readFile } from "node:fs/promises";
 import { extname, relative, resolve } from "node:path";
 import test from "node:test";
 
 const applicationRoot = resolve(new URL("../..", import.meta.url).pathname);
 
 async function listFiles(directory) {
-	const entries = await readdir(directory, { withFileTypes: true });
 	const files = [];
-	for (const entry of entries) {
-		const path = resolve(directory, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...(await listFiles(path)));
-		} else {
-			files.push(path);
+	for await (const entry of glob("**/*", { cwd: directory, withFileTypes: true })) {
+		if (entry.isFile()) {
+			files.push(resolve(entry.parentPath, entry.name));
 		}
 	}
 	return files;

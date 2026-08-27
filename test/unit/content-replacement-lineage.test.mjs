@@ -217,7 +217,7 @@ test("RootQueue.add 主动清理断连旧根", () =>
 		assert.deepEqual(queue.take(), [freshRoot]);
 	}));
 
-// 验证连续 fresh generated source 入队会清除断连前驱，reconcile 只遍历当前节点。
+// 验证连续 fresh generated source 会清除断连前驱，并让缺少译文节点的当前状态失效。
 test("GeneratedMutationReconciler 不保留断连 fresh source", () => {
 	const first = createElement();
 	const second = createElement();
@@ -251,7 +251,7 @@ test("GeneratedMutationReconciler 不保留断连 fresh source", () => {
 	reconciler.reconcile();
 
 	assert.deepEqual(inspected, [current]);
-	assert.deepEqual(invalidated, [first, second]);
+	assert.deepEqual(invalidated, [first, second, current]);
 	assert.deepEqual(queuedRoots, [first, second, current, current]);
 });
 

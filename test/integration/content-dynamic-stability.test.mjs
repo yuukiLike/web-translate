@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { TIMING } from "../../src/content/constants.js";
 import { CONTENT_VOLATILITY } from "../../src/content/volatile-content-tracker.js";
-import { createContentHarness, createDeferred, waitFor } from "../helpers/content-dom-harness.mjs";
+import { createContentHarness, waitFor } from "../helpers/content-dom-harness.mjs";
 const TEXT = Object.freeze({
 	agents: "Agents coordinate live work across the Cloudflare network.",
 	workflow: "Workflow is preparing the next deployment stage.",
@@ -53,7 +53,7 @@ test("语义隐藏边界不影响稳定动态正文", async () => {
 
 // 验证同节点扰动、textContent 更新和 fresh-node 轮播越过阈值后永久跳过，迟到响应也不能污染 DOM 或进度。
 test("持续变化内容的请求与完成计数保持有界", async () => {
-	const delayedResponse = createDeferred();
+	const delayedResponse = Promise.withResolvers();
 	const harness = createContentHarness({
 		async translateText(text) {
 			if (text === TEXT.agents) {

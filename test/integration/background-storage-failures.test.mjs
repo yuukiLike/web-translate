@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness, providerRuntime = createProviderRuntimeFake()) {
 	return {
 		app: createBackgroundApp({
@@ -109,7 +101,7 @@ test("标签页终态写入失败会回退到删除 current 指针", async () =>
 		}
 		await originalSet(values);
 	};
-	const currentRemoved = createDeferred();
+	const currentRemoved = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (Array.isArray(keys) && keys.includes("run-snapshot:7:run-tab-fallback")) {
@@ -141,8 +133,8 @@ test("Badge 写入挂起不会锁死翻译生命周期", async () => {
 	await first.app.start();
 	await sendAppMessage(first.app, { type: "START_RUN", runId: "run-badge-hang" }, sender);
 
-	const badgeEntered = createDeferred();
-	const releaseBadge = createDeferred();
+	const badgeEntered = Promise.withResolvers();
+	const releaseBadge = Promise.withResolvers();
 	const originalBadgeWrite = harness.chrome.action.setBadgeText.bind(harness.chrome.action);
 	harness.chrome.action.setBadgeText = async (details) => {
 		await originalBadgeWrite(details);

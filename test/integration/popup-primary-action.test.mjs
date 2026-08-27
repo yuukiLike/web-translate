@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-	createDeferred,
 	createPopupPageHarness,
 	waitFor,
 } from "../helpers/popup-page-harness.mjs";
@@ -33,7 +32,7 @@ test("Popup 首屏使用全宽大号翻译按钮", async () => {
 
 // 验证翻译期间主按钮保持高对比忙碌语义，并锁定语言选择避免并发改向。
 test("Popup 主翻译操作公开忙碌状态并锁定语言", async () => {
-	const response = createDeferred();
+	const response = Promise.withResolvers();
 	const page = await createPopupPageHarness({
 		toggleActiveTab: () => response.promise,
 	});

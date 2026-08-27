@@ -10,14 +10,6 @@ function segment(text, sourceLanguage = "en", targetLanguage = "zh") {
 	return { text, sourceLanguage, targetLanguage };
 }
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 async function waitFor(predicate) {
 	while (!predicate()) {
 		await new Promise((resolve) => setTimeout(resolve, 10));
@@ -228,7 +220,7 @@ test("生成呈现忽略布局签名引起的重建", async () => {
 
 // 验证 done 请求尚未返回时会立即发送 settling，而请求结束后失效操作保持静默。
 test("完成状态请求可以被 settling 及时失效", async () => {
-	const doneResponse = createDeferred();
+	const doneResponse = Promise.withResolvers();
 	const states = [];
 	const progress = new ProgressTracker();
 	const element = {};
