@@ -47,19 +47,24 @@ export class DomScanner {
 			return null;
 		}
 		const siteContentUnit = this.siteProfile.findContentUnit(element);
-		if (siteContentUnit) {
+		if (siteContentUnit && !this.isExcluded(siteContentUnit)) {
 			return siteContentUnit;
 		}
 		const atomic = element.closest(SELECTORS.atomic);
-		if (atomic) {
+		if (atomic && !this.isExcluded(atomic)) {
 			return atomic;
 		}
 		const leaf = element.closest(SELECTORS.leaf);
-		if (leaf) {
+		if (leaf && !this.isExcluded(leaf)) {
 			return leaf;
 		}
 
+		let lastEligible = element;
 		for (let current = element; current; current = current.parentElement) {
+			if (this.isExcluded(current)) {
+				return lastEligible;
+			}
+			lastEligible = current;
 			if (
 				current.matches(SELECTORS.interactive) ||
 				current.matches(SELECTORS.structural) ||
@@ -74,7 +79,7 @@ export class DomScanner {
 				return current;
 			}
 		}
-		return document.body;
+		return lastEligible;
 	}
 
 	getPresentation(element) {

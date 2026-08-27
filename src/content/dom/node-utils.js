@@ -8,11 +8,50 @@ const READABLE_PLAIN_TEXT_TYPES = new Set([
 
 /** 普通代码区保持排除，但允许浏览器为纯文本响应生成的根级 pre。 */
 export function isTranslationExcluded(element) {
-	if (isSemanticallyHidden(element) || element?.closest?.(SELECTORS.excluded)) {
+	if (
+		isSemanticallyHidden(element) ||
+		element?.closest?.(SELECTORS.excluded) ||
+		hasLocalTranslateOptOut(element)
+	) {
 		return true;
 	}
 	const codeLikeAncestor = element?.closest?.(SELECTORS.codeLike);
 	return Boolean(codeLikeAncestor && !isReadablePlainTextRoot(codeLikeAncestor));
+}
+
+/** 页面外壳的 translate=no 不应清空整页候选；正文中的局部声明仍需遵守。 */
+function hasLocalTranslateOptOut(element) {
+	const contentRoot = element?.closest?.(SELECTORS.root) ?? null;
+	for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+		if (!ancestor.hasAttribute?.("translate")) {
+			continue;
+		}
+		const directive = String(ancestor.getAttribute("translate") ?? "").toLowerCase();
+		if (directive === "" || directive === "yes") {
+			return false;
+		}
+		if (directive !== "no") {
+			continue; // HTML 枚举属性的非法值继承外层声明。
+		}
+		if (isPageTranslateOptOut(ancestor, contentRoot)) {
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
+function isPageTranslateOptOut(boundary, contentRoot) {
+	const ownerDocument = boundary.ownerDocument;
+	if (boundary === ownerDocument?.documentElement || boundary === ownerDocument?.body) {
+		return true;
+	}
+	return Boolean(
+		contentRoot &&
+			contentRoot !== boundary &&
+			boundary.parentElement === ownerDocument?.body &&
+			boundary.contains(contentRoot),
+	);
 }
 
 function isSemanticallyHidden(element) {

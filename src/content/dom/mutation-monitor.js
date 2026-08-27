@@ -238,9 +238,7 @@ export class MutationMonitor {
 		const affectedElements = new Set();
 		const styleCache = new WeakMap();
 		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
-		if (!siteMutationRoot && this.scanner.isExcluded(mutation.target)) {
-			return false;
-		}
+		// target 被排除时，新增子树仍可能用 translate=yes 或正文根节点恢复资格。
 		let shouldScan = Boolean(siteMutationRoot);
 		if (siteMutationRoot) {
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);

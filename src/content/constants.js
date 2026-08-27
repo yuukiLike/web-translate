@@ -49,7 +49,6 @@ export const SELECTORS = Object.freeze({
 		"select",
 		"option",
 		"[contenteditable='true']",
-		"[translate='no']",
 		".bt-translation",
 		".bt-status",
 	].join(","),
