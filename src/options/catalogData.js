@@ -1,5 +1,6 @@
-import { MODEL_PROVIDER_IDS } from "./optionDefinitions.js";
-import { formatNumber, isRecord, shortText } from "./formatters.js";
+import { MODEL_PROVIDER_IDS } from "../core/constants.js";
+import { isRecord, safeString } from "../core/value-utils.js";
+import { formatNumber } from "./formatters.js";
 
 function formatDecimal(value) {
 	if (!Number.isFinite(value)) {
@@ -37,28 +38,21 @@ function catalogModel(entryId, value) {
 	if (!isRecord(value)) {
 		return undefined;
 	}
-	const id = shortText(value.id, 300) || shortText(entryId, 300);
+	const id = safeString(value.id, "", 300) || safeString(entryId, "", 300);
 	if (!id) {
 		return undefined;
 	}
-	const name = shortText(value.name, 180) || id;
-	const costText = formatCostPair(isRecord(value.cost) ? value.cost : {});
-	const contextText = formatContextSize(isRecord(value.limits) ? value.limits : {});
-	const chips = [costText, contextText].filter(Boolean);
-	const label = chips.length > 0 ? `${name} · ${chips.join(" · ")}` : name;
+	const name = safeString(value.name, "", 180) || id;
 	return {
 		id,
 		name,
-		label,
-		optionLabel: name,
-		costText,
-		contextText,
-		chips,
+		costText: formatCostPair(value.cost),
+		contextText: formatContextSize(value.limits),
 	};
 }
 
 function catalogDate(value) {
-	const raw = shortText(value, 80);
+	const raw = safeString(value, "", 80);
 	if (!raw) {
 		return { dateText: "未知", dateTime: "" };
 	}
@@ -88,7 +82,7 @@ export function createCatalogInfo(catalog) {
 	}
 
 	const source = isRecord(catalog.source) ? catalog.source : {};
-	const commit = shortText(source.commit, 100);
+	const commit = safeString(source.commit, "", 100);
 	const date = catalogDate(source.fetchedAt);
 	let complete = true;
 	for (const id of MODEL_PROVIDER_IDS) {
@@ -100,7 +94,7 @@ export function createCatalogInfo(catalog) {
 		const providerModels = Object.entries(provider.models)
 			.map(([entryId, model]) => catalogModel(entryId, model))
 			.filter((model) => model !== undefined);
-		const defaultId = shortText(provider.defaultModelId, 300);
+		const defaultId = safeString(provider.defaultModelId, "", 300);
 		providerModels.sort((left, right) => {
 			if (left.id === defaultId) {
 				return -1;
@@ -133,7 +127,7 @@ function defaultModelId(catalog, providerId) {
 	if (!isRecord(provider) || !isRecord(provider.models)) {
 		return "";
 	}
-	const requested = shortText(provider.defaultModelId, 300);
+	const requested = safeString(provider.defaultModelId, "", 300);
 	if (requested && Object.hasOwn(provider.models, requested)) {
 		return requested;
 	}

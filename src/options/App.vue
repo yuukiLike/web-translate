@@ -127,7 +127,7 @@ function getSubmitLabel() {
 						v-model:base-url="draft.custom.baseUrl"
 						v-model:model="draft[selectedProvider.id].model"
 						v-model:region="draft.azure.region"
-						:models="catalogInfo.models[selectedProvider.id] || []"
+						:models="catalogInfo.models[selectedProvider.id]"
 						:provider="selectedProvider"
 					/>
 

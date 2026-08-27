@@ -83,22 +83,12 @@ export function createChromeHarness(options = {}) {
 	const local = options.local ?? createStorageArea({ [backgroundCore.SETTINGS_KEY]: settings });
 	const session = options.session ?? createStorageArea();
 	const badgeTexts = [];
-	const actionTitles = [];
-	const contextMenuItems = new Map();
-	const createdTabs = [];
 	const activeTabs = options.activeTabs ?? [
 		{ id: 7, incognito: false, url: "https://page.example/article" },
 	];
 	const scriptExecutions = [];
 	const tabQueries = [];
-	const events = {
-		onConnect: createChromeEvent(),
-		onContextMenuClicked: createChromeEvent(),
-		onInstalled: createChromeEvent(),
-		onMessage: createChromeEvent(),
-		onTabRemoved: createChromeEvent(),
-	};
-	let optionsOpenCount = 0;
+	let createdTabCount = 0;
 
 	const chrome = {
 		action: {
@@ -106,23 +96,15 @@ export function createChromeHarness(options = {}) {
 				badgeTexts.push(details.text);
 			},
 			async setBadgeBackgroundColor() {},
-			async setTitle(details) {
-				actionTitles.push(structuredClone(details));
-			},
+			async setTitle() {},
 		},
 		contextMenus: {
-			onClicked: events.onContextMenuClicked,
-			async removeAll() {
-				contextMenuItems.clear();
-			},
+			onClicked: createChromeEvent(),
+			async removeAll() {},
 			create(item) {
-				contextMenuItems.set(item.id, structuredClone(item));
 				return item.id;
 			},
-			async update(id, changes) {
-				const previous = contextMenuItems.get(id) ?? { id };
-				contextMenuItems.set(id, { ...previous, ...structuredClone(changes) });
-			},
+			async update() {},
 		},
 		permissions: {
 			async contains() {
@@ -130,18 +112,16 @@ export function createChromeHarness(options = {}) {
 			},
 		},
 		runtime: {
-			onConnect: events.onConnect,
-			onInstalled: events.onInstalled,
-			onMessage: events.onMessage,
+			onConnect: createChromeEvent(),
+			onInstalled: createChromeEvent(),
+			onMessage: createChromeEvent(),
 			getManifest() {
 				return { version: "0.4.0" };
 			},
 			getURL(path = "") {
 				return `${extensionOrigin}${path}`;
 			},
-			async openOptionsPage() {
-				optionsOpenCount += 1;
-			},
+			async openOptionsPage() {},
 		},
 		scripting: {
 			async insertCSS(details) {
@@ -153,29 +133,22 @@ export function createChromeHarness(options = {}) {
 		},
 		storage: { local, session },
 		tabs: {
-			onRemoved: events.onTabRemoved,
+			onRemoved: createChromeEvent(),
 			async query(details) {
 				tabQueries.push(structuredClone(details));
 				return structuredClone(activeTabs);
 			},
 			async create(details) {
-				createdTabs.push(structuredClone(details));
-				return { id: createdTabs.length, ...structuredClone(details) };
+				createdTabCount += 1;
+				return { id: createdTabCount, ...structuredClone(details) };
 			},
 		},
 	};
 
 	return {
-		actionTitles,
 		badgeTexts,
 		chrome,
-		contextMenuItems,
-		createdTabs,
-		events,
 		local,
-		get optionsOpenCount() {
-			return optionsOpenCount;
-		},
 		scriptExecutions,
 		session,
 		tabQueries,

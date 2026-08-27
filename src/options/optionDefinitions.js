@@ -1,5 +1,3 @@
-export const MODEL_PROVIDER_IDS = Object.freeze(["deepseek", "openai", "google", "anthropic"]);
-
 export const PROVIDERS = Object.freeze([
 	Object.freeze({
 		id: "deepseek",

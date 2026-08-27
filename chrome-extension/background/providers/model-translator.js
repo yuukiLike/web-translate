@@ -176,7 +176,6 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 		if (signal.aborted) {
 			throw signal.reason instanceof Error ? signal.reason : new Error("翻译已取消");
 		}
-		let lastError;
 		const requestId = createIdentifier();
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			const attemptNumber = attempt + 1;
@@ -208,7 +207,6 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 				});
 				return { result, apiCalls: attemptNumber };
 			} catch (error) {
-				lastError = error;
 				const retryable = isRetryableError(error);
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.failed",
@@ -253,10 +251,6 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 				}
 			}
 		}
-		throw attachTranslationUsage(
-			createModelProviderError(lastError),
-			getUnknownRequestUsage(3, request.sourceCharacters),
-		);
 	}
 
 	async function runAttempt(request, parentSignal, onRequestEvent) {

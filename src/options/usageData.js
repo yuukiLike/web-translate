@@ -1,5 +1,6 @@
-import { MODEL_PROVIDER_IDS } from "./optionDefinitions.js";
-import { formatNumber, isRecord } from "./formatters.js";
+import { MODEL_PROVIDER_IDS } from "../core/constants.js";
+import { isRecord } from "../core/value-utils.js";
+import { formatNumber } from "./formatters.js";
 
 const TOKEN_USAGE_PROVIDERS = new Set([...MODEL_PROVIDER_IDS, "custom"]);
 

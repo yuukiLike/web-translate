@@ -2,27 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import { Window } from "happy-dom";
+import { exposeGlobals, settle, waitFor } from "./page-harness.mjs";
+
+export { settle, waitFor };
 
 const extensionUrl = new URL("../../chrome-extension/", import.meta.url);
 const popupScriptUrl = new URL("popup/popup.js", extensionUrl);
 let importSequence = 0;
-
-function exposeGlobals(values) {
-	const previous = new Map();
-	for (const [name, value] of Object.entries(values)) {
-		previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
-	}
-	return () => {
-		for (const [name, descriptor] of previous) {
-			if (descriptor) {
-				Object.defineProperty(globalThis, name, descriptor);
-			} else {
-				delete globalThis[name];
-			}
-		}
-	};
-}
 
 function extractBody(html) {
 	const body = /<body>([\s\S]*?)<\/body>/u.exec(html)?.[1];
@@ -30,28 +16,20 @@ function extractBody(html) {
 	return body.replace(/\s*<script\s+src="popup\.js"><\/script>\s*/u, "");
 }
 
-export function createDeferred() {
-	let resolve;
-	let reject;
-	const promise = new Promise((resolvePromise, rejectPromise) => {
-		resolve = resolvePromise;
-		reject = rejectPromise;
-	});
-	return { promise, reject, resolve };
-}
-
-export async function settle() {
-	await Promise.resolve();
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	await Promise.resolve();
-}
-
-export async function waitFor(predicate, message) {
-	for (let attempt = 0; attempt < 60; attempt += 1) {
-		if (predicate()) return;
-		await settle();
-	}
-	assert.fail(message);
+export function createPopupState(overrides = {}) {
+	return {
+		ok: true,
+		popupProtocolVersion: 2,
+		version: "0.4.0",
+		providerLabel: "DeepSeek",
+		model: "deepseek-v4-flash",
+		languagePair: { sourceMode: "auto", targetLanguage: "zh" },
+		debugLogging: false,
+		configured: true,
+		canTranslate: true,
+		unavailableReason: "",
+		...overrides,
+	};
 }
 
 export async function createPopupPageHarness(options = {}) {
@@ -63,19 +41,7 @@ export async function createPopupPageHarness(options = {}) {
 	let closeCount = 0;
 	let optionsOpenCount = 0;
 	let reloadCount = 0;
-	const popupState = {
-		ok: true,
-		popupProtocolVersion: 2,
-		version: "0.4.0",
-		providerLabel: "DeepSeek",
-		model: "deepseek-v4-flash",
-		languagePair: { sourceMode: "auto", targetLanguage: "zh" },
-		debugLogging: false,
-		configured: true,
-		canTranslate: true,
-		unavailableReason: "",
-		...options.popupState,
-	};
+	const popupState = createPopupState(options.popupState);
 	const chromeApi = {
 		runtime: {
 			getURL(path = "") {

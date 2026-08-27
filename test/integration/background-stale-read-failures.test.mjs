@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness) {
 	const providerRuntime = createProviderRuntimeFake();
 	return {
@@ -43,8 +35,8 @@ function createBatch(runId) {
 }
 
 function captureSnapshotRead(harness, snapshotKey) {
-	const entered = createDeferred();
-	const release = createDeferred();
+	const entered = Promise.withResolvers();
+	const release = Promise.withResolvers();
 	const originalGet = harness.session.get.bind(harness.session);
 	harness.session.get = async (keys) => {
 		const stored = await originalGet(keys);
@@ -117,7 +109,7 @@ test("关闭标签页仅删除快照时仍封锁已读到快照的批次", async
 	const running = createApp(harness);
 	await running.app.start();
 	const snapshotRead = captureSnapshotRead(harness, snapshotKey);
-	const snapshotRemoved = createDeferred();
+	const snapshotRemoved = Promise.withResolvers();
 	failCurrentInvalidation(harness, snapshotKey, snapshotRemoved.resolve);
 
 	const batch = sendAppMessage(running.app, createBatch(runId), sender);

@@ -1,4 +1,13 @@
 import { SITE_PRESENTATION } from "../site-profile.js";
+import {
+	createGeneratedTranslationNode,
+	GENERATED_TRANSLATION_SELECTOR,
+	isGeneratedTranslationStructureIntact,
+	isOwnedGeneratedNode,
+	LEGACY_DESCRIPTION_SELECTOR,
+	normalizeGeneratedTranslation,
+	OWNED_GENERATED_NODE_SELECTOR,
+} from "./generated-translation-structure.js";
 
 const GENERATED_SOURCE_SELECTOR = [
 	"[data-bt-generated-owned='true']",
@@ -6,6 +15,7 @@ const GENERATED_SOURCE_SELECTOR = [
 ].join(", ");
 const GENERATED_DATASET_NAMES = [
 	"btSource",
+	"btLoading",
 	"btGeneratedOwned",
 	"btPresentation",
 	"btPresentationRun",
@@ -14,82 +24,115 @@ const GENERATED_DATASET_NAMES = [
 	"btDescriptionId",
 ];
 
-let descriptionSequence = 0;
+let translationSequence = 0;
+const generatedPresentations = new WeakMap();
 
-/** 创建不进入宿主布局子树的描述节点，并把可见文本声明在 source 属性上。 */
-export function createGeneratedTranslation({ source, text, language, runId }) {
-	const description = document.createElement("span");
-	description.id = nextDescriptionId(document, runId);
-	description.className = "bt-translation bt-translation-description";
-	description.dataset.btOwned = "true";
-	description.dataset.btRun = runId;
-	description.lang = language;
-	description.setAttribute("translate", "no");
-	description.textContent = text;
-	document.body.append(description);
-	restoreGeneratedPresentation(source, description, runId);
-	return description;
+/** 创建 source 原生文本承载节点内可见、可选择的真实译文。 */
+export function createGeneratedTranslation({ anchor, source, text, language, runId }) {
+	const presentation = {
+		anchor,
+		id: nextTranslationId(document, runId),
+		language,
+		runId,
+		text,
+	};
+	const translation = createGeneratedTranslationNode(document, presentation);
+	generatedPresentations.set(translation, presentation);
+	return restoreGeneratedPresentation(source, translation, runId, anchor)
+		? translation
+		: null;
 }
 
-/** 宿主清理扩展属性时，在下一次绘制前用已跟踪描述恢复完整呈现。 */
-export function restoreGeneratedPresentation(source, description, runId) {
-	if (!source?.isConnected || !description?.isConnected) {
+/** 宿主删除节点或清理属性时，在下一次绘制前复挂同一个真实译文节点。 */
+export function restoreGeneratedPresentation(source, translation, runId, anchor = null) {
+	const presentation = getTrackedPresentation(translation, runId);
+	const target = resolvePresentationAnchor(source, presentation, anchor);
+	if (
+		!source?.isConnected ||
+		!presentation ||
+		!target ||
+		source.ownerDocument !== translation.ownerDocument
+	) {
 		return false;
 	}
-	const descriptionRun = description.dataset.btRun;
-	if (!descriptionRun || descriptionRun !== runId) {
-		return false;
+	normalizeGeneratedTranslation(translation, presentation);
+	removeCompetingGeneratedChildren(source, translation, presentation.id);
+	if (translation.parentElement !== target) {
+		target.append(translation);
 	}
+	presentation.anchor = target;
 	source.dataset.btSource = runId;
 	source.dataset.btGeneratedOwned = "true";
 	source.dataset.btPresentation = SITE_PRESENTATION.generated;
 	source.dataset.btPresentationRun = runId;
-	source.dataset.btTranslation = description.textContent ?? "";
-	source.dataset.btTranslationLang = description.lang;
-	source.dataset.btDescriptionId = description.id;
-	addDescriptionReference(source, description.id);
+	source.dataset.btTranslation = presentation.text;
+	source.dataset.btTranslationLang = presentation.language;
+	source.dataset.btDescriptionId = presentation.id;
 	return true;
 }
 
-export function isGeneratedPresentationIntact(source, description, runId) {
+export function isGeneratedPresentationIntact(source, translation, runId) {
+	const presentation = getTrackedPresentation(translation, runId);
+	const anchor = presentation?.anchor;
 	if (
 		!source?.isConnected ||
-		!description?.isConnected ||
+		!presentation ||
+		!isValidPresentationAnchor(source, anchor) ||
+		!translation?.isConnected ||
+		translation.parentElement !== anchor ||
+		!hasOnlyTrackedGeneratedChild(source, translation, presentation.id) ||
+		!isGeneratedTranslationStructureIntact(translation, presentation) ||
 		source.dataset.btSource !== runId ||
 		source.dataset.btGeneratedOwned !== "true" ||
 		source.dataset.btPresentation !== SITE_PRESENTATION.generated ||
 		source.dataset.btPresentationRun !== runId ||
-		source.dataset.btDescriptionId !== description.id ||
-		description.dataset.btRun !== runId ||
-		source.dataset.btTranslation !== (description.textContent ?? "") ||
-		source.dataset.btTranslationLang !== description.lang
+		source.dataset.btDescriptionId !== presentation.id ||
+		source.dataset.btTranslation !== presentation.text ||
+		source.dataset.btTranslationLang !== presentation.language
 	) {
 		return false;
 	}
-	return getDescriptionReferences(source).includes(description.id);
-}
-
-/** ElementStore 已确认归属后，把 generated surface 原子迁移到同文新节点。 */
-export function transferTrackedGeneratedPresentation(source, target, description, runId) {
-	if (
-		!canTransferTrackedGeneratedPresentation({ target, description, runId }) ||
-		!restoreGeneratedPresentation(target, description, runId)
-	) {
-		return false;
-	}
-	clearGeneratedSourceAttributes(source, description.id);
 	return true;
 }
 
-/** 与实际迁移共享的无副作用前置检查；不要求宿主仍保留 generated 属性。 */
-export function canTransferTrackedGeneratedPresentation({ target, description, runId }) {
-	return Boolean(target?.isConnected && isOwnedDescription(description, runId));
+/** ElementStore 已确认归属后，把同一个真实译文节点原子迁移到同文新 source。 */
+export function transferTrackedGeneratedPresentation(
+	source,
+	target,
+	translation,
+	runId,
+	anchor,
+) {
+	const presentation = getTrackedPresentation(translation, runId);
+	if (
+		!presentation ||
+		!canTransferTrackedGeneratedPresentation({ target, translation, runId }) ||
+		!restoreGeneratedPresentation(target, translation, runId, anchor)
+	) {
+		return false;
+	}
+	clearGeneratedSourceAttributes(source, presentation.id);
+	for (const copy of findOwnedGeneratedNodes(source, presentation.id)) {
+		if (copy !== translation) {
+			copy.remove();
+		}
+	}
+	return true;
 }
 
-/** 幂等清理一个 source 的 generated 属性、aria 引用和离屏描述。 */
+/** 迁移前 source 可以已脱离文档；节点归属和目标连通性必须仍可信。 */
+export function canTransferTrackedGeneratedPresentation({ target, translation, runId }) {
+	return Boolean(
+		target?.isConnected &&
+			target.ownerDocument === translation?.ownerDocument &&
+			getTrackedPresentation(translation, runId),
+	);
+}
+
+/** 幂等清理 source 属性和可见译文，并移除旧版离屏描述留下的 ARIA 引用。 */
 export function clearGeneratedPresentation(
 	source,
-	{ runId = null, descriptionId = null } = {},
+	{ runId = null, descriptionId = null, translationNode = null } = {},
 ) {
 	if (!source?.dataset) {
 		return false;
@@ -105,23 +148,85 @@ export function clearGeneratedPresentation(
 	if (descriptionId && currentDescriptionId && currentDescriptionId !== descriptionId) {
 		return false;
 	}
-	const ownedDescriptionId = currentDescriptionId || descriptionId;
-	clearGeneratedSourceAttributes(source, ownedDescriptionId);
-	const description = ownedDescriptionId
-		? source.ownerDocument?.getElementById(ownedDescriptionId)
-		: null;
-	if (description?.matches(".bt-translation-description[data-bt-owned='true']")) {
-		description.remove();
+	const trackedId = generatedPresentations.get(translationNode)?.id;
+	const ownedNodeId = trackedId || currentDescriptionId || descriptionId || translationNode?.id || null;
+	const ownedNodes = findOwnedGeneratedNodes(source, ownedNodeId, translationNode);
+	clearGeneratedSourceAttributes(source, ownedNodeId);
+	for (const node of ownedNodes) {
+		node.remove();
 	}
-	return Boolean(ownedDescriptionId);
+	return Boolean(ownedNodeId || ownedNodes.size > 0);
 }
 
-function isOwnedDescription(description, runId) {
+function getTrackedPresentation(translation, runId) {
+	const presentation = generatedPresentations.get(translation);
+	return presentation?.runId === runId ? presentation : null;
+}
+
+function resolvePresentationAnchor(source, presentation, requestedAnchor) {
+	if (!presentation) {
+		return null;
+	}
+	if (isValidPresentationAnchor(source, requestedAnchor)) {
+		return requestedAnchor;
+	}
+	return isValidPresentationAnchor(source, presentation.anchor)
+		? presentation.anchor
+		: null;
+}
+
+function isValidPresentationAnchor(source, anchor) {
 	return Boolean(
-		description?.isConnected &&
-			description.dataset.btRun === runId &&
-			description.matches(".bt-translation-description[data-bt-owned='true']"),
+		source &&
+		anchor?.nodeType === Node.ELEMENT_NODE &&
+		(anchor === source || source.contains(anchor)) &&
+		!isOwnedGeneratedNode(anchor),
 	);
+}
+
+function removeCompetingGeneratedChildren(source, translation, translationId) {
+	for (const child of findSurfaceNodes(source, translationId)) {
+		if (child !== translation) {
+			child.remove();
+		}
+	}
+}
+
+function hasOnlyTrackedGeneratedChild(source, translation, translationId) {
+	const generatedChildren = findSurfaceNodes(source, translationId);
+	return generatedChildren.length === 1 && generatedChildren[0] === translation;
+}
+
+function findSurfaceNodes(source, translationId) {
+	const nodes = [];
+	for (const node of source.querySelectorAll?.(OWNED_GENERATED_NODE_SELECTOR) ?? []) {
+		if (node.parentElement === source || node.id === translationId) {
+			nodes.push(node);
+		}
+	}
+	return nodes;
+}
+
+function findOwnedGeneratedNodes(source, nodeId, trackedNode = null) {
+	const nodes = new Set();
+	if (trackedNode?.nodeType === Node.ELEMENT_NODE) {
+		nodes.add(trackedNode);
+	}
+	const descendants = source.querySelectorAll?.(OWNED_GENERATED_NODE_SELECTOR) ?? [];
+	for (const node of descendants) {
+		if (!nodeId || node.id === nodeId) {
+			nodes.add(node);
+		}
+	}
+	const connectedNode = nodeId ? source.ownerDocument?.getElementById(nodeId) : null;
+	if (isOwnedGeneratedNode(connectedNode)) {
+		nodes.add(connectedNode);
+	}
+	return nodes;
+}
+
+function findOwnedGeneratedNode(source, nodeId) {
+	return findOwnedGeneratedNodes(source, nodeId).values().next().value ?? null;
 }
 
 function clearGeneratedSourceAttributes(source, descriptionId) {
@@ -153,30 +258,21 @@ function isOwnedGeneratedSource(source) {
 	}
 	const descriptionId = source.dataset.btDescriptionId;
 	const presentationRun = source.dataset.btPresentationRun;
-	const description = descriptionId
-		? source.ownerDocument?.getElementById(descriptionId)
-		: null;
+	const node = findOwnedGeneratedNode(source, descriptionId);
 	return Boolean(
 		source.dataset.btPresentation === SITE_PRESENTATION.generated &&
 			presentationRun &&
-			description?.matches(".bt-translation-description[data-bt-owned='true']") &&
-			description.dataset.btRun === presentationRun,
+			node?.dataset.btRun === presentationRun,
 	);
 }
 
-function nextDescriptionId(documentRef, runId) {
+function nextTranslationId(documentRef, runId) {
 	let id;
 	do {
-		descriptionSequence += 1;
-		id = `bt-translation-description-${runId}-${descriptionSequence}`;
+		translationSequence += 1;
+		id = `bt-translation-generated-${runId}-${translationSequence}`;
 	} while (documentRef.getElementById(id));
 	return id;
-}
-
-function addDescriptionReference(source, descriptionId) {
-	const references = new Set(getDescriptionReferences(source));
-	references.add(descriptionId);
-	source.setAttribute("aria-describedby", [...references].join(" "));
 }
 
 function removeDescriptionReference(source, descriptionId) {

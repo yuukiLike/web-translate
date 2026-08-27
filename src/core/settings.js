@@ -173,12 +173,9 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		};
 	}
 
-	function getProviderLabel(providerOrSettings, settingsInput) {
-		const settings = isRecord(providerOrSettings)
-			? normalizeSettings(providerOrSettings)
-			: normalizeSettings(settingsInput);
+	function getProviderLabel(providerOrSettings) {
 		const provider = isRecord(providerOrSettings)
-			? settings.provider
+			? normalizeSettings(providerOrSettings).provider
 			: safeString(providerOrSettings);
 		return providerDefinitions[provider]?.label ?? "未知翻译服务";
 	}
@@ -194,7 +191,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		const normalized = normalizeSettings(settings);
 		const configKey = providerDefinitions[normalized.provider].configKey;
 		if (!normalized[configKey].apiKey) {
-			return `请先填写 ${getProviderLabel(normalized)} API Key`;
+			return `请先填写 ${getProviderLabel(normalized.provider)} API Key`;
 		}
 		if (normalized.provider === "custom" && !normalized.custom.baseUrl) {
 			return "请填写有效的自定义 Base URL（仅 https，本地可用 http）";

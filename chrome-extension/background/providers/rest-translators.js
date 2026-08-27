@@ -1,3 +1,5 @@
+import { sumSegmentCharacters } from "../utilities.js";
+
 export function createRestTranslators({ core, jsonClient, debugMetadata }) {
 	async function translateWithAzure(
 		settings,
@@ -52,10 +54,7 @@ export function createRestTranslators({ core, jsonClient, debugMetadata }) {
 		return {
 			translations: data.map((item) => item.translations[0].text.trim()),
 			usage: {
-				billedCharacters: segments.reduce(
-					(sum, segment) => sum + segment.text.length,
-					0,
-				),
+				billedCharacters: sumSegmentCharacters(segments),
 			},
 		};
 	}

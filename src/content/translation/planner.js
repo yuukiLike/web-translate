@@ -2,6 +2,7 @@ import { SOURCE_PART_CHARACTER_LIMIT } from "../constants.js";
 import { SITE_PRESENTATION } from "../site-profile.js";
 import { isGeneratedPresentationIntact } from "../dom/generated-presentation.js";
 import { shouldSkipCandidate } from "./content-filter.js";
+import { getSegmentKey } from "./run-cache.js";
 
 /** 从正文候选块生成去重后的翻译段落。 */
 export class TranslationPlanner {
@@ -30,7 +31,11 @@ export class TranslationPlanner {
 			record.element.dataset.btSource = this.runId;
 			this.progress.count(record.element, record.progressKey);
 			record.parts.forEach((text, partIndex) => {
-				const dedupeKey = `${record.sourceLanguage}\u0000${record.targetLanguage}\u0000${text}`;
+				const dedupeKey = getSegmentKey({
+					sourceLanguage: record.sourceLanguage,
+					targetLanguage: record.targetLanguage,
+					text,
+				});
 				let segment = uniqueSegments.get(dedupeKey);
 				if (!segment) {
 					this.#segmentSequence += 1;

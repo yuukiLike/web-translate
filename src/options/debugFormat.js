@@ -1,5 +1,6 @@
+import { isRecord, safeString } from "../core/value-utils.js";
 import { DEBUG_EVENT_LIMIT } from "./debugConstants.js";
-import { formatNumber, isRecord, shortText } from "./formatters.js";
+import { formatNumber } from "./formatters.js";
 
 export function normalizeDebugEvents(value) {
 	if (!Array.isArray(value)) {
@@ -12,7 +13,7 @@ export function scalarText(value) {
 	if (typeof value === "number" && Number.isFinite(value)) {
 		return formatNumber(value);
 	}
-	return shortText(value, 160);
+	return safeString(value, "", 160);
 }
 
 function validAuthority(value) {
@@ -26,7 +27,7 @@ function validAuthority(value) {
 }
 
 export function urlParts(value) {
-	const input = shortText(value, 2_048);
+	const input = safeString(value, "", 2_048);
 	const match = /^(https?):\/\/([^/?#]+)([^?#]*)/iu.exec(input);
 	if (!match) {
 		return undefined;
@@ -44,7 +45,7 @@ export function urlParts(value) {
 }
 
 export function formatApiHost(value) {
-	const input = shortText(value, 2_048);
+	const input = safeString(value, "", 2_048);
 	const host = validAuthority(input);
 	if (host) {
 		return host.slice(0, 255);

@@ -140,15 +140,16 @@ chrome-extension/manifest.json
 
 | 文件 | 职责 |
 | --- | --- |
-| `scanner.js` | 用 TreeWalker 把文本节点归属到正文候选块并保留段落边界；不决定翻译，也不改 DOM。 |
+| `scanner.js` | 用 TreeWalker 把非扩展 owned 文本归属到正文候选块，保留段落边界，并返回末段原文的 presentation anchor；不决定翻译，也不改 DOM。 |
 | `layout.js` | 集中读取样式、可见性、布局签名和视口优先级，避免各模块重复布局逻辑。 |
-| `renderer.js` | 校验原文仍未变化；为普通站点创建 flow 译文，为 X 创建不进入宿主 child tree 的 generated presentation。 |
-| `generated-presentation.js` | 管理 generated source 属性、离屏 description、ARIA 引用、完整性恢复和跨运行幂等清理。 |
+| `renderer.js` | 校验原文仍未变化；为普通站点创建 flow 译文，为 X 在末段原文 carrier 内创建真实 generated 译文 child。 |
+| `generated-presentation.js` | 管理真实 generated Element/Text、稳定身份、宿主破坏恢复、fresh replacement 迁移、嵌套 clone 去重，以及旧版离屏 description 的兼容清理。 |
 | `generated-replacement-transfer.js` | 在同一 MutationObserver 批次内，把已跟踪 generated surface 原子迁移到语义等价的 fresh Element。 |
-| `invalidation.js` | 统一使过期元素失效，清除旧译文，恢复被网站删除的译文，并清理移除子树。 |
-| `mutation-monitor.js` | 先迁移同批 fresh replacement，再把其他 MutationObserver 事件归一化为待复核 source 和扫描根节点。 |
+| `generated-mutation-reconciler.js` | 按运行时节点身份修复 generated 结构；carrier replacement 时同步复挂 canonical 译文，并在同文 replacement 中保留真正有在途 token 的 queued revision。 |
+| `invalidation.js` | 统一使过期元素失效，清除 loading/旧译文，处理普通 flow 译文移除，并清理移除子树。 |
+| `mutation-monitor.js` | 先迁移同批 fresh source replacement，再同步修复 carrier replacement，最后把其他事件归一化为待复核 source 和扫描根节点。 |
 | `visibility-monitor.js` | 真正防抖处理 class/style 的布局与可见性变化；瞬时状态不清除 generated presentation。 |
-| `node-utils.js` | 识别扩展自有节点、遍历文本节点并构造当前运行的 source 选择器。 |
+| `node-utils.js` | 识别扩展自有节点、读取排除 owned descendants 的原文、遍历文本节点并构造当前运行的 source 选择器。 |
 
 ### `src/content/translation/`：翻译计划与云调度
 
@@ -157,7 +158,7 @@ chrome-extension/manifest.json
 | `planner.js` | 把正文候选变成翻译记录；自动模式跳过中文，按方向/原文去重、拆分并登记进度。 |
 | `run-cache.js` | 保存本次运行已得到的译文，按方向与原文隔离，并使用 750 条 LRU 上限。 |
 | `batching.js` | 按语言方向、可见性、Provider 字符与段落上限取下一批。 |
-| `cloud-translator.js` | 先解析运行缓存，再按并发请求后台；把响应回填到全部去重目标并触发渲染。 |
+| `cloud-translator.js` | 先解析运行缓存，再按并发请求后台；用每批 token 集合维护实际在途行的 loading，并把响应回填到全部去重目标。 |
 
 ## `src/provider/`：模型 SDK 运行时源码
 
@@ -201,8 +202,7 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 | `debugConstants.js` | 定义调试事件中文名和请求开始/结束/失败集合。 |
 | `debugFormat.js` | 安全格式化端点、主机、字段、时间、状态、摘要和搜索文本。 |
 | `debugRows.js` | 把事件转换为 UI 行，并按 requestId 与 attempt 合并请求生命周期。 |
-| `formatters.js` | 提供设置页无副作用的错误、数字、字符串和 record 格式化函数。 |
-| `data.js` | 统一重导出设置页数据能力，缩短组件导入面。 |
+| `formatters.js` | 提供设置页无副作用的错误与数字格式化函数；通用字符串和 record 规范化复用核心能力。 |
 
 ### 样式
 
@@ -256,6 +256,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 
 | 文件 | 职责 |
 | --- | --- |
+| `content-generated-dom.test.mjs` | 验证 X generated 译文使用真实 DOM 节点选择器和可选择样式，不再依赖 `::after` 生成内容。 |
 | `project-structure.test.mjs` | 守住手写源码不超过 300 行，以及每个测试都有中文意图注释。 |
 | `provider-config.test.mjs` | 验证 schema、跨文件安全约束和生成目录的递归冻结。 |
 
@@ -263,10 +264,12 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 
 | 文件 | 职责 |
 | --- | --- |
-| `background-harness.mjs` | 构造可观测的 Chrome API、storage、action、权限和消息后台测试环境。 |
+| `background-harness.mjs` | 构造 Chrome API、storage、权限和消息后台测试环境，只记录测试确实断言的 Badge、脚本与标签查询。 |
 | `catalog-fixture.mjs` | 提供最小且合法的 Provider 目录测试数据。 |
 | `content-dom-harness.mjs` | 用 happy-dom 加载生成内容脚本，模拟布局、runtime 消息与 DOM 变化。 |
+| `generated-translation-assertions.mjs` | 集中断言 generated 真实 Text、自然可访问语义、宿主原节点 identity 和程序化 Selection。 |
 | `options-page-harness.mjs` | 加载设置页产物，模拟扩展 API、调试 Port 和用户交互。 |
+| `page-harness.mjs` | 集中管理 Options 与 Popup 共用的异步等待和全局 descriptor 安装、恢复。 |
 | `popup-page-harness.mjs` | 用 happy-dom 加载 popup 产物，模拟 runtime 消息、当前页状态和页面跳转。 |
 | `provider-runtime-harness.mjs` | 模拟 fetch 并加载 Provider runtime，用于检查真实 SDK 请求形状。 |
 
@@ -284,7 +287,8 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `background-usage.test.mjs` | 验证 Provider 缺少 usage 时，后台保留未知语义而不是持久化成零 token。 |
 | `content-script.test.mjs` | 验证中文过滤、显式中译英、动态 DOM、运行缓存、重复注入和稳定进度。 |
 | `content-hacker-news.test.mjs` | 验证 HN 标题的换行后同行延续、元信息过滤、动态条目和 hostname 隔离。 |
-| `content-x-hover.test.mjs` | 验证 X 帖子 hover 不修改原始 child tree，且站点策略、相同译文兜底与 hostname 隔离稳定。 |
+| `content-x-generated-integrity.test.mjs` | 验证宿主破坏真实译文属性/Text 后按运行时身份恢复，以及 wrapped clone replacement 只保留 canonical 节点。 |
+| `content-x-hover.test.mjs` | 验证 X 帖子 hover 保留全部宿主原 child identity/order，并只追加一个稳定、可选择的 generated child。 |
 | `content-x-replacement.test.mjs` | 验证 fresh source/article/右栏/重复同文 replacement 在下一次绘制前迁移 generated surface。 |
 | `content-x-surfaces.test.mjs` | 验证 Explore、Show more、瞬时 hidden/role/class/style、重挂和旧上下文清理。 |
 | `content-x-stop-lifecycle.test.mjs` | 验证停止运行早于 removal record 交付时，脱离的 generated source 仍会完整清理。 |
@@ -334,14 +338,14 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 7. `translation-run.js` 组装元素索引、扫描器、计划器、运行缓存、渲染器和两个 DOM 监听器，把 `document.body` 放入 `root-queue.js`。
 8. `dom/scanner.js` 用 TreeWalker 识别正文候选；`translation/planner.js` 判断方向、在自动模式跳过中文、过滤无效文本、切分长文、同批去重并登记进度。
 9. `translation/run-cache.js` 先返回本次运行已经翻译过的方向+原文。命中时直接渲染，不再向后台发请求。
-10. `translation/cloud-translator.js` 按视口优先级和 Provider 限制分批，通过 `runtime-client.js` 发送 `TRANSLATE_BATCH`。
+10. `translation/cloud-translator.js` 按视口优先级和 Provider 限制分批；每个实际在途批次先给覆盖的正文登记独立 loading token，再通过 `runtime-client.js` 发送 `TRANSLATE_BATCH`。
 11. `message-router.js` 再次验证 runId、方向、段落数量、ID 和字符数，并从 `run-store.js` 取回启动时的固定快照。
 12. `batch-translator.js` 先调用 `cache-store.js`。缓存键包含站点、Provider、模型、协议、语言方向和原文，因此不会跨语义误用。
 13. 全命中时后台直接返回。未命中时 `provider-service.js` 选择 `model-translator.js` 或 `rest-translators.js`；请求层统一处理取消、超时、有限重试和安全调试事件。
 14. Provider 响应通过完成原因、JSON、ID、数量和译文长度校验后，后台记录普通用量统计，写入持久缓存，再把 ID 对齐的结果返回内容脚本。
-15. `cloud-translator.js` 写入运行缓存并回填所有去重目标；`dom/renderer.js` 确认原文未变化，普通页面用 `textContent` 创建 flow 译文，X 则把文本写入 generated source 属性并关联离屏 description；`progress-tracker.js` 只增加已完成数。
+15. `cloud-translator.js` 写入运行缓存并回填所有去重目标，在 `finally` 只清除当前批次的 loading token；`dom/renderer.js` 确认原文未变化，普通页面创建 flow 译文，X 则在末段原文 carrier 内维护带真实 `Text` 的 generated child；`progress-tracker.js` 只增加已完成数。
 16. `status-reporter.js` 等待 DOM 和计数稳定后发送完成状态；`status-controller.js` 先按消息到达顺序分配修订，再做后台稳定窗口检查；`action-ui.js` 在慢 Badge API 返回后重放最新修订，因此旧完成或旧进度都不能覆盖新状态。
-17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。同批 fresh replacement 会先迁移 generated surface；其他受影响根节点再进入防抖复核，已有译文优先从运行缓存恢复。
+17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。同批 fresh source replacement 会先迁移 generated surface；source 未变但末段 carrier 被替换时，同一 observer callback 会把 canonical 译文复挂到新 anchor；其他根节点才进入防抖复核。
 18. 用户再次打开 popup 并点击恢复时，后台重复注入内容脚本，已有控制器收到 toggle。`TranslationRun.stop()` 停止监听器、清理当前 runId 的 DOM、清空运行缓存并发送取消与关闭状态。后台先尝试把 current-run 持久化为 cancelled；若存储写失败，则至少删除 current 指针或快照，并保留当前 Worker 的取消屏障。在途旧删除结束前，同一 runId 不能复用。
 19. 用户直接关闭标签页时，`tabs.onRemoved` 调用 `app.onTabRemoved()`；`run-store.js` 立即中止该标签页的活动请求并建立 removed-tab 屏障，再处理持久终态与 session 快照。所有可能迟到的清理结束前不会释放 tabId，避免复用标签页的新任务被旧清理误删。
 

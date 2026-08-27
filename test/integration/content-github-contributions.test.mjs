@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
 	createContentHarness,
-	createDeferred,
 	waitFor,
 } from "../helpers/content-dom-harness.mjs";
 
@@ -89,7 +88,7 @@ test("GitHub contribution calendar 规则使用精确主机名边界", async () 
 
 // 已经排队的普通正文若在响应返回前移入图表，渲染前复核也必须拒绝注入。
 test("GitHub contribution calendar 在渲染前重新应用排除边界", async () => {
-	const deferred = createDeferred();
+	const deferred = Promise.withResolvers();
 	const sourceText = "A pending contribution note must not render inside the graph.";
 	const harness = createContentHarness({
 		translateText: async (text) => {

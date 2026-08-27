@@ -29,6 +29,7 @@ export class CloudTranslator {
 		this.invalidator = invalidator;
 		this.isCurrent = isCurrent;
 		this.reportProgress = reportProgress;
+		this.loadingSources = new Set();
 	}
 
 	resolveFromRunCache(segments) {
@@ -115,17 +116,76 @@ export class CloudTranslator {
 	}
 
 	async #translateBatch(batch) {
-		const response = await this.runtime.translateBatch(this.runId, batch);
-		if (!this.isCurrent()) {
-			return;
-		}
-		for (const result of response.results) {
-			const segment = batch.items.find((item) => item.id === result.id);
-			if (!segment || typeof result.text !== "string") {
-				throw new Error("翻译服务返回了未知段落");
+		const loadingRecords = this.#beginLoading(batch);
+		try {
+			const response = await this.runtime.translateBatch(this.runId, batch);
+			if (!this.isCurrent()) {
+				return;
 			}
-			this.runCache.set(segment, result.text);
-			this.#applyTranslation(segment, result.text);
+			for (const result of response.results) {
+				const segment = batch.items.find((item) => item.id === result.id);
+				if (!segment || typeof result.text !== "string") {
+					throw new Error("翻译服务返回了未知段落");
+				}
+				this.runCache.set(segment, result.text);
+				this.#applyTranslation(segment, result.text);
+			}
+		} finally {
+			this.#endLoading(loadingRecords, batch);
+		}
+	}
+
+	clearLoading() {
+		for (const element of this.loadingSources) {
+			const state = this.elementStore.getState(element);
+			state?.loading?.requests.clear();
+			if (state) {
+				delete state.loading;
+			}
+			if (element.dataset.btLoading === this.runId) {
+				delete element.dataset.btLoading;
+			}
+		}
+		this.loadingSources.clear();
+	}
+
+	#beginLoading(batch) {
+		const records = getBatchRecords(batch);
+		for (const record of records) {
+			const state = this.elementStore.getState(record.element);
+			if (
+				!record.element.isConnected ||
+				state?.revision !== record.revision ||
+				state.originalHash !== record.originalHash
+			) {
+				continue;
+			}
+			state.loading ??= { requests: new Set() };
+			state.loading.requests.add(batch);
+			record.element.dataset.btLoading = this.runId;
+			this.loadingSources.add(record.element);
+		}
+		return records;
+	}
+
+	#endLoading(records, batch) {
+		for (const record of records) {
+			const state = this.elementStore.getState(record.element);
+			const loading = state?.loading;
+			if (state?.revision !== record.revision || !loading?.requests.delete(batch)) {
+				if (!loading) {
+					this.loadingSources.delete(record.element);
+				}
+				continue;
+			}
+			if (loading.requests.size > 0) {
+				continue;
+			}
+			delete state.loading;
+			if (record.element.dataset.btLoading === this.runId) {
+				delete record.element.dataset.btLoading;
+			}
+			this.loadingSources.delete(record.element);
 		}
 	}
 
@@ -140,10 +200,7 @@ export class CloudTranslator {
 	}
 
 	#resetFailedBatch(batch) {
-		const records = new Set(
-			batch.items.flatMap((segment) => segment.targets.map((target) => target.record)),
-		);
-		for (const record of records) {
+		for (const record of getBatchRecords(batch)) {
 			const elementState = this.elementStore.getState(record.element);
 			if (elementState?.revision !== record.revision) {
 				continue;
@@ -152,4 +209,10 @@ export class CloudTranslator {
 			this.rootQueue.add(record.element);
 		}
 	}
+}
+
+function getBatchRecords(batch) {
+	return new Set(
+		batch.items.flatMap((segment) => segment.targets.map((target) => target.record)),
+	);
 }

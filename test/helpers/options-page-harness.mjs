@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Window } from "happy-dom";
-import { settle, waitFor } from "./popup-page-harness.mjs";
+import { exposeGlobals, settle, waitFor } from "./page-harness.mjs";
+
 const catalogUrl = new URL("../../chrome-extension/generated/provider-catalog.js", import.meta.url);
 const coreUrl = new URL("../../chrome-extension/generated/core.js", import.meta.url);
 const optionsUrl = new URL("../../chrome-extension/options/options.js", import.meta.url);
@@ -47,7 +48,7 @@ function createPort() {
 	};
 }
 function exposeWindow(window) {
-	const browserGlobals = {
+	return exposeGlobals({
 		CustomEvent: window.CustomEvent,
 		Document: window.Document,
 		Element: window.Element,
@@ -63,22 +64,8 @@ function exposeWindow(window) {
 		location: window.location,
 		navigator: window.navigator,
 		window,
-	};
-	const previousDescriptors = new Map();
-	for (const [name, value] of Object.entries(browserGlobals)) {
-		previousDescriptors.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
-	}
-	return () => {
-		for (const [name, descriptor] of previousDescriptors) {
-			if (descriptor) {
-				Object.defineProperty(globalThis, name, descriptor);
-			} else {
-				delete globalThis[name];
-			}
-		}
-		};
-	}
+	});
+}
 function installControlledTimers() {
 	const nativeTimers = {
 		clearInterval: globalThis.clearInterval,
@@ -257,12 +244,7 @@ export async function createOptionsPageHarness(options = {}) {
 		},
 		storage: { onChanged: storageChanged },
 	};
-	const previousChrome = Object.getOwnPropertyDescriptor(globalThis, "chrome");
-	Object.defineProperty(globalThis, "chrome", {
-		configurable: true,
-		writable: true,
-		value: chromeApi,
-	});
+	const restoreChrome = exposeGlobals({ chrome: chromeApi });
 	window.document.body.innerHTML = '<div id="app"></div>';
 	optionsImportId += 1;
 	await import(`${optionsUrl.href}?options-page=${optionsImportId}`);
@@ -288,11 +270,7 @@ export async function createOptionsPageHarness(options = {}) {
 		cleanup() {
 			window.dispatchEvent(new window.Event("beforeunload"));
 			timers.restore();
-			if (previousChrome) {
-				Object.defineProperty(globalThis, "chrome", previousChrome);
-			} else {
-				delete globalThis.chrome;
-			}
+			restoreChrome();
 			restoreWindow();
 			window.close();
 		},

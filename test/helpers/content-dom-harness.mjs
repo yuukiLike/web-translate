@@ -14,16 +14,6 @@ function readGenerated(fileName) {
 	);
 }
 
-export function createDeferred() {
-	let resolve;
-	let reject;
-	const promise = new Promise((resolvePromise, rejectPromise) => {
-		resolve = resolvePromise;
-		reject = rejectPromise;
-	});
-	return { promise, reject, resolve };
-}
-
 export async function waitFor(predicate, message, timeout = 3_000) {
 	const deadline = Date.now() + timeout;
 	while (!predicate()) {

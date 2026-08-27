@@ -53,20 +53,22 @@ test("generated 同文迁移后下一次变化沿用旧谱系", async () => {
 	try {
 		harness.window.location.href = "https://x.com/home";
 		harness.document.documentElement.lang = "en";
+		let sourceText = "Generated lineage starts here.";
 		const article = harness.document.createElement("article");
 		article.dataset.testid = "tweet";
-		let source = createTweetText(harness.document, "Generated lineage starts here.");
+		let source = createTweetText(harness.document, sourceText);
 		article.append(source);
 		harness.root.append(article);
 		harness.start();
-		await waitForGenerated(harness, source, source.textContent, "初始 generated 正文没有译文");
+		await waitForGenerated(harness, source, sourceText, "初始 generated 正文没有译文");
 
 		for (let frame = 1; frame < CONTENT_VOLATILITY.changeLimit; frame += 1) {
-			source.textContent = `Generated lineage frame ${frame} changes.`;
-			await waitForGenerated(harness, source, source.textContent, `第 ${frame} 帧没有译文`);
+			sourceText = `Generated lineage frame ${frame} changes.`;
+			source.textContent = sourceText;
+			await waitForGenerated(harness, source, sourceText, `第 ${frame} 帧没有译文`);
 		}
 		const descriptionId = source.dataset.btDescriptionId;
-		const fresh = createTweetText(harness.document, source.textContent);
+		const fresh = createTweetText(harness.document, sourceText);
 		source.replaceWith(fresh);
 		source = fresh;
 		await nextMutationDelivery();

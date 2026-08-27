@@ -7,7 +7,7 @@ import {
 import { hashText } from "./text.js";
 import { safeString } from "./value-utils.js";
 
-export function createCacheApi(catalog, normalizeSettings) {
+export function createCacheKey(catalog, normalizeSettings) {
 	function getProviderSignature(settings) {
 		const normalized = normalizeSettings(settings);
 		if (MODEL_PROVIDER_IDS.includes(normalized.provider)) {
@@ -25,7 +25,13 @@ export function createCacheApi(catalog, normalizeSettings) {
 		}
 	}
 
-	function cacheKey(settings, sourceLanguage, targetLanguage, text, cacheScope = "global") {
+	return function cacheKey(
+		settings,
+		sourceLanguage,
+		targetLanguage,
+		text,
+		cacheScope = "global",
+	) {
 		const fingerprint = [
 			safeString(cacheScope, "global", 500),
 			getProviderSignature(settings),
@@ -34,9 +40,7 @@ export function createCacheApi(catalog, normalizeSettings) {
 			text,
 		].join("\u0000");
 		return `${CACHE_PREFIX}${hashText(fingerprint)}`;
-	}
-
-	return { cacheKey };
+	};
 }
 
 export function getDeepLApiHost(apiKey) {

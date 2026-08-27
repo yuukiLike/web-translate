@@ -1,5 +1,5 @@
-import { readdir } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { glob } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -7,14 +7,10 @@ const applicationRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoots = ["chrome-extension/background", "scripts", "src"];
 
 async function findJavaScriptFiles(directory) {
-	const entries = await readdir(directory, { withFileTypes: true });
 	const files = [];
-	for (const entry of entries) {
-		const path = join(directory, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...(await findJavaScriptFiles(path)));
-		} else if (/\.(?:js|mjs)$/u.test(entry.name)) {
-			files.push(path);
+	for await (const entry of glob("**/*.{js,mjs}", { cwd: directory, withFileTypes: true })) {
+		if (entry.isFile()) {
+			files.push(resolve(entry.parentPath, entry.name));
 		}
 	}
 	return files;

@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness, providerRuntime) {
 	return createBackgroundApp({
 		chrome: harness.chrome,
@@ -37,8 +29,8 @@ test("缓存读取期间取消不会继续调用 Provider", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-cache-cancel" }, sender);
 
-	const cacheEntered = createDeferred();
-	const releaseCache = createDeferred();
+	const cacheEntered = Promise.withResolvers();
+	const releaseCache = Promise.withResolvers();
 	const originalGet = harness.local.get.bind(harness.local);
 	harness.local.get = async (keys) => {
 		if (
@@ -91,8 +83,8 @@ test("启动过程中取消不会留下幽灵任务", async () => {
 	const sender = createWebpageSender();
 	await app.start();
 
-	const settingsEntered = createDeferred();
-	const releaseSettings = createDeferred();
+	const settingsEntered = Promise.withResolvers();
+	const releaseSettings = Promise.withResolvers();
 	const originalGet = harness.local.get.bind(harness.local);
 	harness.local.get = async (keys) => {
 		if (keys === backgroundCore.SETTINGS_KEY) {
@@ -154,8 +146,8 @@ test("反序完成的旧启动不能覆盖新任务", async () => {
 	const sender = createWebpageSender();
 	await app.start();
 
-	const oldSettingsEntered = createDeferred();
-	const releaseOldSettings = createDeferred();
+	const oldSettingsEntered = Promise.withResolvers();
+	const releaseOldSettings = Promise.withResolvers();
 	const originalGet = harness.local.get.bind(harness.local);
 	let settingsReadCount = 0;
 	harness.local.get = async (keys) => {
@@ -198,8 +190,8 @@ test("取消不等待 Badge 即持久失效", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-badge-blocked" }, sender);
 
-	const badgeEntered = createDeferred();
-	const releaseBadge = createDeferred();
+	const badgeEntered = Promise.withResolvers();
+	const releaseBadge = Promise.withResolvers();
 	const originalSetBadgeText = harness.chrome.action.setBadgeText.bind(
 		harness.chrome.action,
 	);
@@ -253,8 +245,8 @@ test("快照回收挂起不会锁死翻译开关", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-cleanup-stuck" }, sender);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-cleanup-stuck") {

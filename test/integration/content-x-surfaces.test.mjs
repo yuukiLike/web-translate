@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createContentHarness, waitFor } from "../helpers/content-dom-harness.mjs";
+import {
+	assertGeneratedTranslation,
+	assertHostNodes,
+	getGeneratedTranslation,
+} from "../helpers/generated-translation-assertions.mjs";
 
 // 验证 Explore 的非 tweetText 主内容恢复翻译，同时页面导航和动作控件保持排除。
 test("X Explore 主内容使用稳定生成呈现", async () => {
@@ -34,12 +39,15 @@ test("X Explore 主内容使用稳定生成呈现", async () => {
 		);
 
 		for (const [source, text] of sources.map((source, index) => [source, sourceTexts[index]])) {
-			assertGeneratedTranslation(harness, source, `译文：${text}`);
+			assertGeneratedTranslation(source, `译文：${text}`);
 			assert.equal(harness.requestCount(text), 1);
 		}
 		assert.equal(harness.requestCount(navigation.textContent), 0);
 		assert.equal(navigation.dataset.btSource, undefined);
-		assert.equal(primary.querySelector(".bt-translation[data-bt-owned='true']"), null);
+		assert.equal(
+			primary.querySelectorAll(".bt-translation-generated[data-bt-owned='true']").length,
+			sources.length,
+		);
 
 		const descriptionIds = sources.map((source) => source.dataset.btDescriptionId);
 		const childListMutations = [];
@@ -63,7 +71,7 @@ test("X Explore 主内容使用稳定生成呈现", async () => {
 			descriptionIds,
 		);
 		assert.equal(childListMutations.length, 0);
-		assertOriginalNodes(card, originalCardChildren);
+		assertHostNodes(card, originalCardChildren);
 		for (const [source, text] of sources.map((source, index) => [source, sourceTexts[index]])) {
 			assert.equal(harness.requestCount(text), 1);
 			assert.equal(source.dataset.btTranslation, `译文：${text}`);
@@ -77,7 +85,10 @@ test("X Explore 主内容使用稳定生成呈现", async () => {
 			"动态 Explore 主内容没有使用稳定生成呈现",
 		);
 		assert.equal(harness.requestCount(dynamicText), 1);
-		assert.equal(primary.querySelector(".bt-translation[data-bt-owned='true']"), null);
+		assert.equal(
+			primary.querySelectorAll(".bt-translation-generated[data-bt-owned='true']").length,
+			sources.length + 1,
+		);
 	} finally {
 		harness.dispose();
 	}
@@ -111,6 +122,7 @@ test("X 长帖 Show more hover 不改变译文呈现", async () => {
 		);
 		const initialTranslation = tweetText.dataset.btTranslation;
 		const initialDescriptionId = tweetText.dataset.btDescriptionId;
+		const translationNode = getGeneratedTranslation(tweetText);
 		const heightTrace = [];
 		const extensionChildMutations = [];
 		const observer = new harness.window.MutationObserver((records) => {
@@ -193,10 +205,10 @@ test("X 长帖 Show more hover 不改变译文呈现", async () => {
 		assert.equal(harness.requestCount(sourceText), 1);
 		assert.equal(harness.requestCount("Show more"), 0);
 		assert.deepEqual(new Set(heightTrace), new Set([84]));
-		assert.deepEqual(extensionChildMutations, []);
-		assertOriginalNodes(tweetText, originalChildren);
-		assertOriginalNodes(contentWrapper, originalWrapperChildren);
-		assert.equal(article.querySelector(".bt-translation[data-bt-owned='true']"), null);
+		assert.equal(extensionChildMutations.every((node) => node === translationNode), true);
+		assertHostNodes(tweetText, originalChildren, translationNode);
+		assertHostNodes(contentWrapper, originalWrapperChildren);
+		assert.equal(getGeneratedTranslation(tweetText), translationNode);
 
 		article.remove();
 		await new Promise((resolve) => setTimeout(resolve, 30));
@@ -209,6 +221,7 @@ test("X 长帖 Show more hover 不改变译文呈现", async () => {
 		assert.equal(tweetText.dataset.btTranslation, undefined);
 		assert.equal(tweetText.dataset.btDescriptionId, undefined);
 		assert.equal(harness.document.getElementById(initialDescriptionId), null);
+		assertHostNodes(tweetText, originalChildren);
 	} finally {
 		harness.dispose();
 	}
@@ -267,19 +280,6 @@ function createElement(document, tagName, text = "") {
 	const element = document.createElement(tagName);
 	element.textContent = text;
 	return element;
-}
-function assertGeneratedTranslation(harness, source, expectedText) {
-	assert.equal(source.dataset.btPresentation, "generated");
-	assert.equal(source.dataset.btTranslation, expectedText);
-	assert.equal(harness.getTranslation(source), null);
-	const description = harness.document.getElementById(source.dataset.btDescriptionId);
-	assert.equal(description?.textContent, expectedText);
-}
-function assertOriginalNodes(parent, originalNodes) {
-	assert.equal(parent.childNodes.length, originalNodes.length);
-	for (const [index, node] of originalNodes.entries()) {
-		assert.equal(parent.childNodes[index], node);
-	}
 }
 function removeUnknownChildren(parent, originalNodes) {
 	const knownNodes = new Set(originalNodes);

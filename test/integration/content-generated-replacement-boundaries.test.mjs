@@ -13,23 +13,25 @@ test("部分 generated replacement 不合并兄弟内容身份", async () => {
 	try {
 		prepareXHarness(harness);
 		const stableText = "A stable generated paragraph keeps its own identity.";
-		let surface = createSurface(harness.document, stableText, "Changing heading starts here.");
+		let changingText = "Changing heading starts here.";
+		let surface = createSurface(harness.document, stableText, changingText);
 		harness.root.append(surface.wrapper);
 		harness.start();
 		await waitForGenerated(harness, surface.stable, stableText, "初始稳定 generated 正文没有译文");
 		await waitForGenerated(
 			harness,
 			surface.changing,
-			surface.changing.textContent,
+			changingText,
 			"初始变化 generated 正文没有译文",
 		);
 		const stableDescriptionId = surface.stable.dataset.btDescriptionId;
 
 		for (let frame = 1; frame <= CONTENT_VOLATILITY.changeLimit; frame += 1) {
+			changingText = `Changing heading frame ${frame} has new text.`;
 			const fresh = createSurface(
 				harness.document,
 				stableText,
-				`Changing heading frame ${frame} has new text.`,
+				changingText,
 			);
 			surface.wrapper.replaceWith(fresh.wrapper);
 			surface = fresh;
@@ -38,7 +40,7 @@ test("部分 generated replacement 不合并兄弟内容身份", async () => {
 				await waitForGenerated(
 					harness,
 					surface.changing,
-					surface.changing.textContent,
+					changingText,
 					`变化正文第 ${frame} 帧没有译文`,
 				);
 			}
@@ -61,19 +63,21 @@ test("generated feed 同文删头加尾保持独立身份", async () => {
 	try {
 		prepareXHarness(harness);
 		const section = harness.document.createElement("section");
-		const first = createTweet(harness.document, "Feed item starts with readable prose.");
+		let firstText = "Feed item starts with readable prose.";
+		const first = createTweet(harness.document, firstText);
 		const middle = createTweet(harness.document, "A stable middle feed item remains visible.");
 		const last = createTweet(harness.document, "A stable final feed item remains visible.");
 		section.append(first.article, middle.article, last.article);
 		harness.root.append(section);
 		harness.start();
-		await waitForGenerated(harness, first.source, first.source.textContent, "首条 feed 没有译文");
+		await waitForGenerated(harness, first.source, firstText, "首条 feed 没有译文");
 
 		for (let frame = 1; frame < CONTENT_VOLATILITY.changeLimit; frame += 1) {
-			first.source.textContent = `Feed head revision ${frame} keeps changing.`;
-			await waitForGenerated(harness, first.source, first.source.textContent, "旧首条变化没有译文");
+			firstText = `Feed head revision ${frame} keeps changing.`;
+			first.source.textContent = firstText;
+			await waitForGenerated(harness, first.source, firstText, "旧首条变化没有译文");
 		}
-		const repeatedText = first.source.textContent;
+		const repeatedText = firstText;
 		const oldDescriptionId = first.source.dataset.btDescriptionId;
 		const fresh = createTweet(harness.document, repeatedText);
 		first.article.remove();
@@ -96,26 +100,30 @@ test("generated mixed replaceWith 与 feed 操作保持分组", async () => {
 	try {
 		prepareXHarness(harness);
 		const section = harness.document.createElement("section");
-		const head = createTweet(harness.document, "Mixed feed head starts here.");
-		const middle = createTweet(harness.document, "Mixed feed middle stays the same.");
-		const tail = createTweet(harness.document, "Mixed feed tail stays visible.");
+		let headText = "Mixed feed head starts here.";
+		const middleText = "Mixed feed middle stays the same.";
+		const tailText = "Mixed feed tail stays visible.";
+		const head = createTweet(harness.document, headText);
+		const middle = createTweet(harness.document, middleText);
+		const tail = createTweet(harness.document, tailText);
 		section.append(head.article, middle.article, tail.article);
 		harness.root.append(section);
 		harness.start();
-		await waitForGenerated(harness, head.source, head.source.textContent, "mixed 首条没有译文");
-		await waitForGenerated(harness, middle.source, middle.source.textContent, "mixed 中间项没有译文");
-		await waitForGenerated(harness, tail.source, tail.source.textContent, "mixed 尾部没有译文");
+		await waitForGenerated(harness, head.source, headText, "mixed 首条没有译文");
+		await waitForGenerated(harness, middle.source, middleText, "mixed 中间项没有译文");
+		await waitForGenerated(harness, tail.source, tailText, "mixed 尾部没有译文");
 
 		for (let frame = 1; frame < CONTENT_VOLATILITY.changeLimit; frame += 1) {
-			head.source.textContent = `Mixed feed head revision ${frame}.`;
-			await waitForGenerated(harness, head.source, head.source.textContent, "mixed 首条变化失败");
+			headText = `Mixed feed head revision ${frame}.`;
+			head.source.textContent = headText;
+			await waitForGenerated(harness, head.source, headText, "mixed 首条变化失败");
 		}
 		const headDescriptionId = head.source.dataset.btDescriptionId;
 		const middleDescriptionId = middle.source.dataset.btDescriptionId;
 		const tailDescriptionId = tail.source.dataset.btDescriptionId;
-		const freshMiddle = createTweet(harness.document, middle.source.textContent);
-		const freshTail = createTweet(harness.document, tail.source.textContent);
-		const freshHead = createTweet(harness.document, head.source.textContent);
+		const freshMiddle = createTweet(harness.document, middleText);
+		const freshTail = createTweet(harness.document, tailText);
+		const freshHead = createTweet(harness.document, headText);
 		head.article.remove();
 		middle.article.replaceWith(freshMiddle.article);
 		tail.article.replaceWith(freshTail.article);
@@ -124,19 +132,19 @@ test("generated mixed replaceWith 与 feed 操作保持分组", async () => {
 		await waitForGenerated(
 			harness,
 			freshMiddle.source,
-			freshMiddle.source.textContent,
+			middleText,
 			"mixed 中间项没有迁移",
 		);
 		await waitForGenerated(
 			harness,
 			freshTail.source,
-			freshTail.source.textContent,
+			tailText,
 			"mixed 尾部 survivor 没有迁移",
 		);
 		await waitForGenerated(
 			harness,
 			freshHead.source,
-			freshHead.source.textContent,
+			headText,
 			"mixed 新尾部没有独立呈现",
 		);
 		assert.equal(freshMiddle.source.dataset.btDescriptionId, middleDescriptionId);

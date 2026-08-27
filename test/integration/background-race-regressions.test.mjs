@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness, providerRuntime = createProviderRuntimeFake()) {
 	return {
 		app: createBackgroundApp({
@@ -49,8 +41,8 @@ test("持久清理阻塞时迟到状态不能恢复 Badge", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-status-race" }, sender);
 
-	const removeEntered = createDeferred();
-	const releaseRemove = createDeferred();
+	const removeEntered = Promise.withResolvers();
+	const releaseRemove = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-status-race") {
@@ -106,8 +98,8 @@ test("标签页关闭立即阻止迟到批次", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-closed-tab" }, sender);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalGet = harness.session.get.bind(harness.session);
 	harness.session.get = async (keys) => {
 		if (keys === null) {
@@ -151,8 +143,8 @@ test("旧快照回收阻塞不会阻塞新任务", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-a" }, sender);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-a") {
@@ -209,8 +201,8 @@ test("较新的失败启动不会破坏已提交任务", async () => {
 	await app.start();
 	await sendAppMessage(app, { type: "START_RUN", runId: "run-a" }, sender);
 
-	const cleanupEntered = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "run-snapshot:7:run-a") {

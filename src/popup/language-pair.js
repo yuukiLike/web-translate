@@ -1,12 +1,11 @@
-const SOURCE_MODES = new Set(["auto", "en", "zh"]);
-const TARGET_LANGUAGES = new Set(["en", "zh"]);
+import { SOURCE_MODES, TARGET_MODES } from "../core/constants.js";
 
 export function parseLanguagePair(value) {
 	const sourceMode = value?.sourceMode;
 	const targetLanguage = value?.targetLanguage;
 	if (
 		!SOURCE_MODES.has(sourceMode) ||
-		!TARGET_LANGUAGES.has(targetLanguage) ||
+		!TARGET_MODES.has(targetLanguage) ||
 		(sourceMode !== "auto" && sourceMode === targetLanguage)
 	) {
 		throw new Error("Popup 语言配置无效");
@@ -28,7 +27,7 @@ export function changeSourceLanguage(currentPair, sourceMode) {
 
 export function changeTargetLanguage(currentPair, targetLanguage) {
 	const current = parseLanguagePair(currentPair);
-	if (!TARGET_LANGUAGES.has(targetLanguage)) {
+	if (!TARGET_MODES.has(targetLanguage)) {
 		throw new Error("输出语言无效");
 	}
 	const sourceMode =

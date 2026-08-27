@@ -48,6 +48,7 @@ export class TranslationRenderer {
 		if (!isRedundantTranslation(this.core, candidate.text, translationText)) {
 			translation = presentation === SITE_PRESENTATION.generated
 				? createGeneratedTranslation({
+						anchor: candidate.presentationAnchor,
 						source: record.element,
 						text: translationText,
 						language: normalizeTargetLanguage(record.targetLanguage),

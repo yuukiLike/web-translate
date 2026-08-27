@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createContentHarness, createDeferred, waitFor } from "../helpers/content-dom-harness.mjs";
+import { createContentHarness, waitFor } from "../helpers/content-dom-harness.mjs";
 
 // 验证请求中的元素被移除后，完成提示保持单调且不再展示会抖动的 x/y 比例。
 test("移除待处理正文后完成计数保持稳定", async () => {
-	const pendingResponse = createDeferred();
+	const pendingResponse = Promise.withResolvers();
 	const pendingText = "Remove this paragraph before its response.";
 	const harness = createContentHarness({
 		async translateText(text) {

@@ -1,4 +1,8 @@
-import { forEachTextNode, isOwnedNode } from "./node-utils.js";
+import {
+	forEachTextNode,
+	getUnownedTextContent,
+	isOwnedNode,
+} from "./node-utils.js";
 
 export function getMutationElement(mutation) {
 	return mutation.target?.nodeType === Node.ELEMENT_NODE
@@ -154,8 +158,11 @@ function indexNodes(nodes) {
 }
 
 function hasSameNodeText(source, target) {
-	const sourceText = normalizeText(source.textContent);
-	return Boolean(sourceText) && sourceText === normalizeText(target.textContent);
+	const sourceText = normalizeText(getUnownedTextContent(source));
+	return (
+		Boolean(sourceText) &&
+		sourceText === normalizeText(getUnownedTextContent(target))
+	);
 }
 
 function countStrongKeys(nodes) {

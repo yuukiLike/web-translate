@@ -83,20 +83,18 @@ test("同一 section 的后续替换链也独立进入易变状态", async () =>
 
 // 验证同一 X tweetText 内的 span 连续换文时，阈值前可逐帧翻译，阈值后完整清理 generated 呈现。
 test("X tweetText 子 span 连续换文后清空 generated 呈现", async () => {
+	const sourceText = "A tweet begins with stable translated text.";
 	const harness = createContentHarness();
 	try {
 		prepareXHarness(harness);
-		const { article, source } = createTweet(
-			harness.document,
-			"A tweet begins with stable translated text.",
-		);
+		const { article, source } = createTweet(harness.document, sourceText);
 		const hostDescription = createElement(harness.document, "span", "Host description");
 		hostDescription.id = "host-description";
 		hostDescription.setAttribute("translate", "no");
 		source.setAttribute("aria-describedby", hostDescription.id);
 		harness.root.append(article, hostDescription);
 		harness.start();
-		await waitForGenerated(harness, source, source.textContent, "初始 tweetText 没有译文");
+		await waitForGenerated(harness, source, sourceText, "初始 tweetText 没有译文");
 
 		const descriptionIds = [source.dataset.btDescriptionId];
 		const frameTexts = [];

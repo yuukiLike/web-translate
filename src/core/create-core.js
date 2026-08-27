@@ -1,4 +1,4 @@
-import { createCacheApi, getDeepLApiHost } from "./cache.js";
+import { createCacheKey, getDeepLApiHost } from "./cache.js";
 import {
 	CACHE_INDEX_KEY,
 	CACHE_PREFIX,
@@ -23,7 +23,7 @@ import { getMonthKey, isRecord } from "./value-utils.js";
 export function createCore(catalog) {
 	const providerDefinitions = createProviderDefinitions(catalog);
 	const settings = createSettingsApi(catalog, providerDefinitions);
-	const cache = createCacheApi(catalog, settings.normalizeSettings);
+	const cacheKey = createCacheKey(catalog, settings.normalizeSettings);
 
 	return Object.freeze({
 		CACHE_INDEX_KEY,
@@ -32,7 +32,7 @@ export function createCore(catalog) {
 		SETTINGS_KEY,
 		USAGE_KEY,
 		batchSegments,
-		cacheKey: cache.cacheKey,
+		cacheKey,
 		createDefaultSettings: settings.createDefaultSettings,
 		getCustomApiOrigin: settings.getCustomApiOrigin,
 		getDeepLApiHost,

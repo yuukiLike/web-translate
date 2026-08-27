@@ -11,7 +11,6 @@ import { createIdentifier, numberOrUndefined, numberOrZero } from "./utilities.j
 
 export function createJsonClient({ fetchImpl = globalThis.fetch, debug }) {
 	async function fetchJsonWithRetry(url, init, signal, options = {}) {
-		let lastError;
 		const timeoutMs = options.timeoutMs ?? NETWORK_LIMITS.requestTimeoutMs;
 		const maximumResponseCharacters = options.maximumResponseCharacters ?? 2_000_000;
 		const requestId = createIdentifier();
@@ -57,7 +56,6 @@ export function createJsonClient({ fetchImpl = globalThis.fetch, debug }) {
 				});
 				return data;
 			} catch (error) {
-				lastError = error;
 				const retryable = isRetryableError(error);
 				debug.recordRequest(options.debug, {
 					eventType: "request.failed",
@@ -93,7 +91,6 @@ export function createJsonClient({ fetchImpl = globalThis.fetch, debug }) {
 				await abortableDelay(delayMs, signal);
 			}
 		}
-		throw lastError;
 	}
 
 	async function fetchJson(url, init, parentSignal, timeoutMs, maximumResponseCharacters) {

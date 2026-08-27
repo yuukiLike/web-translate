@@ -3,28 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-	createDeferred,
 	createPopupPageHarness,
+	createPopupState,
 	waitFor,
 } from "../helpers/popup-page-harness.mjs";
 
 const extensionUrl = new URL("../../chrome-extension/", import.meta.url);
-
-function popupState(overrides = {}) {
-	return {
-		ok: true,
-		popupProtocolVersion: 2,
-		version: "0.4.0",
-		providerLabel: "DeepSeek",
-		model: "deepseek-v4-flash",
-		languagePair: { sourceMode: "auto", targetLanguage: "zh" },
-		debugLogging: false,
-		configured: true,
-		canTranslate: true,
-		unavailableReason: "",
-		...overrides,
-	};
-}
 
 function readExtensionFile(path) {
 	return readFile(new URL(path, extensionUrl), "utf8");
@@ -64,14 +48,14 @@ test("Popup 仅加载本地预编译资产", async () => {
 
 // 验证后台状态返回前主操作保持加载态，返回后再一次性填充服务信息并允许点击。
 test("Popup 从加载态进入就绪态", async () => {
-	const state = createDeferred();
+	const state = Promise.withResolvers();
 	const page = await createPopupPageHarness({ getPopupState: () => state.promise });
 	try {
 		const toggle = page.document.querySelector("#toggle-translation");
 		assert.equal(toggle.disabled, true);
 		assert.match(page.document.querySelector("#popup-status").textContent, /正在连接/u);
 
-		state.resolve(popupState());
+		state.resolve(createPopupState());
 		await waitFor(() => !toggle.disabled, "Popup 未离开加载态");
 		assert.equal(page.document.querySelector("#extension-version").textContent, "v0.4.0");
 		assert.equal(page.document.querySelector("#current-provider").textContent, "DeepSeek");
@@ -83,7 +67,7 @@ test("Popup 从加载态进入就绪态", async () => {
 		assert.match(toggle.textContent, /翻译 \/ 恢复/u);
 		assert.equal(toggle.getAttribute("aria-label"), "翻译 / 恢复当前网页");
 	} finally {
-		state.resolve(popupState());
+		state.resolve(createPopupState());
 		page.cleanup();
 	}
 });
@@ -149,7 +133,7 @@ test("Popup 安全处理初始加载错误", async () => {
 
 // 验证旧后台不认识 Popup 新协议时结束加载占位，并提供可以自助恢复的重新载入入口。
 test("Popup 将后台协议错配转换为可恢复状态", async () => {
-	const state = createDeferred();
+	const state = Promise.withResolvers();
 	const page = await createPopupPageHarness({
 		getPopupState: () => state.promise,
 	});
@@ -231,7 +215,7 @@ test("Popup 打开设置与调试日志入口", async () => {
 
 // 验证主操作在请求完成前锁定，连续点击只发送一次切换消息并在成功后关闭 Popup。
 test("Popup 主操作 busy 状态阻止双击", async () => {
-	const toggleResult = createDeferred();
+	const toggleResult = Promise.withResolvers();
 	const page = await createPopupPageHarness({ toggleActiveTab: () => toggleResult.promise });
 	try {
 		const toggle = page.document.querySelector("#toggle-translation");

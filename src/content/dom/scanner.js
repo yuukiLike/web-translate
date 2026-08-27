@@ -1,6 +1,6 @@
 import { SELECTORS } from "../constants.js";
 import { createSiteProfile } from "../site-profile.js";
-import { isTranslationExcluded } from "./node-utils.js";
+import { isOwnedNode, isTranslationExcluded } from "./node-utils.js";
 
 /**
  * 把任意 DOM 根节点转换成“正文候选块”。
@@ -91,6 +91,9 @@ export class DomScanner {
 		for (const root of roots) {
 			const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+				if (isOwnedNode(node)) {
+					continue;
+				}
 				traversalIndex += 1;
 				if (!(node.textContent ?? "")) {
 					continue;
@@ -146,6 +149,7 @@ export class DomScanner {
 				element: draft.element,
 				partial: Boolean(draft.partial),
 				placementAnchor: findPlacementAnchor(draft),
+				presentationAnchor: findPresentationAnchor(draft),
 				text: this.#serializeAssignedText(draft.nodes),
 				traits: {
 					interactiveKind: getInteractiveKind(draft.element),
@@ -229,4 +233,20 @@ function findPlacementAnchor(draft) {
 		anchor = anchor.parentElement;
 	}
 	return anchor;
+}
+
+/**
+ * Generated 译文跟随最后一段原文的原生承载节点；宿主替换 carrier 时，
+ * reconciler 会按新的 candidate anchor 复挂。链接或控件内不安全时退到外层。
+ */
+function findPresentationAnchor(draft) {
+	const lastEntry = draft.nodes.findLast((entry) => /\S/u.test(entry.node.textContent ?? ""));
+	let anchor = lastEntry?.node.parentElement ?? draft.element;
+	const interactive = anchor.closest?.(SELECTORS.interactive);
+	if (interactive && draft.element.contains(interactive)) {
+		anchor = interactive.parentElement;
+	}
+	return anchor && (anchor === draft.element || draft.element.contains(anchor))
+		? anchor
+		: draft.element;
 }

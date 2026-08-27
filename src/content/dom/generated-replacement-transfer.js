@@ -87,7 +87,7 @@ export function matchCompleteGeneratedReplacements({
 			if (
 				!canTransferTrackedGeneratedPresentation({
 					target,
-					description: elementStore.getState(source)?.translationNode,
+					translation: elementStore.getState(source)?.translationNode,
 					runId,
 				})
 			) {
@@ -188,6 +188,7 @@ function transferReplacementGroup({
 					candidates[index],
 					elementStore,
 					progress,
+					scanner,
 					runId,
 					rootQueue,
 				) ||
@@ -197,11 +198,27 @@ function transferReplacementGroup({
 	return transferred;
 }
 
-function transferReplacement(source, target, elementStore, progress, runId, rootQueue) {
+function transferReplacement(
+	source,
+	target,
+	elementStore,
+	progress,
+	scanner,
+	runId,
+	rootQueue,
+) {
 	const state = elementStore.getState(source);
+	const candidate = scanner.currentCandidate(target);
 	if (
 		!state?.translationNode ||
-		!transferTrackedGeneratedPresentation(source, target, state.translationNode, runId)
+		!candidate ||
+		!transferTrackedGeneratedPresentation(
+			source,
+			target,
+			state.translationNode,
+			runId,
+			candidate.presentationAnchor,
+		)
 	) {
 		return false;
 	}

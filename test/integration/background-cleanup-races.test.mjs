@@ -11,14 +11,6 @@ import {
 	sendAppMessage,
 } from "../helpers/background-harness.mjs";
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 function createApp(harness) {
 	const providerRuntime = createProviderRuntimeFake();
 	return {
@@ -53,9 +45,9 @@ test("取消回退的慢快照删除会阻止同 runId 复用", async () => {
 	await sendAppMessage(running.app, { type: "START_RUN", runId }, sender);
 	failCancelledMarker(harness);
 
-	const firstDeleteEntered = createDeferred();
-	const firstDeleteFinished = createDeferred();
-	const releaseFirstDelete = createDeferred();
+	const firstDeleteEntered = Promise.withResolvers();
+	const firstDeleteFinished = Promise.withResolvers();
+	const releaseFirstDelete = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	let snapshotDeleteCount = 0;
 	harness.session.remove = async (keys) => {
@@ -99,9 +91,9 @@ test("取消回退的慢 current 删除会阻止新任务提前提交", async ()
 	await sendAppMessage(running.app, { type: "START_RUN", runId: "run-old" }, sender);
 	failCancelledMarker(harness);
 
-	const currentDeleteEntered = createDeferred();
-	const currentDeleteFinished = createDeferred();
-	const releaseCurrentDelete = createDeferred();
+	const currentDeleteEntered = Promise.withResolvers();
+	const currentDeleteFinished = Promise.withResolvers();
+	const releaseCurrentDelete = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (keys === "current-run:7") {
@@ -164,9 +156,9 @@ test("关闭标签页的慢快照清理会阻止 tabId 提前复用", async () =
 	await sendAppMessage(running.app, { type: "START_RUN", runId }, sender);
 	failCancelledMarker(harness);
 
-	const cleanupEntered = createDeferred();
-	const cleanupFinished = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const cleanupFinished = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalRemove = harness.session.remove.bind(harness.session);
 	harness.session.remove = async (keys) => {
 		if (Array.isArray(keys) && keys.includes(snapshotKey)) {
@@ -200,9 +192,9 @@ test("无 current 标签页的慢广域清理会阻止 tabId 提前复用", asyn
 	const sender = createWebpageSender();
 	const running = createApp(harness);
 	await running.app.start();
-	const cleanupEntered = createDeferred();
-	const cleanupFinished = createDeferred();
-	const releaseCleanup = createDeferred();
+	const cleanupEntered = Promise.withResolvers();
+	const cleanupFinished = Promise.withResolvers();
+	const releaseCleanup = Promise.withResolvers();
 	const originalGet = harness.session.get.bind(harness.session);
 	harness.session.get = async (keys) => {
 		if (keys === null) {

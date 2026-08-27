@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createContentHarness, waitFor } from "../helpers/content-dom-harness.mjs";
+import {
+	assertGeneratedTranslation,
+	getGeneratedTranslation,
+} from "../helpers/generated-translation-assertions.mjs";
 
 // 验证 X 用同文新节点替换正文时，译文在下一次绘制前迁移而不是延迟重建。
 test("X fresh source replacement 不产生译文缺口", async () => {
@@ -19,20 +23,21 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 
 		harness.start();
 		await waitFor(() => Boolean(source.dataset.btTranslation), "初始 X 译文没有生成");
-		const translation = source.dataset.btTranslation;
+		const translationText = source.dataset.btTranslation;
 		const descriptionId = source.dataset.btDescriptionId;
+		const translationNode = assertGeneratedTranslation(source, translationText);
+		const translationTextNode = translationNode.firstChild;
 		const replacement = createElement(harness.document, "div", sourceText);
 		replacement.dataset.testid = "tweetText";
 		replacement.setAttribute("aria-describedby", "new-host-description");
 
 		source.replaceWith(replacement);
 		await nextMutationTurn();
-		assert.equal(replacement.dataset.btTranslation, translation);
+		assert.equal(replacement.dataset.btTranslation, translationText);
 		assert.equal(replacement.dataset.btDescriptionId, descriptionId);
-		assert.equal(
-			replacement.getAttribute("aria-describedby"),
-			`new-host-description ${descriptionId}`,
-		);
+		assert.equal(assertGeneratedTranslation(replacement, translationText), translationNode);
+		assert.equal(translationNode.firstChild, translationTextNode);
+		assert.equal(replacement.getAttribute("aria-describedby"), "new-host-description");
 		assert.equal(source.getAttribute("aria-describedby"), "old-host-description");
 		assert.equal(source.dataset.btTranslation, undefined);
 		assert.equal(harness.requestCount(sourceText), 1);
@@ -50,8 +55,9 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 			() => nestedReplacement.dataset.btDescriptionId === descriptionId,
 			"嵌套 X replacement 没有完成原子迁移",
 		);
-		assert.equal(nestedReplacement.dataset.btTranslation, translation);
+		assert.equal(nestedReplacement.dataset.btTranslation, translationText);
 		assert.equal(nestedReplacement.dataset.btDescriptionId, descriptionId);
+		assert.equal(getGeneratedTranslation(nestedReplacement), translationNode);
 
 		stripGeneratedAttributes(nestedReplacement);
 		const strippedReplacement = createElement(harness.document, "div", sourceText);
@@ -61,8 +67,9 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 			() => strippedReplacement.dataset.btDescriptionId === descriptionId,
 			"属性被宿主清理后，fresh replacement 没有恢复迁移",
 		);
-		assert.equal(strippedReplacement.dataset.btTranslation, translation);
+		assert.equal(strippedReplacement.dataset.btTranslation, translationText);
 		assert.equal(strippedReplacement.dataset.btDescriptionId, descriptionId);
+		assert.equal(getGeneratedTranslation(strippedReplacement), translationNode);
 
 		const changedText = "A replacement with different text must be translated anew.";
 		const changedSource = createElement(harness.document, "div", changedText);
@@ -75,6 +82,7 @@ test("X fresh source replacement 不产生译文缺口", async () => {
 			"不同原文错误继承了旧译文",
 		);
 		assert.notEqual(changedSource.dataset.btDescriptionId, descriptionId);
+		assert.equal(translationNode.isConnected, false);
 		assert.equal(harness.requestCount(changedText), 1);
 
 		await assertRightRailReplacement(harness);
@@ -99,11 +107,15 @@ async function assertRightRailReplacement(harness) {
 		() => Boolean(trendMeta.dataset.btTranslation && trendTitle.dataset.btTranslation),
 		"X 右栏趋势内容没有生成译文",
 	);
-	const descriptionIds = [trendMeta, trendTitle].map(
+	const sources = [trendMeta, trendTitle];
+	const descriptionIds = sources.map(
 		(source) => source.dataset.btDescriptionId,
 	);
+	const translationNodes = sources.map(getGeneratedTranslation);
 	const replacement = trendRow.cloneNode(true);
-	for (const source of replacement.querySelectorAll("p, h3")) {
+	const replacementSources = [...replacement.querySelectorAll("p, h3")];
+	const clonedTranslations = replacementSources.map(getGeneratedTranslation);
+	for (const source of replacementSources) {
 		stripGeneratedAttributes(source);
 	}
 	trendRow.replaceWith(replacement);
@@ -115,11 +127,17 @@ async function assertRightRailReplacement(harness) {
 		"X 右栏 generated replacement 没有完成迁移",
 	);
 	assert.deepEqual(
-		[...replacement.querySelectorAll("p, h3")].map(
-			(source) => source.dataset.btDescriptionId,
-		),
+		replacementSources.map((source) => source.dataset.btDescriptionId),
 		descriptionIds,
 	);
+	for (const [index, source] of replacementSources.entries()) {
+		assert.equal(getGeneratedTranslation(source), translationNodes[index]);
+		assert.equal(
+			source.querySelectorAll(".bt-translation-generated[data-bt-owned='true']").length,
+			1,
+		);
+		assert.equal(clonedTranslations[index].isConnected, false);
+	}
 }
 
 async function assertRepeatedReplacement(harness) {
@@ -136,6 +154,7 @@ async function assertRepeatedReplacement(harness) {
 		"重复 X 内容没有生成译文",
 	);
 	const descriptionIds = sources.map((source) => source.dataset.btDescriptionId);
+	const translationNodes = sources.map(getGeneratedTranslation);
 	const replacements = sources.map(() => createElement(harness.document, "p", text));
 	container.replaceChildren(...replacements);
 	await waitFor(
@@ -149,6 +168,7 @@ async function assertRepeatedReplacement(harness) {
 		replacements.map((source) => source.dataset.btDescriptionId),
 		descriptionIds,
 	);
+	assert.deepEqual(replacements.map(getGeneratedTranslation), translationNodes);
 }
 
 async function assertReorderedReplacement(harness) {
@@ -165,30 +185,35 @@ async function assertReorderedReplacement(harness) {
 		"待重排的 X 内容没有生成译文",
 	);
 	const descriptionByText = new Map(
-		sources.map((source) => [source.textContent, source.dataset.btDescriptionId]),
+		sources.map((source, index) => [texts[index], source.dataset.btDescriptionId]),
 	);
-	const replacements = [...texts]
-		.reverse()
+	const translationByText = new Map(
+		sources.map((source, index) => [texts[index], getGeneratedTranslation(source)]),
+	);
+	const replacementTexts = [...texts].reverse();
+	const replacements = replacementTexts
 		.map((text) => createElement(harness.document, "p", text));
 
 	container.replaceChildren(...replacements);
 	await waitFor(
 		() =>
 			replacements.every(
-				(replacement) =>
+				(replacement, index) =>
 					replacement.dataset.btDescriptionId ===
-					descriptionByText.get(replacement.textContent),
+					descriptionByText.get(replacementTexts[index]),
 			),
 		"重排 generated replacement 没有按文本身份迁移",
 	);
 
-	for (const replacement of replacements) {
+	for (const [index, replacement] of replacements.entries()) {
+		const text = replacementTexts[index];
 		assert.equal(
 			replacement.dataset.btDescriptionId,
-			descriptionByText.get(replacement.textContent),
+			descriptionByText.get(text),
 		);
-		assert.equal(replacement.dataset.btTranslation, `译文：${replacement.textContent}`);
-		assert.equal(harness.requestCount(replacement.textContent), 1);
+		assert.equal(replacement.dataset.btTranslation, `译文：${text}`);
+		assert.equal(getGeneratedTranslation(replacement), translationByText.get(text));
+		assert.equal(harness.requestCount(text), 1);
 	}
 }
 

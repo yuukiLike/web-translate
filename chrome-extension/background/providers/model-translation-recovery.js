@@ -1,4 +1,4 @@
-import { numberOrUndefined } from "../utilities.js";
+import { numberOrUndefined, sumSegmentCharacters } from "../utilities.js";
 
 const OFFICIAL_MODEL_OUTPUT_TOKEN_CAP = 16_384;
 const CUSTOM_MODEL_OUTPUT_TOKEN_CAP = 8_192;
@@ -9,7 +9,7 @@ const JSON_SEGMENT_TOKEN_RESERVE = 96;
 export const MAX_OUTPUT_RECOVERY_SPLITS = 2;
 
 export function getMaximumOutputTokens(providerId, segments) {
-	const sourceCharacters = segments.reduce((sum, segment) => sum + segment.text.length, 0);
+	const sourceCharacters = sumSegmentCharacters(segments);
 	const outputTokenCap =
 		providerId === "custom" ? CUSTOM_MODEL_OUTPUT_TOKEN_CAP : OFFICIAL_MODEL_OUTPUT_TOKEN_CAP;
 	const estimatedTokens =
@@ -20,7 +20,7 @@ export function getMaximumOutputTokens(providerId, segments) {
 }
 
 export function splitSegmentBatch(segments) {
-	const totalCharacters = segments.reduce((sum, segment) => sum + segment.text.length, 0);
+	const totalCharacters = sumSegmentCharacters(segments);
 	let runningCharacters = 0;
 	let splitIndex = 1;
 	let smallestDifference = Number.POSITIVE_INFINITY;
@@ -122,7 +122,7 @@ export function createModelRequest(context) {
 		...(providerId === "custom" ? { baseUrl: providerSettings.baseUrl } : {}),
 		...createTranslationPrompt(sourceLanguage, targetLanguage, segments),
 		maxOutputTokens: getMaximumOutputTokens(providerId, segments),
-		sourceCharacters: segments.reduce((sum, segment) => sum + segment.text.length, 0),
+		sourceCharacters: sumSegmentCharacters(segments),
 		captureRequestBody: context.requestPayloadAllowed,
 	};
 }

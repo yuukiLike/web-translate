@@ -3,11 +3,10 @@ import test from "node:test";
 
 import {
 	createCatalogInfo,
-	createDebugRequests,
-	createDebugRows,
 	createFallbackSettings,
-	createUsageRows,
-} from "../../src/options/data.js";
+} from "../../src/options/catalogData.js";
+import { createDebugRequests, createDebugRows } from "../../src/options/debugRows.js";
+import { createUsageRows } from "../../src/options/usageData.js";
 import { createCatalogFixture } from "../helpers/catalog-fixture.mjs";
 
 const catalog = await createCatalogFixture();
@@ -17,9 +16,12 @@ test("模型目录视图使用固定本地数据", () => {
 	const info = createCatalogInfo(catalog);
 	assert.equal(info.error, "");
 	assert.equal(info.sha, "14119152");
-	assert.equal(info.models.deepseek[0].id, "deepseek-v4-flash");
-	assert.equal(info.models.deepseek[0].optionLabel, "DeepSeek V4 Flash");
-	assert.match(info.models.deepseek[0].label, /\$0\.14 \/ \$0\.28/u);
+	assert.deepEqual(info.models.deepseek[0], {
+		id: "deepseek-v4-flash",
+		name: "DeepSeek V4 Flash",
+		costText: "$0.14 / $0.28",
+		contextText: "1M 上下文",
+	});
 });
 
 // 验证核心不可用时的设置草稿仍提供完整过滤结构，避免设置页绑定缺失字段。

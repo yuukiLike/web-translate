@@ -56,6 +56,19 @@ export function forEachTextNode(node, callback) {
 	}
 }
 
+export function getUnownedTextContent(node) {
+	if (!node?.ownerDocument) {
+		return node?.textContent ?? "";
+	}
+	let text = "";
+	forEachTextNode(node, (textNode) => {
+		if (!isOwnedNode(textNode)) {
+			text += textNode.textContent ?? "";
+		}
+	});
+	return text;
+}
+
 export function sourceSelector(runId) {
 	return `[data-bt-source="${CSS.escape(runId)}"]`;
 }

@@ -19,14 +19,6 @@ function createStatusHarness(currentRunId = "run-current") {
 	return { clock, controller, updates };
 }
 
-function createDeferred() {
-	let resolve;
-	const promise = new Promise((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
-
 // 验证 done 处理器保持消息通道，并在完整等待 320ms 后才写入 OK 状态。
 test("完成状态等待稳定窗口后才生效", async () => {
 	const { clock, controller, updates } = createStatusHarness();
@@ -109,7 +101,7 @@ test("取消任务会覆盖等待中的完成状态", async () => {
 
 // 验证关闭 Badge 写入尚未结束时，旧任务的迟到状态也永远不能抢回界面。
 test("取消开始后迟到状态永远失效", async () => {
-	const offWrite = createDeferred();
+	const offWrite = Promise.withResolvers();
 	const updates = [];
 	const controller = createStatusController({
 		async getCurrentRunId() {

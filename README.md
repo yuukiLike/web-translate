@@ -146,7 +146,7 @@ DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试�
   → cache-store / batch-translator / provider-service：缓存、批次、限流/重试与 Provider 调用
   → Provider API：返回译文和用量
   → 后台模块：校验结束原因、JSON、段落 ID、数量和长度
-  → 生成的内容脚本：普通页面用 textContent 创建 flow 译文；X 用受控 data 属性和 CSS ::after 呈现译文
+  → 生成的内容脚本：实际在途正文右侧显示零布局 loading；普通页面创建 flow 译文，X 在末段原文 carrier 内维护可选择的真实 Text
 ```
 
 主要文件：
