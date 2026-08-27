@@ -1,232 +1,141 @@
 # 一键双语翻译
 
-这是一个 Chrome Manifest V3 扩展，一键把当前网页转换为行间双语对照。
+面向 Chrome 桌面版的中英双语网页翻译扩展。它保留原文，在正文附近插入真实、可选择的译文，并持续处理滚动或 SPA 路由切换后出现的新内容。
 
-当前版本：Chrome `0.4.0`。
+扩展版本：`0.4.0` · 需要 Chrome `140+` · 支持中文与英文互译
 
-## Chrome 当前能力
+> 使用前需要准备一个受支持翻译服务的 API Key。扩展会把筛选后的正文发送给你选择的服务；连接测试和翻译可能消耗配额或产生费用。
 
-- 工具栏图标或快捷键打开 popup；popup 提供翻译/恢复、设置和调试日志入口
-- 自动判断中英文方向，也可固定翻译方向
-- 当前视口优先，逐批回填译文
-- 持续翻译 SPA、无限滚动和懒加载的新正文
-- 处理普通文章、文档、表格、可见链接/按钮文案和 X/Twitter 推文
-- 同批去重、90 天持久缓存、请求取消、有限重试和月度用量统计
-- 原生支持 Azure Translator、DeepL
-- 通过 Vercel AI SDK 显式支持 DeepSeek、OpenAI、Google、Anthropic
-- 支持自定义 OpenAI-compatible Chat Completions 服务，按域名单独授权
-- 固定 models.dev snapshot、JSON Schema 校验和人工 Provider/API allowlist
-- popup 直接提供设置与调试日志入口；右键菜单保留辅助调试和版本入口
-- 受控调试面板实时显示批次、缓存、HTTP、重试、DeepSeek 请求正文投影、响应模型、结束原因和 token
+## 主要能力
+
+- 保留原文并插入双语对照译文，可随时恢复原页面
+- 自动判断中英文方向，也可固定为中译英或英译中
+- 优先翻译当前视口，随后逐批处理其余正文
+- 持续识别 SPA、无限滚动和懒加载中新出现的内容
+- 支持文章、文档、表格、可见按钮、符合过滤规则的链接文案，以及 X/Twitter 等动态页面
+- X/Twitter 宿主替换正文节点时仍能保持译文稳定；译文不是截图或覆盖层，可以正常选择
+- 正在等待当前批次结果的正文行会在文字右侧显示 loading；它不占用排版空间，完成、取消或失效后自动清除
+- 提供同批去重、90 天本地缓存、请求取消、有限重试和本机月度用量汇总
+
+如果系统开启了“减少动态效果”，loading 会按无动画方式显示。
 
 ## 安装与首次使用
 
-仓库已包含生成后的 Provider bundle，普通安装不需要 npm，也不会下载任何中英本地模型。
+仓库已经包含 Chrome 可直接加载的生成产物。普通使用者不需要安装 Node.js、运行 npm，也不需要下载本地翻译模型。
 
-1. 打开 `chrome://extensions`。
-2. 开启“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择 `web-translate` 仓库中的 `chrome-extension/` 目录。
-5. 首次安装会打开设置页。DeepSeek 已默认选中，粘贴你自己的 API Key 即可；需要时再切换服务。
-6. 点击“保存并测试”，成功后打开普通网页，点击扩展图标，再在 popup 中点击“翻译 / 恢复当前网页”。需要恢复时，再次打开 popup 并点击同一个按钮。
-7. 建议把扩展固定到 Chrome 工具栏。
+1. 克隆本仓库，或从 GitHub 下载并解压源码。
+2. 打开 `chrome://extensions`。
+3. 开启右上角的“开发者模式”。
+4. 点击“加载已解压的扩展程序”。
+5. 选择仓库中的 `chrome-extension/`，不要选择仓库根目录。
+6. 首次安装会自动打开设置页。选择翻译服务，填写自己的 API Key。
+7. 点击“保存并测试”。这会向当前服务发出一次真实连接测试请求。
+8. 打开普通网页，通过工具栏图标或快捷键打开 popup，选择翻译方向，再点击“翻译 / 恢复”。
 
-没有有效 API Key 时不会翻译。扩展不会要求下载模型；它把筛选后的正文段落直接发送给用户选择的云 Provider。
+没有有效 API Key 时，扩展不会发起翻译。再次点击 popup 中的主按钮即可恢复页面。
 
 快捷键：
 
-- Windows/Linux：`Alt+Shift+B`
+- Windows / Linux：`Alt+Shift+B`
 - macOS：`Control+Shift+B`
 
-快捷键与点击工具栏图标相同，负责打开 popup；翻译和恢复由 popup 中的主按钮明确触发。
+快捷键只负责打开 popup，不会自动开始翻译。测试本地 `file://` 页面时，还需要在扩展详情页开启“允许访问文件网址”，然后刷新页面。
 
-本扩展要求 Chrome 140+ 桌面版。测试本地 `file://` 页面时，需要在扩展详情页开启“允许访问文件网址”，然后刷新页面。
+## 更新扩展
 
-如果你此前加载的是 `web-translate` 仓库根目录，这次目录重构后需要删除旧条目，再重新选择 `chrome-extension/`。Chrome 可能把新路径视为另一份未打包扩展，因此旧设置和 API Key 可能不会自动迁移；重新填写一次即可。此后更新仍只需点击“重新加载”。
+拉取仓库中的已有更新后：
 
-## 更新本地扩展
+1. 在 `chrome://extensions` 中找到本扩展并点击“重新加载”。
+2. 刷新已经打开的网页。
 
-代码或生成产物改变后，不需要删除并重新引入目录：
+如果你修改了 `src/`、Provider 配置或其他构建输入，需要先运行 `npm run build:chrome`，再重新加载扩展并刷新网页。生成产物已提交到仓库，因此普通使用者拉取更新后不需要自行构建。
 
-1. 在 `chrome://extensions` 找到扩展。
-2. 点击“重新加载”。
-3. 刷新正在测试的网页。
-4. 再点击扩展图标。
+## 翻译服务
 
-设置页顶部、工具栏悬停 title 和图标右键菜单都会显示 Chrome 当前实际加载的版本。
+| 类型 | 服务 | 说明 |
+| --- | --- | --- |
+| 模型服务 | DeepSeek、OpenAI、Google Gemini、Anthropic | DeepSeek 是默认选择；模型来自构建时固定的本地目录 |
+| 专用翻译 API | Azure Translator、DeepL | 使用各自的原生翻译接口 |
+| 自定义服务 | OpenAI-compatible Chat Completions | 手动填写 Base URL、模型 ID 和 Key，并按 API origin 单独授权 |
 
-## Provider 推荐
+- 扩展不会自动切换到其他翻译服务，避免在你不知情时把正文发送给另一家公司。
+- Azure 全局 Translator 资源的“资源区域”通常可以留空；区域资源应填写 Azure 门户中显示的真实区域，否则可能返回 `401` 或 `403`。
+- 自定义服务默认要求 HTTPS；仅 `localhost` 和 `127.0.0.1` 允许使用 HTTP。
+- 本机月度用量只统计网页翻译任务，不等同于 Provider 账单；连接测试可能调用真实 API，但不会计入这份本机汇总。
+- 模型、价格、免费额度和区域政策会变化，实际费用以服务商账单为准。
 
-前三个推荐模型来自固定本地 snapshot。表中价格是 snapshot 记录的每 100 万 token 美元价格，不是实时报价。
+模型 allowlist、固定 snapshot、请求转换与更新流程见 [Provider 与固定模型目录](docs/provider-catalog.md)。
 
-| 顺序 | Provider / 模型                |    输入 / 输出 | 建议                                                          |
-| ---- | ------------------------------ | -------------: | ------------------------------------------------------------- |
-| 1    | DeepSeek `deepseek-v4-flash`   |  $0.14 / $0.28 | 默认；当前候选中最低成本，翻译时关闭 thinking                 |
-| 2    | OpenAI `gpt-5.6-luna`          |  $0.20 / $1.20 | 稳定、高吞吐；翻译时显式设置 `reasoning: none`                |
-| 3    | Google `gemini-3.5-flash-lite` |  $0.30 / $2.50 | 高吞吐；thinking 降到模型支持的 `minimal`；免费层资格可能变化 |
-| 可选 | Anthropic `claude-sonnet-5`    | $2.00 / $10.00 | 质量对照；翻译时显式设置 `reasoning: none`                    |
+## 网页兼容性
 
-Azure Translator 和 DeepL 是专用翻译 API，也可以直接选择。扩展不会自动在 Provider 之间故障转移，避免在用户无感知时把正文发送给另一家公司。
+扩展会处理常规正文、标题、列表、表格以及符合过滤规则的链接和按钮文案，并支持 SPA 路由、无限滚动和懒加载内容。
 
-模型、价格、免费层、账户权限和区域政策可能变化，以各 Provider 官方控制台为准。
+常见的页面级 `translate="no"`（例如 `html`、`body` 或包裹主正文的应用外壳）不会阻断正文识别；正文内部的局部 `translate="no"` 仍会被尊重。
 
-## 固定模型目录架构
+完整页面导航到新的 document 后，需要再次点击“翻译”。代码块默认跳过；浏览器直接展示的纯文本或 Markdown 文档是例外，可以正常翻译。
 
-```text
-models.dev 固定 commit
-  → data/models-dev-subset.json
-  → 本地 JSON Schema 校验
-  → config/provider-allowlist.json
-  → Vercel AI SDK 显式 Provider
-  → DeepSeek / OpenAI / Google / Anthropic 官方 API
-```
+当前不支持：
 
-自定义 OpenAI-compatible 服务走独立路径：手动配置 Base URL、模型 ID 和 Key，再由 Chrome 按 origin 请求可选权限。
+- `chrome://`、Chrome Web Store 等禁止扩展注入的页面
+- Chrome 内置 PDF Viewer
+- Shadow DOM
+- iframe 内的内容；当前只处理主 frame
+- 图片、扫描文档、视频字幕和输入框
 
-当前 snapshot 固定到：
-
-```text
-141191529fcad56200de45e7267a21dffcc4c33e
-```
-
-运行中的扩展不会请求 Models.dev。DeepSeek、OpenAI、Google 和 Anthropic 的 SDK、默认模型与 API Base URL 都在构建时校验并打包。另有一个明确标记的自定义 OpenAI-compatible 入口：用户需要手动填写 Base URL、模型 ID 和 Key；保存或测试时，Chrome 只为该 origin 请求一次可选 host permission。它不会改变固定模型目录，也不会下载远程代码。
-
-| Provider  | SDK                 | API Base URL                                       |
-| --------- | ------------------- | -------------------------------------------------- |
-| DeepSeek  | `@ai-sdk/deepseek`  | `https://api.deepseek.com`                         |
-| OpenAI    | `@ai-sdk/openai`    | `https://api.openai.com/v1`                        |
-| Google    | `@ai-sdk/google`    | `https://generativelanguage.googleapis.com/v1beta` |
-| Anthropic | `@ai-sdk/anthropic` | `https://api.anthropic.com/v1`                     |
-
-详细更新流程见 [固定模型目录与 Provider 架构](docs/provider-catalog.md)。
-
-## Azure Translator 的“资源区域”
-
-资源区域是 Azure 用来识别和路由订阅资源的创建区域，不是源语言或目标语言。
-
-- Translator 单服务全局资源通常可以留空。
-- 区域性 Translator 资源必须填写区域。
-- Azure AI 多服务或 Foundry 资源通常必须填写区域。
-- 值必须与 Azure 门户资源页面一致，例如 `eastasia`；不一致常导致 `401` 或 `403`。
-
-以 [Azure Translator 鉴权文档](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/authentication) 为准。
-
-## 调试模式
-
-点击扩展图标打开 popup，再点击“调试日志”进入详细面板。只有用户主动开启“记录事件”后，扩展才会把调试事件暂存在 `chrome.storage.session`。
-
-面板可以看到：
-
-- 扩展版本、models.dev snapshot SHA、Service Worker 实例
-- Provider、模型、显式 SDK adapter、固定 API host 和低推理策略
-- 批次段落数、字符数、缓存命中/未命中
-- HTTP endpoint、状态、耗时、超时、尝试次数和退避等待
-- DeepSeek 实际 HTTP body 的安全投影 `requestPayload`：`model`、`max_tokens`、`messages[].role/content`、`thinking.type`
-- Provider 响应 ID、实际响应模型、标准/原始结束原因和警告数量
-- 输入、输出、cache read、cache write、no-cache token 或计费字符
-
-DeepSeek 投影中的 `messages` 可能包含网页原文，因此开启调试后不应直接分享日志。调试事件始终不保存：
-
-- API Key、Authorization 或其他请求头
-- query token、Provider 响应体或完整 Provider 错误原文
-- Cookie、表单值或整页 HTML
-
-事件只位于 `chrome.storage.session`，最多 300 条且约 512 KiB。关闭记录只停止新增事件；排查结束后应点击“清空”。完整字段、请求正文边界和故障诊断见 [调试模式与请求诊断](docs/debugging.md)。
-
-## 插件数据流
-
-```text
-工具栏 action / 快捷键
-  → popup：用户选择翻译/恢复、设置或调试日志
-  → chrome-extension/background/message-router.js：验证来自扩展页面的动作
-网页 DOM
-  → chrome-extension/generated/content-script.js：由 src/content/ 构建，负责扫描、去重、调度与增量监听
-  → chrome-extension/background/service-worker.js：极薄装配入口，只注册 Chrome 事件；不监听 action 点击
-  → chrome-extension/background/app.js：组装后台服务与消息路由
-  → cache-store / batch-translator / provider-service：缓存、批次、限流/重试与 Provider 调用
-  → Provider API：返回译文和用量
-  → 后台模块：校验结束原因、JSON、段落 ID、数量和长度
-  → 生成的内容脚本：实际在途正文右侧显示零布局 loading；普通页面创建 flow 译文，X 在末段原文 carrier 内维护可选择的真实 Text
-```
-
-主要文件：
-
-- `chrome-extension/manifest.json`：Chrome 可直接加载的 Manifest V3 入口
-- `chrome-extension/background/service-worker.js`：极薄后台装配入口；不注册 `action.onClicked`，实际职责拆在同目录的小模块中
-- `src/popup/`：popup 的交互与样式源码；加载时发送 `GET_POPUP_STATE`，主按钮发送 `TOGGLE_ACTIVE_TAB`，设置和调试按钮打开受信任扩展页面
-- `chrome-extension/popup/index.html`：Chrome 直接打开的 popup HTML 壳；同目录 `popup.js` 与 `popup.css` 是生成产物
-- `src/content/`：DOM 遍历、视口优先、增量监听、运行缓存、双语渲染与进度状态源码
-- `src/core/`：设置规范化、语言判断、分批、缓存签名和模型 JSON 校验源码
-- `src/provider/`：Vercel AI SDK Provider 选择、输入校验、请求观测与结果规范化源码
-- `chrome-extension/generated/`：由构建脚本生成的目录、核心、内容脚本和 Provider runtime；不要手工编辑
-- `chrome-extension/options/`：编译后的 Vue 设置页，也是 Chrome 的 Options page
-- `src/options/`：Vue 设置页源码
-
-第一次开发建议先读 [文档入口](docs/README.md)，再读 [代码地图](docs/codebase-map.md) 和 [Chrome 扩展开发入门](docs/chrome-extension-basics.md)。
-
-## 架构与文档导航
-
-- [docs/README.md](docs/README.md)：每份文档解决什么问题，以及推荐阅读顺序
-- [docs/codebase-map.md](docs/codebase-map.md)：逐目录、逐手写文件理解职责、依赖方向和完整调用链
-- [docs/chrome-extension-basics.md](docs/chrome-extension-basics.md)：从加载扩展到理解 Manifest V3 运行上下文
-- [docs/x-hover-rendering-postmortem.md](docs/x-hover-rendering-postmortem.md)：X hover fresh DOM replacement 跳动的根因、状态迁移设计、回归矩阵与相邻 HN 布局修复
-- [docs/debugging.md](docs/debugging.md)：查看受控调试事件、DeepSeek 请求正文投影，并用三类 DevTools 定位故障
-- [docs/provider-catalog.md](docs/provider-catalog.md)：固定模型目录、allowlist、Provider 构建、DeepSeek 请求转换与安全边界
-
-## 性能与成本策略
-
-1. 首次使用原生 `TreeWalker` 线性遍历文本节点，不用正则解析 HTML。
-2. `MutationObserver` 只扫描新增或真正变化的子树，支持无限滚动。
-3. 当前视口附近内容优先，云请求之间重新检查新可见正文。
-4. 同批文本去重；缓存按站点、Provider、模型、协议版本和语言对隔离。
-5. Azure/DeepL 使用数组请求；模型 Provider 把多个稳定 ID 段落合并为一个 JSON 任务。
-6. 默认并发 2；模型 Provider 最大并发 2，Azure/DeepL 最大并发 4。
-7. SDK 内部重试关闭，后台统一处理超时和最多三次尝试，避免双重重试成本。
-8. DeepSeek 关闭 thinking，OpenAI 和 Anthropic 设置 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking，减少延迟和推理 token。
-9. Provider runtime 生产 bundle 已压缩，并预设 Zod `jitless`，避免触发 Manifest V3 CSP 禁止的动态代码探测。
+X/Twitter 的节点替换、深度思考文本和 loading 状态设计见 [X 动态渲染故障复盘](docs/x-hover-rendering-postmortem.md)。
 
 ## 隐私与安全
 
-- `activeTab` 只在用户点击图标后临时访问当前标签页。
-- 云端只接收筛选后的纯文本段落，不接收网址、Cookie、输入框或整页 HTML。
-- API 请求由 Service Worker 发出；内容脚本不能读取 API Key。
+- Chrome 只在你通过工具栏图标或快捷键唤起扩展后，临时授予当前标签页权限；翻译逻辑在你点击 popup 主按钮后才会注入。
+- 翻译服务只接收筛选后的纯文本段落，不接收网址、Cookie、输入框内容或整页 HTML。
+- API 请求由扩展的 Service Worker 发出，网页中的内容脚本不能读取 API Key。
 - Key 保存在本机 `chrome.storage.local`，访问级别限制为 `TRUSTED_CONTEXTS`。
-- 用户主动开启调试时，DeepSeek `messages` 可能把网页原文短暂写入 `chrome.storage.session`；日志不含 Key、Authorization、请求头或响应体，排查后应主动清空。
-- 无痕标签页不读写持久翻译缓存。
-- Provider 返回值只通过 DOM 文本或受控 data 属性写入页面，不解析或执行返回的 HTML。
-- 所有可执行 JavaScript 随扩展打包，不从网络下载代码。
+- 自定义服务需要为目标 API origin 单独授予可选权限。
+- 调试记录默认不包含网页正文。只有同时开启“记录事件”和“DeepSeek 请求正文”后，普通窗口中的 DeepSeek 请求才可能把正文投影暂存在 `chrome.storage.session`；无痕窗口永远不会记录正文。
+- 关闭任一正文记录授权都会清除已有事件中的正文投影，但保留不含正文的一般调试事件。
+- 无痕标签页不会读写持久翻译缓存。
+- Provider 返回值只会作为文本写入页面，不会被解析或执行为 HTML。
+- 所有可执行 JavaScript 都随扩展打包，不会从网络下载远程代码。
 
-浏览器端 BYOK 不是服务端密钥保险箱。若面向他人发布并由开发者统一付费，应使用带鉴权、配额和速率限制的自有后端代理，不能把开发者 Key 写进扩展。
+浏览器端 BYOK 不是服务端密钥保险箱。如果要面向他人发布并由开发者统一承担费用，应使用带鉴权、配额和速率限制的自有后端代理，不要把开发者 Key 写入扩展。
 
-## 已知边界
+## 调试与常见问题
 
-- `chrome://`、Chrome Web Store 等禁止注入的页面
-- Chrome 内置 PDF Viewer
-- Shadow DOM
-- iframe（当前只处理主 frame）
-- 图片、扫描文档、视频字幕和输入框
+点击工具栏图标打开 popup，再进入“调试记录”。开启“记录事件”后，可以查看批次、缓存、请求、重试、响应结束原因和用量等受控信息；正文记录的额外授权边界见上方“隐私与安全”。
 
-## 开发与验证
+| 现象 | 建议 |
+| --- | --- |
+| 保存后仍无法翻译 | 回到设置页执行“保存并测试”，确认 Key、模型和账户权限有效 |
+| 提示后台版本未同步 | 在 `chrome://extensions` 中重新加载扩展，再刷新设置页和目标网页 |
+| Azure 返回 `401` 或 `403` | 核对 Key、资源类型和 Azure 门户中的资源区域 |
+| `file://` 页面没有响应 | 开启“允许访问文件网址”并刷新页面 |
+| loading 保持静止 | 检查系统或浏览器是否开启了“减少动态效果” |
+| 页面没有可翻译内容 | 检查输入/目标语言和内容过滤设置，并确认页面不属于上方列出的受限页面或未支持内容 |
 
-普通用户无需执行本节。开发环境固定为 Node.js 24；本项目目录的 `.nvmrc` 记录当前版本：
+完整事件字段、请求正文边界和故障诊断见 [调试模式与请求诊断](docs/debugging.md)。
+
+## 开发
+
+开发环境固定为 Node.js 24，具体版本记录在 `.nvmrc`：
 
 ```bash
-cd web-translate
-npm install --ignore-scripts
-node scripts/validate-provider-config.mjs
+npm ci --ignore-scripts
 npm run build:chrome
 npm run check
 ```
 
-`npm run build:chrome` 会从 `src/core/`、`src/content/`、`src/provider/`、`src/options/` 与 `src/popup/` 生成 `chrome-extension/generated/`、`chrome-extension/options/` 和 `chrome-extension/popup/` 中的浏览器产物。`npm run check` 不调用真实 Provider，不需要 API Key；它会拒绝过期的 runtime、Vue 设置页或 popup bundle。
+- `npm run build:chrome` 会生成 Chrome 直接加载的 runtime、Options 和 popup 产物。
+- `npm run check` 会检查生成产物、源码并运行 Node 测试；它不会调用真实 Provider，也不需要 API Key。
+- 生成文件不要手工修改。完整目录职责和调用链见 [代码地图](docs/codebase-map.md)。
 
-## 官方资料
+## 文档
 
-- [Chrome 扩展入门](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world)
-- [Chrome Manifest V3](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
-- [Models.dev 源码与数据](https://github.com/anomalyco/models.dev)
-- [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/generating-text)
-- [DeepSeek API](https://api-docs.deepseek.com/)
-- [OpenAI 模型](https://developers.openai.com/api/docs/models)
-- [Google Gemini 模型](https://ai.google.dev/gemini-api/docs/models)
-- [Anthropic API](https://docs.anthropic.com/en/api/overview)
+| 文档 | 适合什么时候阅读 |
+| --- | --- |
+| [文档入口](docs/README.md) | 选择阅读顺序，快速定位专题 |
+| [Chrome 扩展开发入门](docs/chrome-extension-basics.md) | 理解加载、重新加载、权限和 Manifest V3 运行上下文 |
+| [代码地图](docs/codebase-map.md) | 查找目录职责、数据流和 loading 生命周期 |
+| [调试模式与请求诊断](docs/debugging.md) | 分析调试事件、请求字段和常见故障 |
+| [Provider 与固定模型目录](docs/provider-catalog.md) | 维护模型目录、allowlist、SDK 和价格数据 |
+| [X 动态渲染故障复盘](docs/x-hover-rendering-postmortem.md) | 理解 X 节点替换、译文状态迁移和 loading 设计 |
+| [设计规范](DESIGN.md) | 理解界面语言、颜色、排版和组件约束 |
