@@ -31,35 +31,17 @@
 	height: 38px;
 	flex: 0 0 auto;
 	place-items: center;
-	border-radius: 10px 15px 10px 10px;
-	background: var(--seed);
 }
 
 .mark {
+	display: block;
 	width: 28px;
 	height: 28px;
-	overflow: visible;
 }
 
-.mark-leaf,
-.mark-stem,
-.mark-sign {
-	fill: var(--pine);
-}
-
-.mark-leaf-right {
-	fill: var(--leaf);
-}
-
-.mark-sign-fill {
-	fill: var(--seed);
-}
-
-.mark-sign-stroke {
-	fill: none;
-	stroke: var(--seed);
-	stroke-linecap: round;
-	stroke-width: 2.2;
+.mark-wrap .mark {
+	width: 38px;
+	height: 38px;
 }
 
 .brand-copy {

@@ -101,7 +101,7 @@ export function createPopupView(document) {
 
 	function showAvailability(state) {
 		if (!state.canTranslate) {
-			showStatus(state.unavailableReason || "当前页面不可翻译", true);
+			showStatus(state.unavailableReason || "当前页面不可翻译", false, "unavailable");
 		} else if (!state.configured) {
 			showStatus("翻译服务尚未配置，可先打开设置");
 		} else {

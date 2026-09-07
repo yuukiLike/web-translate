@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -7,30 +6,39 @@ import {
 	waitFor,
 } from "../helpers/popup-page-harness.mjs";
 
-const popupStylesUrl = new URL(
-	"../../chrome-extension/popup/popup.css",
-	import.meta.url,
-);
-
-// 验证主翻译操作位于卡片首位，并占据完整宽度和足够大的点击区域。
-test("Popup 首屏使用全宽大号翻译按钮", async () => {
+// 验证先选择语言再执行翻译的自然操作顺序，并通过原生控件关联标签、说明和状态。
+test("Popup 语言选择与主操作提供连贯的可访问语义", async () => {
 	const page = await createPopupPageHarness();
 	try {
 		const card = page.document.querySelector(".reader-card");
+		const fields = page.document.querySelector("#language-fields");
 		const toggle = page.document.querySelector("#toggle-translation");
-		assert.equal(card.firstElementChild?.id, toggle.id);
-		assert.equal(toggle.nextElementSibling?.classList.contains("language-panel"), true);
+		const status = page.document.querySelector("#popup-status");
+		assert.deepEqual(
+			[...card.querySelectorAll("select, button")].map(({ id }) => id),
+			["source-language", "target-language", "toggle-translation"],
+		);
+		assert.equal(fields.tagName, "FIELDSET");
+		assert.equal(fields.querySelector("legend").textContent, "默认语言方向");
+		assert.equal(fields.getAttribute("aria-describedby"), "language-note");
+		assert.ok(page.document.querySelector("#language-note").textContent.trim());
+		for (const [id, label] of [["source-language", "输入语言"], ["target-language", "输出语言"]]) {
+			const select = fields.querySelector(`#${id}`);
+			assert.equal(select.tagName, "SELECT");
+			assert.equal(fields.querySelector(`label[for="${id}"] > span`).textContent, label);
+			assert.equal(select.hasAttribute("tabindex"), false);
+		}
 
-		const styles = await readFile(popupStylesUrl, "utf8");
-		assert.match(styles, /\.main-action\{[^}]*width:100%/u);
-		assert.match(styles, /\.main-action\{[^}]*min-height:80px/u);
-		assert.match(styles, /\.main-action strong\{[^}]*font-size:18px/u);
+		assert.equal(toggle.getAttribute("aria-describedby"), status.id);
+		assert.equal(status.getAttribute("role"), "status");
+		assert.equal(status.getAttribute("aria-live"), "polite");
+		assert.equal(status.getAttribute("aria-atomic"), "true");
 	} finally {
 		page.cleanup();
 	}
 });
 
-// 验证翻译期间主按钮保持高对比忙碌语义，并锁定语言选择避免并发改向。
+// 验证翻译期间主按钮公开忙碌语义，并锁定语言选择避免并发改向。
 test("Popup 主翻译操作公开忙碌状态并锁定语言", async () => {
 	const response = Promise.withResolvers();
 	const page = await createPopupPageHarness({

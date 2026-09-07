@@ -90,7 +90,7 @@ test("Popup 正确展示已配置的无模型服务", async () => {
 	}
 });
 
-// 验证不可注入页面明确说明原因并始终禁用主操作，不会发送切换消息。
+// 验证不可注入页面作为明确的不可用状态展示，始终禁用主操作且不发送切换消息。
 test("Popup 禁用不可翻译页面", async () => {
 	const page = await createPopupPageHarness({
 		popupState: { canTranslate: false, unavailableReason: "此页面不支持网页翻译" },
@@ -101,8 +101,10 @@ test("Popup 禁用不可翻译页面", async () => {
 			"Popup 未显示不可用原因",
 		);
 		const toggle = page.document.querySelector("#toggle-translation");
+		const status = page.document.querySelector("#popup-status");
 		assert.equal(toggle.disabled, true);
-		assert.equal(page.document.querySelector("#popup-status").dataset.error, "true");
+		assert.equal(status.dataset.error, "false");
+		assert.equal(status.dataset.tone, "unavailable");
 		toggle.click();
 		assert.deepEqual(page.calls.map(({ type }) => type), ["GET_POPUP_STATE"]);
 	} finally {
@@ -122,6 +124,7 @@ test("Popup 安全处理初始加载错误", async () => {
 		);
 		assert.equal(page.document.querySelector("#toggle-translation").disabled, true);
 		assert.equal(page.document.querySelector("#popup-status").dataset.error, "true");
+		assert.equal(page.document.querySelector("#popup-status").dataset.tone, "error");
 		assert.equal(page.document.querySelector("#current-provider").textContent, "后台暂时不可用");
 		assert.equal(page.document.querySelector("#current-model").textContent, "请稍后重试");
 		assert.equal(page.document.querySelector("#language-fields").disabled, true);
@@ -252,6 +255,7 @@ test("Popup 展示切换错误并恢复操作", async () => {
 			"Popup 未展示后台错误",
 		);
 		assert.equal(page.document.querySelector("#popup-status").dataset.error, "true");
+		assert.equal(page.document.querySelector("#popup-status").dataset.tone, "error");
 		assert.equal(toggle.disabled, false);
 		assert.equal(page.closeCount, 0);
 	} finally {
