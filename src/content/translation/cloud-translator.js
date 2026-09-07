@@ -11,6 +11,7 @@ export class CloudTranslator {
 		rootQueue,
 		planner,
 		runCache,
+		contentTrace,
 		renderer,
 		elementStore,
 		invalidator,
@@ -24,6 +25,7 @@ export class CloudTranslator {
 		this.rootQueue = rootQueue;
 		this.planner = planner;
 		this.runCache = runCache;
+		this.contentTrace = contentTrace;
 		this.renderer = renderer;
 		this.elementStore = elementStore;
 		this.invalidator = invalidator;
@@ -33,6 +35,7 @@ export class CloudTranslator {
 	}
 
 	resolveFromRunCache(segments) {
+		void this.contentTrace.recordPlan(segments);
 		const unresolved = [];
 		for (const segment of segments) {
 			if (this.runCache.has(segment)) {
@@ -92,6 +95,8 @@ export class CloudTranslator {
 	}
 
 	#enqueueSegments(queue, segments) {
+		void this.contentTrace.recordPlan(segments);
+		const aliases = [];
 		for (const segment of segments) {
 			if (this.runCache.has(segment)) {
 				this.#applyTranslation(segment, this.runCache.get(segment));
@@ -100,12 +105,14 @@ export class CloudTranslator {
 			const key = getSegmentKey(segment);
 			const queued = queue.find((item) => getSegmentKey(item) === key);
 			if (queued) {
+				aliases.push({ segmentId: segment.id, canonicalSegmentId: queued.id });
 				queued.priority = Math.min(queued.priority, segment.priority);
 				queued.targets.push(...segment.targets);
 			} else {
 				queue.push(segment);
 			}
 		}
+		void this.contentTrace.recordAliases(aliases);
 	}
 
 	async #translateBatch(batch) {

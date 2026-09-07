@@ -1,3 +1,6 @@
+import { canCaptureContent } from "./debug-content-policy.js";
+import { createIdentifier } from "./utilities.js";
+
 export function createRunMessageHandlers({
 	core,
 	providerCatalog,
@@ -49,7 +52,12 @@ export function createRunMessageHandlers({
 				),
 				status: "started",
 			});
-			return { settings: core.publicSettings(settings) };
+			return {
+				settings: {
+					...core.publicSettings(settings),
+					captureContentTrace: canCaptureContent(settings, sender.tab.incognito === true),
+				},
+			};
 		} finally {
 			runStore.finishStart(startToken);
 		}
@@ -62,7 +70,7 @@ export function createRunMessageHandlers({
 		const controller = runStore.registerController(tabId, request.runId);
 		let batchState = {};
 		try {
-			batchState = runStore.nextBatch(tabId, request.runId);
+			batchState = { ...runStore.nextBatch(tabId, request.runId), batchId: createIdentifier() };
 			return await batchTranslator.translate(
 				snapshot,
 				request,

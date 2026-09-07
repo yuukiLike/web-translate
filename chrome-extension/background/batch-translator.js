@@ -93,6 +93,7 @@ export function createBatchTranslator({
 			segmentCount: request.segments.length,
 			sourceCharacters: sumSegmentCharacters(request.segments),
 			...batchState,
+			segmentIds: request.segments.map((segment) => segment.id),
 			status: "failed",
 			errorCode: getSafeErrorCode(error),
 			cancelled: error?.message === "翻译已取消",
@@ -119,13 +120,15 @@ export function createBatchTranslator({
 			extensionVersion,
 			cacheHits,
 			cacheMisses: missingSegments.length,
+			cacheHitIds: request.segments.filter((segment) => cachedTranslations.has(segment.id)).map((segment) => segment.id),
+			cacheMissIds: missingSegments.map((segment) => segment.id),
 			status: "completed",
 		});
 		return { cachedTranslations, missingSegments, cacheHits };
 	}
 
 	async function translateMissing(context, missingSegments, signal) {
-		const { settings, request, tabId, batchIndex, queueDepth, incognito } = context;
+		const { settings, request, tabId, batchId, batchIndex, queueDepth, incognito } = context;
 		let providerResult;
 		try {
 			providerResult = await providerService.translate(
@@ -134,7 +137,7 @@ export function createBatchTranslator({
 				request.targetLanguage,
 				missingSegments,
 				signal,
-				{ tabId, runId: request.runId, batchIndex, queueDepth, incognito },
+				{ tabId, runId: request.runId, batchId, batchIndex, queueDepth, incognito },
 			);
 			assertNotAborted(signal);
 			if (providerResult.translations.length !== missingSegments.length) {
@@ -149,6 +152,8 @@ export function createBatchTranslator({
 				model: core.getProviderModel(settings),
 				segmentCount: missingSegments.length,
 				sourceCharacters: sumSegmentCharacters(missingSegments),
+				batchId,
+				segmentIds: missingSegments.map((segment) => segment.id),
 				batchIndex,
 				queueDepth,
 				inputTokens: numberOrUndefined(providerResult.usage.inputTokens),
@@ -262,6 +267,8 @@ export function createBatchTranslator({
 			model: core.getProviderModel(context.settings),
 			segmentCount: context.request.segments.length,
 			sourceCharacters: context.sourceCharacters,
+			batchId: context.batchId,
+			segmentIds: context.request.segments.map((segment) => segment.id),
 			batchIndex: context.batchIndex,
 			queueDepth: context.queueDepth,
 		};

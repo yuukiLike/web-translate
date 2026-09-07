@@ -27,6 +27,7 @@ export function createContentHarness({
 	targetMode = "zh",
 	translateText,
 	contentFilters = {},
+	captureContentTrace = false,
 } = {}) {
 	const window = new Window({ url: "https://example.com/article" });
 	const { document } = window;
@@ -60,6 +61,7 @@ export function createContentHarness({
 							contentFilters: normalizedContentFilters,
 							translateDynamicContent: true,
 							concurrency: 2,
+							captureContentTrace,
 						},
 					};
 				}

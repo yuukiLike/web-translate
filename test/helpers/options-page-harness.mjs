@@ -231,10 +231,12 @@ export async function createOptionsPageHarness(options = {}) {
 					case "TEST_PROVIDER":
 						return { ok: true, message: "OpenAI 连接成功" };
 					case "GET_DEBUG_LOGS":
+						if (options.getDebugLogs) return options.getDebugLogs();
 						return { ok: true, events: structuredClone(debugEvents) };
 					case "CLEAR_CACHE":
 						return { ok: true, removed: 3 };
 					case "CLEAR_DEBUG_LOGS":
+						if (options.clearDebugLogs) return options.clearDebugLogs();
 						debugEvents = [];
 						return { ok: true };
 					default:

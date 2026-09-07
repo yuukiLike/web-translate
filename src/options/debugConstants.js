@@ -1,9 +1,13 @@
-export const DEBUG_EVENT_LIMIT = 300;
+import { DEBUG_LIMITS } from "../../chrome-extension/background/constants.js";
+
+export const DEBUG_EVENT_LIMIT = DEBUG_LIMITS.maxEvents;
 
 export const DEBUG_EVENT_NAMES = Object.freeze({
 	"debug.logging-enabled": "调试记录已开启",
 	"settings.saved": "设置已保存",
 	"run.started": "页面任务开始",
+	"content.planned": "原文结构已采集",
+	"content.alias": "重复分片已合并",
 	"batch.received": "收到翻译批次",
 	"cache.resolved": "缓存检查完成",
 	"model.request.started": "模型请求开始",
@@ -35,6 +39,7 @@ export const DEBUG_REQUEST_START_EVENTS = new Set([
 ]);
 
 export const DEBUG_REQUEST_END_EVENTS = new Set([
+	"model.response.validated",
 	"sdk.request-end",
 	"request.completed",
 	"request-end",

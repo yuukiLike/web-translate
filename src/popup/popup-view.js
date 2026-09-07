@@ -3,7 +3,7 @@ const ACTION_COPY = Object.freeze({
 	[ACTIONS.reload]: Object.freeze({
 		accessibleBusy: "正在重新载入扩展",
 		accessibleIdle: "重新载入扩展",
-		busy: "正在重新载入…",
+		busy: "正在载入…",
 		idle: "重新载入扩展",
 	}),
 	[ACTIONS.translate]: Object.freeze({

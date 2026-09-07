@@ -91,6 +91,9 @@ test("调试存储只保留 DeepSeek 请求正文白名单", async () => {
 	const serialized = JSON.stringify({ events, stored: harness.session.data });
 	assert.equal(serialized.includes(apiKey), false);
 	assert.equal(serialized.includes(authorization), false);
+	assert.equal(serialized.includes("响应正文"), false);
+	assert.equal(Object.hasOwn(events[0], "responseBody"), false);
+	assert.ok(events[0].requestPayloadOmittedFields.includes("other_field"));
 	assert.equal(serialized.includes("responseBody"), false);
 	assert.equal(serialized.includes("requestBody"), false);
 

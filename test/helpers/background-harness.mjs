@@ -159,6 +159,7 @@ export function createWebpageSender(options = {}) {
 	const url = options.url ?? "https://page.example/article";
 	return {
 		url,
+		frameId: options.frameId ?? 0,
 		tab: {
 			id: options.tabId ?? 7,
 			incognito: options.incognito ?? false,
@@ -182,14 +183,14 @@ export function createProviderRuntimeFake(options = {}) {
 				messages: request.messages,
 				captureRequestBody: request.captureRequestBody === true,
 			}));
-			if (request.captureRequestBody === true && typeof request.onRequestEvent === "function") {
+			if (typeof request.onRequestEvent === "function") {
 				request.onRequestEvent({
 					eventType: "request-start",
-					requestId: "provider-request-test",
+					requestId: `provider-request-test-${requests.length}`,
 					endpoint: "https://api.deepseek.com/chat/completions",
 					method: "POST",
 					status: "started",
-					requestBody: JSON.stringify({
+					...(request.captureRequestBody === true ? { requestBody: JSON.stringify({
 						model: request.modelId,
 						max_tokens: request.maxOutputTokens,
 						messages: [
@@ -197,7 +198,7 @@ export function createProviderRuntimeFake(options = {}) {
 							...request.messages,
 						],
 						thinking: { type: "disabled" },
-					}),
+					}) } : {}),
 				});
 			}
 			const payload = JSON.parse(request.messages[0].content);

@@ -151,7 +151,7 @@ test("后台应用完成翻译任务主消息链", async () => {
 	const started = await sendAppMessage(app, { type: "START_RUN", runId: "run-main" }, sender);
 	assert.deepEqual(started, {
 		ok: true,
-		settings: backgroundCore.publicSettings(settings),
+		settings: { ...backgroundCore.publicSettings(settings), captureContentTrace: false },
 	});
 	assert.ok(!JSON.stringify(started).includes("sk-background-test"));
 	assert.deepEqual(harness.session.data["current-run:7"], {

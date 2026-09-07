@@ -17,13 +17,14 @@ export function createModelClient({ core, providerRuntime, debug }) {
 		if (signal.aborted) {
 			throw signal.reason instanceof Error ? signal.reason : new Error("翻译已取消");
 		}
-		const requestId = createIdentifier();
+		const requestId = requestDebug.modelRequestId ?? createIdentifier();
 		for (let attempt = 0; attempt < MAX_REQUEST_ATTEMPTS; attempt += 1) {
 			const attemptNumber = attempt + 1;
 			const startedAt = Date.now();
 			debug.recordRequest(requestDebug, {
 				eventType: "model.request.started",
 				requestId,
+				modelRequestId: requestId,
 				attempt: attemptNumber,
 				timeoutMs: NETWORK_LIMITS.modelRequestTimeoutMs,
 				status: "started",
@@ -33,6 +34,7 @@ export function createModelClient({ core, providerRuntime, debug }) {
 					debug.recordRequest(requestDebug, {
 						...event,
 						eventType: `sdk.${event.eventType}`,
+						modelRequestId: requestId,
 						endpoint: debug.getSafeEndpoint(event.endpoint),
 						attempt: attemptNumber,
 						timeoutMs: NETWORK_LIMITS.modelRequestTimeoutMs,
@@ -41,17 +43,19 @@ export function createModelClient({ core, providerRuntime, debug }) {
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.completed",
 					requestId,
+					modelRequestId: requestId,
 					attempt: attemptNumber,
 					elapsedMs: Date.now() - startedAt,
 					timeoutMs: NETWORK_LIMITS.modelRequestTimeoutMs,
 					status: "completed",
 				});
-				return { result, apiCalls: attemptNumber };
+				return { result, apiCalls: attemptNumber, finalAttempt: attemptNumber };
 			} catch (error) {
 				const retryable = isRetryableError(error);
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.failed",
 					requestId,
+					modelRequestId: requestId,
 					attempt: attemptNumber,
 					httpStatus: getErrorStatus(error),
 					elapsedMs: Date.now() - startedAt,
@@ -78,6 +82,7 @@ export function createModelClient({ core, providerRuntime, debug }) {
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.retry-scheduled",
 					requestId,
+					modelRequestId: requestId,
 					attempt: attemptNumber,
 					retryAfterMs: delayMs,
 					status: "waiting",

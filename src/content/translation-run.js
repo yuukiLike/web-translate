@@ -13,6 +13,7 @@ import { MutationMonitor } from "./dom/mutation-monitor.js";
 import { VisibilityMonitor } from "./dom/visibility-monitor.js";
 import { TranslationPlanner } from "./translation/planner.js";
 import { CloudTranslator } from "./translation/cloud-translator.js";
+import { ContentTrace } from "./translation/content-trace.js";
 
 /** 一次 start -> stop 的完整运行。依赖对象都限定在本次运行内。 */
 export class TranslationRun {
@@ -152,6 +153,12 @@ export class TranslationRun {
 			rootQueue: this.rootQueue,
 			planner: this.planner,
 			runCache: this.runCache,
+			contentTrace: new ContentTrace({
+				enabled: this.settings.captureContentTrace,
+				runId: this.runId,
+				runtime: this.runtime,
+				runCache: this.runCache,
+			}),
 			renderer: this.renderer,
 			elementStore: this.elementStore,
 			invalidator: this.invalidator,

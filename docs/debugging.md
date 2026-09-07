@@ -1,41 +1,44 @@
 # 调试模式与请求诊断
 
-调试模式回答的是“扩展正在做什么、请求到了哪里、实际给 DeepSeek 的参数是什么、为什么重试或失败”。只有用户主动开启“记录事件”后，扩展才会把事件暂存在 `chrome.storage.session`；这些事件默认只含白名单元数据，不含网页正文。只有再单独开启“DeepSeek 请求正文”，普通窗口中的 DeepSeek `sdk.request-start` 才可能附带名为 `requestPayload` 的安全投影；它只允许 `model`、`max_tokens`、`messages[].role/content` 和 `thinking.type`。
+调试面板把一次 DeepSeek 网页翻译串成可检查的链路：页面任务 → 被选入翻译的原文块 → 去重分片与 DOM 目标 → 批次和缓存 → 实际 HTTP 请求。只有用户主动开启“记录事件”后，扩展才会把事件暂存在 `chrome.storage.session`；默认只含白名单元数据。再单独开启“原文与请求内容”，普通窗口中的 DeepSeek 翻译才会记录原文结构，以及发送时捕获的 `requestPayload` 安全投影。
 
 `messages` 可能包含正在翻译的网页原文，因此“受控投影”只表示字段范围经过限制，不表示内容适合公开分享。内置日志始终不记录 API Key、Authorization、其他请求头、Provider 响应体或完整错误原文。
 
-升级前只有 `debugLogging: true` 的设置不会自动获得正文授权：缺少 `debugRequestPayload` 时会按 `false` 处理。无痕窗口可以产生不含正文的调试元数据，但即使两个开关都开启，也永不捕获或暂存请求正文。关闭“DeepSeek 请求正文”或关闭“记录事件”都会撤销正文授权，并从后台内存与 `chrome.storage.session` 的既有事件中移除 `requestPayload`；普通元数据事件仍会保留，直到点击“清空”或 session 生命周期结束。
+升级前只有 `debugLogging: true` 的设置不会自动获得正文授权：缺少 `debugRequestPayload` 时会按 `false` 处理。无痕窗口可以产生不含正文的调试元数据，但即使两个开关都开启，也永不捕获或暂存原文结构与请求正文。关闭“原文与请求内容”或关闭“记录事件”都会撤销正文授权，并从后台内存与 `chrome.storage.session` 的既有事件中移除原文、结构映射和 `requestPayload`；普通元数据事件仍会保留，直到点击“清空”或 session 生命周期结束。
 
-面板轨迹只覆盖 `background`、`cache` 和 `provider`。页面扫描、增量内容发现与 DOM 插入发生在内容脚本中，不会进入这份轨迹；这部分必须打开被翻译网页的 DevTools 排查。
+“原文结构”只记录主框架中实际被选入翻译的正文块及其采集时的 DOM 路径，包含后续动态扫描。它不保存整页所有 DOM、被过滤元素及其过滤原因，也不证明译文最终已经插入页面。过滤逻辑或实际 DOM 写入仍需在被翻译网页的 DevTools 中排查。
 
 ## 最快开始
 
 1. 点击工具栏中的扩展图标，打开 popup。
-2. 点击“调试日志”，进入详细调试面板。
+2. 点击“调试记录”，进入详细调试面板。
 3. 主动开启“记录事件”。开关会立即保存，不需要再点击配置页的“保存并测试”；此时只记录元数据。
-4. 只有需要查看 DeepSeek 正文时，再单独开启“DeepSeek 请求正文”。
-5. 在调试面板点击“测试当前服务”，或回到网页，通过 popup 的“翻译 / 恢复当前网页”触发一次翻译。当前服务为 DeepSeek 且两个开关均开启时，连接测试会生成一条包含 `hello` 测试文本的可见正文样例。
-6. 先看默认的“请求”视图；需要完整链路时切到“全部事件”，只排查失败时切到“错误”。
-7. 按相同 `runId`、`requestId` 和 `attempt` 阅读展开后的元数据。
-8. 排查结束后关闭“记录事件”；需要删除普通元数据事件时点击“清空”。
+4. 需要检查原文与发送内容时，再单独开启“原文与请求内容”。
+5. 回到普通窗口中的网页，点击 popup 右上方的“翻译 / 恢复”触发一次 DeepSeek 翻译。也可点击调试面板的“测试当前服务”，生成包含 `hello` 的请求样例；连接测试没有网页原文结构。
+6. 默认“原文结构”视图中先选页面任务，再选原文块，查看完整标准化文本、DOM 路径和修订号。
+7. 展开“翻译分片”，检查缓存去向、批次和对应的 DOM 位置列表；点击目标路径可跳到关联原文块。再在“实际发送”中展开关联请求，阅读 system/user 消息、参数或格式化 JSON。拆分恢复请求按层级缩进，并标明恢复深度。
+8. 需要跨任务检查网络尝试时切到“HTTP 请求”；需要事件顺序或只排查失败时，分别切到“全部事件”或“错误”。
+9. 排查结束后关闭“记录事件”；需要删除普通元数据事件时点击“清空”。
 
-“记录事件”是独立保存的实时调试开关，也是正文授权的前置条件。关闭后会停止新增事件、断开实时连接、把“DeepSeek 请求正文”重置为关闭，并清除既有事件中的 `requestPayload`；不含正文的普通元数据事件不会自动删除。要删除所有已有事件，再点击“清空”。
+“记录事件”是独立保存的实时调试开关，也是正文授权的前置条件。关闭后会停止新增事件、断开实时连接、把“原文与请求内容”重置为关闭，并清除既有的原文结构和 `requestPayload`，包括当前已打开的详情与可复制内容；不含正文的普通元数据事件不会自动删除。要删除所有已有事件，再点击“清空”。
 
 ## 面板视图与操作
 
-- **请求优先：** 面板默认打开“请求”。它按 `requestId` 和 `attempt` 把同一次网络尝试的开始、完成或失败事件合并成一行，优先显示方法、主机、路径、HTTP 状态和耗时。一次重试会作为新的 `attempt` 单独显示。
-- **全部事件：** “全部事件”保留后台、缓存与 Provider 的受控事件顺序，适合沿 `runId` 查看批次、缓存、重试和用量。
+- **原文结构：** 默认视图按页面任务组织原文块，显示任务标题、地址、扫描次数，以及原文块、去重分片、批次和 HTTP 请求数量。选中正文块后，可沿 DOM 路径、修订、分片、缓存和实际发送记录查看关系。同一分片可以对应多个 DOM 位置；队列中被合并的重复分片会显示其共用的标识。
+- **HTTP 请求：** 按真实 `requestId` 和 `attempt` 把同一次网络尝试的开始、完成或失败事件合并成一行，显示方法、主机、路径、HTTP 状态和耗时。网络重试、模型缩批恢复产生的请求分别保留，不把模型调用标识冒充实际 HTTP 请求标识。
+- **全部事件：** “全部事件”保留内容采集、后台、缓存与 Provider 的受控事件顺序，适合沿 `runId` 查看扫描、批次、缓存、重试和用量。
 - **错误过滤：** “错误”只显示 HTTP 状态不小于 400、带安全错误码，或状态为 `error` / `failed` 的行。
-- **搜索：** “筛选轨迹”只搜索当前视图，范围包括事件名称与代码、摘要、状态，以及展开详情中的字段名和值。可直接搜索端点、模型、HTTP 状态或错误码。
-- **展开详情：** 点击任一行可展开该行的全部受控元数据；请求行显示该次尝试合并后的字段。
-- **仅在底部跟随：** 位于列表底部时，新事件会自动滚动到最新位置。向上滚动会停止跟随，避免正在阅读的内容跳走；点击“继续跟随”会回到底部并恢复自动滚动。
-- **受控复制：** “复制当前视图”只复制当前模式经过搜索后仍可见的行，并输出白名单字段；仅在用户另行授权且实际捕获到 DeepSeek 正文时，JSON 才会包含 `requestPayload` 安全投影。它不包含 Key、Authorization、其他请求头或响应体，但投影中的 `messages` 可能含网页原文；复制前必须检查并脱敏。
+- **搜索：** 只搜索当前视图。“原文结构”支持任务标题、原文、DOM 路径和任务 ID；其他视图支持模型、端点、HTTP 状态、错误码以及受控元数据。
+- **展开请求详情：** “请求上下文”列出该次尝试的元数据；“消息与分片”分别呈现实际 system/user 消息，并把合法 user JSON 中的 `segments` 展开为有序分片和语言方向，显示真实换行。另有“请求参数”和带行号的“请求 JSON”视图，以及原始消息文本入口。
+- **仅在底部跟随：** HTTP 请求与事件列表位于底部时，新事件会自动滚动到最新位置。向上滚动会停止跟随，避免正在阅读的内容跳走；点击“继续跟随”会回到底部并恢复自动滚动。原文结构使用任务和节点选择，保留当前阅读位置。
+- **明确完整性：** 没有捕获到正文时显示“未记录正文”；容量截断或存在未记录字段时显示“部分记录”，不会根据元数据重建正文。历史事件因总容量上限被淘汰时，页面显示淘汰数量；缺失扫描分包的任务也会标为不完整。
+- **受控复制：** “复制原文”复制当前正文块；“复制请求 JSON”复制当前请求已捕获的安全投影，部分记录会明确提示；“复制当前视图”导出当前筛选结果及其受控关联数据。原文结构导出还包含保留范围、容量上限与淘汰数量，历史淘汰后会标记为部分记录。导出可能包含已授权的网页原文，分享前应检查并脱敏。
 
 ### 测试当前服务
 
 “测试当前服务”会先校验并保存调试面板当前使用的 Provider 配置，再由后台发起真实请求：模型 Provider 和 Azure 使用一条很小的英译中测试，DeepL 查询用量端点。自定义服务会先请求当前 API origin 的 Chrome 权限。测试可能消耗 Provider 配额或产生少量费用。
 
-开启“记录事件”后，这次测试会以元数据事件实时出现在“请求”和“全部事件”中，可用于把 Provider 配置或网络问题与网页扫描、DOM 插入问题分开。如果当前服务是 DeepSeek，并且还单独开启了“DeepSeek 请求正文”，测试请求中的 `hello` 会作为可见的 `requestPayload` 样例；只开“记录事件”不会显示正文。测试成功只证明后台能够访问当前服务，不证明网页内容脚本能够扫描或写入当前页面。
+开启“记录事件”后，这次测试会以元数据事件实时出现在“HTTP 请求”和“全部事件”中，可用于把 Provider 配置或网络问题与网页扫描、DOM 插入问题分开。如果当前服务是 DeepSeek，并且还单独开启了“原文与请求内容”，测试请求中的 `hello` 会作为可见的 `requestPayload` 样例；只开“记录事件”不会显示正文。测试成功只证明后台能够访问当前服务，不证明网页内容脚本能够扫描或写入当前页面。
 
 ## 一次 DeepSeek 模型翻译的正常事件顺序
 
@@ -54,6 +57,8 @@ run.started
 
 如果整个批次都命中缓存，`cache.resolved` 后面不会出现 Provider 请求，这是正常行为。
 
+开启内容记录后，初次和动态扫描还会产生 `content.planned`；动态重复分片与已排队分片合并时产生 `content.alias`。这些记录通过独立异步队列发送，不阻塞翻译，因此不应仅靠它们与批次事件的到达先后推断处理顺序，应使用下述关联标识。
+
 Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来的 `request.started`、`request.completed`、`request.failed` 和 `request.retry-scheduled`。
 
 ## 事件参考
@@ -62,6 +67,8 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | --- | --- | --- |
 | `settings.saved` | 设置页 → 后台 | 已保存规范化后的设置；不含 Key |
 | `run.started` | 后台 | 当前标签页建立了固定设置快照 |
+| `content.planned` | 内容脚本 → 后台 | 已选入翻译的原文、采集时 DOM 结构、分片及目标映射；需要独立内容授权 |
+| `content.alias` | 内容脚本 → 后台 | 动态重复分片与已排队分片合并，记录 `segmentId → canonicalSegmentId` |
 | `batch.received` | 后台 | 收到一批已验证的段落 |
 | `cache.resolved` | 缓存 | 完成缓存命中/未命中统计 |
 | `model.request.started` | 模型请求层 | 开始一次受扩展控制的尝试 |
@@ -90,10 +97,18 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `workerInstanceId` | 区分 Service Worker 被终止后重新启动的不同实例 |
 | `tabId` | 产生任务的标签页 ID |
 | `runId` | 一次点击启动的页面翻译任务；串联多个批次 |
-| `requestId` | 一次业务请求或 SDK HTTP 请求的标识 |
+| `scanId` / `chunkIndex` / `chunkCount` | 同一次初始或动态扫描及其分包；与 `runId` 一起重组原文记录，缺包表示记录不完整 |
+| `nodeId` / `revision` | 运行内的 DOM 节点身份及该节点文本修订；原文节点记录中的字段名为 `id`，分片目标使用 `nodeId` |
+| `segmentId` / `canonicalSegmentId` | 翻译分片及其合并后的规范标识；分片记录中的字段名为 `id` |
+| `targets[].nodeId` / `partIndex` / `partCount` | 分片对应的 DOM 位置及其在源块中的顺序；一个分片可以有多个目标 |
+| `batchId` | 后台收到并处理的一批分片 |
+| `modelRequestId` | 一次模型调用组，与实际 SDK 网络请求分开 |
+| `parentModelRequestId` / `recoveryDepth` | 格式或截断恢复时的父调用和拆分层级 |
+| `segmentIds` / `rootSegmentIds` | 当前调用使用的分片标识，以及恢复拆分前的原始分片标识；用于把恢复请求关联回原文 |
+| `requestId` | 实际 SDK HTTP 请求或 Azure/DeepL REST 请求的标识 |
 | `attempt` | 当前重试尝试，从 1 开始 |
 
-`workerInstanceId` 变化说明 Chrome 重新启动了 Service Worker，不一定是错误。`runId` 相同但 `requestId` 不同，通常表示同一页面任务正在处理不同批次。
+`workerInstanceId` 变化说明 Chrome 重新启动了 Service Worker，不一定是错误。同一个 `runId` 下可能有多个批次、模型调用、网络尝试和恢复调用。先用节点与分片标识定位原文，再用 `batchId`、`modelRequestId`、`rootSegmentIds` 和真实 `requestId` 检查具体发送，避免只按时间把无关请求拼在一起。
 
 ### 版本与配置
 
@@ -118,10 +133,11 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `segmentCount` | 批次内独立文本段数 |
 | `sourceCharacters` | 当前批次原文字符总数；只保存数量，不保存具体文本 |
 | `cacheHits` / `cacheMisses` | 缓存命中和未命中的段落数 |
+| `cacheHitIds` / `cacheMissIds` | 持久缓存命中与未命中的分片标识，可关联回原文 |
 | `batchIndex` / `batchCount` | 事件提供时的批次位置；动态无限滚动时总数可能未知 |
 | `queueDepth` | 事件提供时等待处理的请求数 |
 
-批次与缓存事件只显示数量，不显示具体段落内容。DeepSeek 的 `sdk.request-start` 是明确例外：用户先开启“记录事件”、再单独开启“DeepSeek 请求正文”后，普通窗口请求的 `requestPayload.messages` 才会显示实际发送的 system prompt 和用户段落。
+批次与缓存事件记录数量和分片标识。开启“原文与请求内容”后，“原文结构”使用这些标识连接已采集的原文和请求，区分本次页面缓存、持久缓存、等待发送和已发送。全部命中缓存的分片没有新的模型请求；若较早事件已被淘汰，缺少关联请求并不等于实际没有发送。
 
 ### HTTP、重试与取消
 
@@ -141,17 +157,20 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 
 ### DeepSeek 请求正文安全投影
 
-`src/provider/observed-fetch.js` 会在本次函数调用期间把 SDK 交给 `fetch` 的 JSON 字符串命名为 `requestBody`。后台不会原样持久化它：`debug-store.js` 解析后只把下面的固定子集重建为 `sdk.request-start.requestPayload`。它不是后台调用 Provider runtime 时的参数对象，也不是完整原始 body。
+`src/provider/observed-fetch.js` 会在本次函数调用期间把 SDK 交给 `fetch` 的 JSON 字符串命名为 `requestBody`。后台通过 `request-payload-sanitizer.js` 生成 `sdk.request-start.requestPayload` 的安全投影。Options 的 `createRequestCapture` 复用同一转换规则，合并保存时的截断和遗漏标记，没有第二份易漂移的白名单或额外的 40k 字符截断。它来自实际发送的正文，不是后台 Provider 参数对象，也不是按提示词模板重建的示例。
 
 | 字段 | 含义 | 隐私提醒 |
 | --- | --- | --- |
 | `requestPayload.model` | 实际发送给 DeepSeek 的模型 ID；最长 300 字符 | 不含凭据 |
 | `requestPayload.max_tokens` | 本批请求的最大输出 token，保存为非负整数 | 不含正文 |
-| `requestPayload.messages[].role/content` | SDK 转换后的 system/user messages；最多 32 条，整个投影受 32 KiB 上限约束 | user message 可能包含网页原文；system message 包含翻译约束 |
+| `requestPayload.messages[].role/content` | SDK 转换后的 system/user messages；最多 32 条，整个投影受 256 KiB 上限约束 | user message 可能包含网页原文；system message 包含翻译约束 |
 | `requestPayload.thinking.type` | DeepSeek thinking 配置；翻译请求为 `disabled` | 不含正文 |
-| `requestPayloadTruncated` | 为 `true` 时表示模型、thinking 或 messages 因数量/容量上限被截断 | 不应把缺少的内容误判为实际未发送 |
+| `requestPayload.temperature/top_p/frequency_penalty/presence_penalty` | 实际出现且通过类型校验的采样参数 | 不含正文 |
+| `requestPayload.reasoning_effort/stream/response_format.type/stop` | 实际出现且在共享规则中允许的请求参数 | `stop` 是请求内容的一部分；不会据配置猜测缺失值 |
+| `requestPayloadTruncated` | 字段被缩短、转换或消息因数量/容量上限被截断时为 `true` | 不应把缺少的内容误判为实际未发送 |
+| `requestPayloadOmittedFields` | 未记录的字段路径；未知字段名规范化为 `other_field`，避免字段名本身泄露内容 | 有遗漏时显示“部分记录”，不把投影冒充完整原始 body |
 
-投影不会保存 `Authorization`、API Key、User-Agent 等请求头，也不会保存 DeepSeek 响应体。若请求不是 DeepSeek、“记录事件”或“DeepSeek 请求正文”任一未开启、请求来自无痕窗口，或 body 不能通过结构校验，则事件中不会出现 `requestPayload`。旧版只有 `debugLogging` 的设置同样不满足正文授权。三层参数如何转换的完整示例见 [DeepSeek 请求实例：从后台参数到 HTTP Body](./provider-catalog.md#deepseek-请求实例从后台参数到-http-body)。
+投影不会保存 `Authorization`、API Key、User-Agent 等请求头，也不会保存 DeepSeek 响应体。若请求不是 DeepSeek、“记录事件”或“原文与请求内容”任一未开启、请求来自无痕窗口，或 body 不能通过结构校验，则事件中不会出现 `requestPayload`。旧版只有 `debugLogging` 的设置同样不满足正文授权。详情明确区分 `missing`、`partial` 和 `complete`；这里的完整性针对捕获规则所保留的数据。三层参数如何转换的完整示例见 [DeepSeek 请求实例：从后台参数到 HTTP Body](./provider-catalog.md#deepseek-请求实例从后台参数到-http-body)。
 
 ### 模型响应和用量
 
@@ -168,19 +187,19 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `noCacheTokens` | 未使用 Provider cache 的输入 token |
 | `billedCharacters` | Azure/DeepL 返回或扩展计算的计费字符 |
 
-`responseModel` 与设置中的 `model` 不同不一定代表错误，Provider 可能返回版本化名称；应结合 Provider 官方控制台确认。`finishReason: length` 表示输出达到上限，扩展会拒绝不完整译文并提示减小批次。
+`responseModel` 与设置中的 `model` 不同不一定代表错误，Provider 可能返回版本化名称；应结合 Provider 官方控制台确认。`finishReason: length` 表示输出达到上限，扩展会拒绝不完整译文并进入有界缩批恢复；预算耗尽后才返回失败。
 
 ## 查看、复制与清空 DeepSeek 请求正文
 
 ### 在内置日志中查看
 
-1. 点击扩展图标，在 popup 中选择“调试日志”。
-2. 先开启“记录事件”，再单独开启“DeepSeek 请求正文”。两个开关都会立即保存；开启前已经发生的请求不会补记正文。
+1. 点击扩展图标，在 popup 中选择“调试记录”。
+2. 先开启“记录事件”，再单独开启“原文与请求内容”。两个开关都会立即保存；开启前已经发生的请求不会补记正文。
 3. 点击“测试当前服务”生成包含 `hello` 的可见样例，或通过 popup 在普通窗口翻译当前网页。无痕窗口永不捕获正文。
-4. 在“请求”视图按 `api.deepseek.com`、`chat/completions` 或 `sdk.request-start` 筛选。
-5. 展开对应请求，在“DeepSeek 请求正文”字段中查看格式化后的 `requestPayload` JSON；若同时出现“请求正文已截断：是”，说明这里只是被容量限制后的前缀。
-6. 需要复制时，先缩小筛选范围，再点击“复制当前视图”。复制结果可能包含网页原文，只应保留在本机；分享前删除或替换 `messages` 内容。
-7. 排查完成后关闭“记录事件”。这会撤销正文授权并清除既有 `requestPayload`，但保留普通元数据；要让列表完全为空，再点击“清空”。
+4. 在“原文结构”中选择正文块并展开关联请求；也可切到“HTTP 请求”，按 `api.deepseek.com`、`chat/completions` 或 `sdk.request-start` 筛选。
+5. 展开请求后先检查捕获状态。在“消息与分片”查看实际消息与换行，在“请求参数”检查模型与推理参数，在“请求 JSON”检查格式化投影。“部分记录”会列出截断或未记录字段，不能据此认定遗漏内容没有发送。
+6. 点击详情中的“复制请求 JSON”复制该次捕获；需要多条数据时，先缩小筛选范围，再点击“复制当前视图”。复制结果可能包含网页原文，分享前删除或替换正文内容。
+7. 排查完成后关闭“记录事件”。这会撤销正文授权并清除既有原文结构和 `requestPayload`，但保留普通元数据；要让列表完全为空，再点击“清空”。
 
 ### 用 Service Worker Network 交叉验证
 
@@ -223,7 +242,7 @@ Network、Copy as cURL 和 HAR 都不会自动脱敏。它们可能同时包含 
 1. 如果有 `sdk.request-end` 但没有 `model.request.completed`，SDK 解析 Provider 响应失败。
 2. 有 `model.request.completed` 但没有 `model.response.validated`，查看 `model.response.invalid` 或 `model.response.truncated`；它们表示格式异常或截断正在自动恢复。预算耗尽会出现 `batch.failed`。
 3. 有 `model.response.validated` 后出现 `batch.failed`，JSON、段落 ID 和数量已经通过，继续检查译文长度、取消或后续处理错误。
-4. 响应校验事件按 `runId`/`batchId` 追踪；缺少 `requestId` 时在请求视图单列，避免关联到错误的网络尝试。
+4. 响应校验事件按 `runId`、`batchId` 和 `modelRequestId` 追踪；`parentModelRequestId`、`recoveryDepth` 与 `rootSegmentIds` 可将拆分恢复关联回原文。缺少真实 `requestId` 时，不把模型事件并入无关网络尝试。
 5. 有 `batch.completed`，转到网页 DevTools 检查内容脚本和 DOM 插入。
 
 ### 事件突然从序号 1 重新开始
@@ -244,14 +263,16 @@ Chrome Network、Console 和 Extension Storage 是原始诊断面，不会自动
 
 事件位于 `chrome.storage.session`：
 
-- 最多 300 条。
-- 总量约 512 KiB，超出时从最旧事件开始删除。
+- 最多 600 条事件；总存储预算为 4,000,000 个估算字节。超出任一限制时，从最旧事件开始淘汰。
+- DeepSeek 单次请求投影最多 256 KiB、32 条 messages；超限会标记截断。
+- 内容脚本按 192 KiB 预算发送扫描分包，后台单个结构记录预算为 512 KiB。`scanId` 与分包序号用于重组，缺失分包会在任务上提示。
+- 单个源块或分片文本最多保留 50,000 个字符，发送侧另有 96 KiB 编码预算；任一限制导致截短都会标记。普通大小的正文保留完整标准化文本，不用列表摘要替代。
 - 重新加载/停用/更新扩展或重启浏览器后会清空。
-- 关闭“记录事件”会停止新增事件、撤销正文授权并清除既有 `requestPayload`；普通元数据事件仍保留，“清空事件”才会删除全部记录。
+- 关闭“记录事件”会停止新增事件、撤销正文授权并清除既有原文、结构映射和 `requestPayload`；普通元数据事件仍保留，点击“清空”才会删除全部记录。
 
-DeepSeek `messages` 可能比普通元数据大，因此开启请求正文记录后更容易触发 512 KiB 上限并淘汰旧事件。这个上限是容量保护，不是隐私清理机制；排查结束后仍应主动点击“清空”。
+原文与请求投影比普通元数据大，开启后更容易达到总存储上限。后台保存累计淘汰事件数，面板明确提示只展示仍保留的数据；较早任务可能缺少节点、扫描分包、批次或请求，不能当作完整历史。清空记录会同时重置淘汰计数。
 
-后台 `chrome-extension/background/debug-store.js` 的安全事件转换只复制明确列在 `constants.js` 中的字符串、数字和布尔字段。DeepSeek 的瞬时 `requestBody` 走单独的结构投影，只把允许的子字段重建为 `requestPayload`，不会原样复制任意 fetch 参数。添加调试字段时，应先回答：
+后台 `chrome-extension/background/debug-store.js` 通过 `debug-event-sanitizer.js` 转换事件，仅复制明确允许的标量和关联标识。DeepSeek 的瞬时 `requestBody` 走共享请求投影；页面原文和结构走单独的 `content-trace-sanitizer.js`，并校验主框架、当前任务和有效正文授权。不会原样复制任意 fetch 参数或任意 DOM 对象。添加调试字段时，应先回答：
 
 1. 它是否可能包含 API Key、Cookie、Authorization、query token 或账户标识？
 2. 如果它有意包含网页原文，是否要求用户在“记录事件”之外另行明示授权、排除无痕窗口，并在撤销任一授权时清除既有 payload？
@@ -259,7 +280,7 @@ DeepSeek `messages` 可能比普通元数据大，因此开启请求正文记录
 4. 是否有逐字段类型、长度、数组数量和总存储上限？
 5. 是否有自动测试证明 API Key、Authorization、其他请求头和响应体没有进入 `debug-events-v1`？
 
-任何无法明确证明边界的字段都不应加入白名单。警告和错误只记录数量或安全错误码，不记录 Provider 原文；DeepSeek 请求正文是经过结构投影、用户主动选择后才记录的窄例外。
+任何无法明确证明边界的字段都不应加入白名单。警告和错误只记录数量或安全错误码，不记录 Provider 原文；页面原文结构和 DeepSeek 请求正文是经过结构投影、用户主动选择后才记录的例外。
 
 ## 相关文档
 

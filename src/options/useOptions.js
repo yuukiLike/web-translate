@@ -50,6 +50,7 @@ export function useOptions() {
 	const debug = useDebug({
 		enabled: toRef(draft, "debugLogging"),
 		saved: debugSettings.savedLogging,
+		captureEnabled: debugSettings.savedRequestPayload,
 		runtime,
 		sendMessage,
 	});

@@ -32,7 +32,7 @@ export function useDebugSettings({ busy, draft, sendMessage, setStatus }) {
 		try {
 			const response = await sendMessage({ type: "SET_DEBUG_LOGGING", enabled: requested });
 			accept(response);
-			setStatus(response.debugLogging ? "调试记录已开启（不含网页正文）" : "调试记录已关闭");
+			setStatus(response.debugLogging ? "事件记录已开启；原文与请求内容需单独开启" : "调试记录已关闭");
 			return true;
 		} catch (error) {
 			restore();
@@ -46,7 +46,7 @@ export function useDebugSettings({ busy, draft, sendMessage, setStatus }) {
 	async function saveRequestPayload() {
 		const requested = draft.debugRequestPayload;
 		busy.value = "debug-payload";
-		setStatus(requested ? "正在开启 DeepSeek 正文记录…" : "正在关闭并清除正文记录…");
+		setStatus(requested ? "正在开启 原文与请求内容记录…" : "正在关闭并清除正文记录…");
 		try {
 			const response = await sendMessage({
 				type: "SET_DEBUG_REQUEST_PAYLOAD",
@@ -55,8 +55,8 @@ export function useDebugSettings({ busy, draft, sendMessage, setStatus }) {
 			accept(response);
 			setStatus(
 				response.debugRequestPayload
-					? "DeepSeek 正文记录已开启；无痕窗口仍不会记录"
-					: "DeepSeek 正文记录已关闭并清除",
+					? "原文与请求内容记录已开启；无痕窗口仍不会记录"
+					: "原文与请求内容记录已关闭并清除",
 			);
 			return true;
 		} catch (error) {
@@ -73,5 +73,5 @@ export function useDebugSettings({ busy, draft, sendMessage, setStatus }) {
 		draft.debugRequestPayload = savedRequestPayload.value;
 	}
 
-	return { accept, savedLogging, saveLogging, saveRequestPayload, sync };
+	return { accept, savedLogging, savedRequestPayload, saveLogging, saveRequestPayload, sync };
 }

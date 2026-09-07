@@ -1,8 +1,10 @@
 @import "./translation-controls.css";
+@import "./language-picker.css";
 
 :root {
 	color-scheme: light;
-	font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	--sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	font-family: var(--sans);
 	--paper: #f4f2ec;
 	--surface: #fffefa;
 	--ink: #233d34;
@@ -40,21 +42,25 @@ svg {
 	padding: 20px 22px 12px;
 }
 .brand {
-	display: flex;
-	gap: 12px;
+	display: grid;
+	grid-template-columns: 36px minmax(0, 1fr) 122px;
+	gap: 10px;
 	align-items: center;
 	margin-bottom: 20px;
 }
 .brand img {
 	display: block;
-	width: 40px;
-	height: 40px;
+	width: 36px;
+	height: 36px;
+}
+.brand-copy {
+	display: grid;
+	gap: 3px;
 }
 .brand-title {
-	flex: 1;
 	margin: 0;
 	font-family: var(--serif);
-	font-size: 21px;
+	font-size: 18px;
 	font-weight: 700;
 	letter-spacing: 0.04em;
 }
@@ -168,12 +174,6 @@ svg {
 	}
 }
 @media (forced-colors: active) {
-	.language-field select {
-		appearance: auto;
-	}
-	.select-chevron {
-		display: none;
-	}
 	.main-action {
 		border-color: ButtonText;
 	}

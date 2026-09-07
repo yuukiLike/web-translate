@@ -1,6 +1,7 @@
 import { isRecord, safeString } from "../core/value-utils.js";
 import { DEBUG_EVENT_LIMIT, DEBUG_REQUEST_ERROR_EVENTS } from "./debugConstants.js";
 import { formatNumber } from "./formatters.js";
+import { createRequestCapture } from "./debugPayload.js";
 
 export function normalizeDebugEvents(value) {
 	if (!Array.isArray(value)) {
@@ -101,32 +102,8 @@ function booleanText(value) {
 }
 
 function formatRequestPayload(value) {
-	if (!isRecord(value)) {
-		return "";
-	}
-	const payload = {};
-	if (typeof value.model === "string" && value.model) {
-		payload.model = value.model.slice(0, 300);
-	}
-	if (typeof value.max_tokens === "number" && Number.isFinite(value.max_tokens)) {
-		payload.max_tokens = Math.max(0, Math.round(value.max_tokens));
-	}
-	if (isRecord(value.thinking) && typeof value.thinking.type === "string") {
-		payload.thinking = { type: value.thinking.type.slice(0, 100) };
-	}
-	if (Array.isArray(value.messages)) {
-		payload.messages = value.messages.slice(0, 32).flatMap((message) => {
-			if (
-				!isRecord(message) ||
-				typeof message.role !== "string" ||
-				typeof message.content !== "string"
-			) {
-				return [];
-			}
-			return [{ role: message.role.slice(0, 50), content: message.content.slice(0, 32_768) }];
-		});
-	}
-	return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2).slice(0, 40_000) : "";
+	const { payload } = createRequestCapture({ requestPayload: value });
+	return payload ? JSON.stringify(payload, null, 2) : "";
 }
 
 export function debugFields(event) {
@@ -154,7 +131,11 @@ export function debugFields(event) {
 		["endpoint", "端点", formatEndpoint(event.endpoint)],
 		["attempt", "尝试", event.attempt],
 		["configuredConcurrency", "配置并发", event.configuredConcurrency],
+		["batchId", "批次 ID", event.batchId],
 		["batchIndex", "批次序号", event.batchIndex],
+		["modelRequestId", "模型请求 ID", event.modelRequestId],
+		["parentModelRequestId", "恢复来源请求", event.parentModelRequestId],
+		["recoveryDepth", "恢复层级", event.recoveryDepth],
 		["batchCount", "批次数", event.batchCount],
 		["queueDepth", "队列深度", event.queueDepth],
 		["segmentCount", "段落", event.segmentCount],

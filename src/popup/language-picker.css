@@ -1,0 +1,106 @@
+/* Chrome 135+ keeps native select semantics while exposing the menu to CSS. */
+.language-field select,
+.language-field select::picker(select) {
+	appearance: base-select;
+}
+.language-field select {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 39px;
+	margin: 0;
+	padding: 0 28px 0 0;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--ink);
+	font-size: 21px;
+	font-weight: 500;
+	cursor: pointer;
+}
+.target-field select {
+	min-height: 44px;
+	font-family: var(--serif);
+	font-size: 28px;
+	font-weight: 600;
+}
+.language-field select:hover:not(:disabled),
+.language-field select:open {
+	color: var(--pine);
+	background: #234c3c06;
+}
+.language-field select:disabled {
+	color: var(--ink-soft);
+	cursor: default;
+	opacity: 1;
+}
+.language-field select::picker-icon {
+	display: none;
+}
+.select-chevron {
+	position: absolute;
+	right: 2px;
+	bottom: 14px;
+	color: var(--ink-soft);
+	pointer-events: none;
+	transition: transform 120ms ease;
+}
+.language-field:has(select:open) .select-chevron {
+	transform: rotate(180deg);
+}
+.language-field select::picker(select) {
+	min-inline-size: anchor-size(width);
+	max-inline-size: calc(100vw - 44px);
+	margin-block: 6px;
+	padding: 5px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: 0 6px 20px #233d341a, 0 1px 3px #233d340a;
+	font-family: var(--sans);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.5;
+}
+.language-field option {
+	gap: 12px;
+	min-height: 40px;
+	padding: 9px 10px;
+	border-radius: 6px;
+	font: 500 13px / 1.5 var(--sans);
+	cursor: pointer;
+}
+.language-field option:checked {
+	background: #e9efe3;
+	color: var(--pine-dark);
+}
+.language-field option:hover,
+.language-field option:focus-visible {
+	outline: 1px solid var(--line-strong);
+	outline-offset: -1px;
+	background: #f0f2eb;
+}
+.language-field option::checkmark {
+	order: 1;
+	margin-inline-start: auto;
+	color: var(--pine);
+}
+@media (forced-colors: active) {
+	.language-field select::picker(select) {
+		border-color: CanvasText;
+		background: Canvas;
+		color: CanvasText;
+		box-shadow: none;
+	}
+	.language-field option:checked {
+		background: Highlight;
+		color: HighlightText;
+	}
+	.language-field option::checkmark {
+		color: inherit;
+	}
+	.language-field option:focus-visible {
+		outline-color: Highlight;
+	}
+}

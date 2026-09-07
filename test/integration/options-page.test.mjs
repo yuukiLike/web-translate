@@ -176,6 +176,10 @@ test("调试事件安全展示并完整管理 Port 生命周期", async () => {
 				"请求正文开关未独立保存",
 			);
 			assert.equal(payloadToggle.checked, true);
+		await waitFor(
+			() => page.document.querySelector(".debug-status").textContent.includes("内容记录已开启"),
+			"正文授权尚未保存完成",
+		);
 		assert.equal(page.timers.heartbeatDelay, 20_000);
 		page.timers.runHeartbeat();
 		assert.deepEqual(page.ports[0].messages, [{ type: "DEBUG_PING" }]);

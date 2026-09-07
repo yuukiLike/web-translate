@@ -1,12 +1,9 @@
 import {
-	DEBUG_BOOLEAN_FIELDS,
 	DEBUG_LIMITS,
-	DEBUG_NUMBER_FIELDS,
 	DEBUG_PORT_NAME,
-	DEBUG_STRING_FIELDS,
 	STORAGE_KEYS,
 } from "./constants.js";
-import { createSafeRequestPayload } from "./request-payload-sanitizer.js";
+import { createSafeDebugEvent } from "./debug-event-sanitizer.js";
 import {
 	createIdentifier,
 	createSerialTaskQueue,
@@ -19,6 +16,7 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 	const workerInstanceId = createIdentifier();
 	let events = [];
 	let nextSequence = 1;
+	let droppedEvents = 0;
 	let enabled = false;
 	let requestPayloadEnabled = false;
 	let ready;
@@ -60,9 +58,12 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 			});
 			nextSequence += 1;
 			events.push(safeEvent);
+			const previousDropped = droppedEvents;
 			trimEvents();
 			await persistEvents();
-			broadcast({ type: "DEBUG_EVENT", event: safeEvent });
+			broadcast(droppedEvents > previousDropped
+				? { type: "DEBUG_SNAPSHOT", events, retention: getRetention() }
+				: { type: "DEBUG_EVENT", event: safeEvent, retention: getRetention() });
 		});
 	}
 
@@ -78,12 +79,28 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 		return events.map((event) => structuredClone(event));
 	}
 
+	async function getSnapshot() {
+		await initialize(enabled, requestPayloadEnabled);
+		return writeQueue.run(() => ({ events: structuredClone(events), retention: getRetention() }));
+	}
+
+	function getRetention() {
+		return {
+			droppedEvents,
+			retainedEvents: events.length,
+			retainedBytes: estimateStorageBytes(events),
+			maxEvents: DEBUG_LIMITS.maxEvents,
+			maxBytes: DEBUG_LIMITS.maxBytes,
+		};
+	}
+
 	async function clear() {
 		await initialize(enabled, requestPayloadEnabled);
 		const task = writeQueue.run(async () => {
 			events = [];
-			await chrome.storage.session.remove(STORAGE_KEYS.debugEvents).catch(() => {});
-			broadcast({ type: "DEBUG_RESET" });
+			droppedEvents = 0;
+			await chrome.storage.session.remove([STORAGE_KEYS.debugEvents, STORAGE_KEYS.debugRetention]).catch(() => {});
+			broadcast({ type: "DEBUG_RESET", retention: getRetention() });
 		});
 		await task;
 	}
@@ -93,18 +110,24 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 			port.disconnect();
 			return;
 		}
-		ports.add(port);
-		port.onDisconnect.addListener(() => ports.delete(port));
+		let connected = true;
+		port.onDisconnect.addListener(() => {
+			connected = false;
+			ports.delete(port);
+		});
 		port.onMessage.addListener((message) => {
 			if (core.isRecord(message) && message.type === "DEBUG_PING") {
 				postToPort(port, { type: "DEBUG_PONG" });
 			}
 		});
 		void storageReady
-			.then(() => getEvents())
-			.then((storedEvents) => {
-				postToPort(port, { type: "DEBUG_SNAPSHOT", events: storedEvents });
-			})
+			.then(() => initialize(enabled, requestPayloadEnabled))
+			.then(() => writeQueue.run(() => {
+				if (!connected) return;
+				// Subscribe in the same queue turn as the snapshot so no event can precede it.
+				ports.add(port);
+				postToPort(port, { type: "DEBUG_SNAPSHOT", events, retention: getRetention() });
+			}))
 			.catch(() => {
 				ports.delete(port);
 				port.disconnect();
@@ -112,14 +135,14 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 	}
 
 	async function loadStoredEvents() {
-		const stored = await chrome.storage.session.get(STORAGE_KEYS.debugEvents).catch(() => ({}));
+		const stored = await chrome.storage.session.get([STORAGE_KEYS.debugEvents, STORAGE_KEYS.debugRetention]).catch(() => ({}));
 		const storedEvents = Array.isArray(stored[STORAGE_KEYS.debugEvents])
 			? stored[STORAGE_KEYS.debugEvents]
 			: [];
+		droppedEvents = Math.max(0, Math.round(numberOrZero(stored[STORAGE_KEYS.debugRetention]?.droppedEvents)));
 		events = storedEvents
 			.filter((event) => core.isRecord(event))
-			.map((event) => createSafeEvent(event))
-			.slice(-DEBUG_LIMITS.maxEvents);
+			.map((event) => createSafeEvent(event));
 		trimEvents();
 		nextSequence =
 			events.reduce((maximum, event) => Math.max(maximum, numberOrZero(event.seq)), 0) + 1;
@@ -129,40 +152,7 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 	}
 
 	function createSafeEvent(event) {
-		const safe = {};
-		for (const field of DEBUG_STRING_FIELDS) {
-			if (typeof event[field] === "string" && event[field]) {
-				safe[field] = event[field].slice(0, field === "endpoint" ? 2_048 : 300);
-			}
-		}
-		for (const field of DEBUG_NUMBER_FIELDS) {
-			if (typeof event[field] === "number" && Number.isFinite(event[field])) {
-				safe[field] = Math.max(0, Math.round(event[field]));
-			}
-		}
-		for (const field of DEBUG_BOOLEAN_FIELDS) {
-			if (typeof event[field] === "boolean") {
-				safe[field] = event[field];
-			}
-		}
-		if (
-			requestPayloadEnabled &&
-			event.requestPayloadAllowed === true &&
-			event.incognito === false &&
-			safe.provider === "deepseek" &&
-			safe.eventType === "sdk.request-start"
-		) {
-			const result = createSafeRequestPayload(event.requestBody ?? event.requestPayload);
-			if (result) {
-				safe.requestPayloadAllowed = true;
-				safe.incognito = false;
-				safe.requestPayload = result.payload;
-				if (result.truncated || event.requestPayloadTruncated === true) {
-					safe.requestPayloadTruncated = true;
-				}
-			}
-		}
-		return safe;
+		return createSafeDebugEvent(event, requestPayloadEnabled);
 	}
 
 	function scrubRequestPayloads() {
@@ -175,24 +165,29 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 			events = scrubbed;
 			trimEvents();
 			await persistEvents();
-			broadcast({ type: "DEBUG_SNAPSHOT", events });
+			broadcast({ type: "DEBUG_SNAPSHOT", events, retention: getRetention() });
 		});
 	}
 
 	async function persistEvents() {
 		if (events.length === 0) {
-			await chrome.storage.session.remove(STORAGE_KEYS.debugEvents).catch(() => {});
+			await chrome.storage.session.remove([STORAGE_KEYS.debugEvents, STORAGE_KEYS.debugRetention]).catch(() => {});
 			return;
 		}
-		await chrome.storage.session.set({ [STORAGE_KEYS.debugEvents]: events }).catch(() => {});
+		await chrome.storage.session.set({
+			[STORAGE_KEYS.debugEvents]: events,
+			[STORAGE_KEYS.debugRetention]: { droppedEvents },
+		}).catch(() => {});
 	}
 
 	function trimEvents() {
 		if (events.length > DEBUG_LIMITS.maxEvents) {
+			droppedEvents += events.length - DEBUG_LIMITS.maxEvents;
 			events = events.slice(-DEBUG_LIMITS.maxEvents);
 		}
 		while (events.length > 0 && estimateStorageBytes(events) > DEBUG_LIMITS.maxBytes) {
 			events.shift();
+			droppedEvents += 1;
 		}
 	}
 
@@ -214,6 +209,7 @@ export function createDebugStore({ chrome, core, getSafeEndpoint }) {
 		clear,
 		connect,
 		getEvents,
+		getSnapshot,
 		getSafeEndpoint,
 		initialize,
 		record,

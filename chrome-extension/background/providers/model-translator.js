@@ -1,4 +1,5 @@
-import { numberOrUndefined } from "../utilities.js";
+import { createIdentifier, numberOrUndefined, sumSegmentCharacters } from "../utilities.js";
+import { canCaptureContent } from "../debug-content-policy.js";
 import { createModelClient } from "./model-client.js";
 import { createModelRequest } from "./model-request.js";
 import { addUsage, attachTranslationUsage, getResultUsage } from "./model-usage.js";
@@ -25,10 +26,7 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 		const providerId = settings.provider;
 		const providerSettings = settings[providerId];
 		const incognito = debugMetadataFields.incognito === true;
-		const requestPayloadAllowed =
-			settings.debugLogging === true &&
-			settings.debugRequestPayload === true &&
-			!incognito;
+		const requestPayloadAllowed = canCaptureContent(settings, incognito);
 		const requestDebug = debugMetadata.createRequestContext(
 			settings,
 			"translate",
@@ -47,6 +45,8 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 			signal,
 			requestDebug,
 			requestPayloadAllowed,
+			recoveryDepth: 0,
+			rootIds: new Map(segments.map((segment) => [segment.id, segment.id])),
 			recoveryState: {
 				remainingSplits: MAX_RESPONSE_RECOVERY_SPLITS,
 				nextSplitId: 0,
@@ -55,12 +55,26 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 	}
 
 	async function translateWithRecovery(context) {
+		context = {
+			...context,
+			requestDebug: {
+				...context.requestDebug,
+				modelRequestId: createIdentifier(),
+				parentModelRequestId: context.requestDebug.modelRequestId,
+				recoveryDepth: context.recoveryDepth,
+				segmentIds: context.segments.map((segment) => segment.id),
+				rootSegmentIds: [...new Set(context.segments.map((segment) => context.rootIds.get(segment.id)))],
+				segmentCount: context.segments.length,
+				sourceCharacters: sumSegmentCharacters(context.segments),
+			},
+		};
 		const request = createModelRequest(context);
-		const { result, apiCalls } = await modelClient.generateWithRetry(
+		const { result, apiCalls, finalAttempt } = await modelClient.generateWithRetry(
 			request,
 			context.signal,
 			context.requestDebug,
 		);
+		context.requestDebug = { ...context.requestDebug, attempt: finalAttempt };
 		const usage = getResultUsage(result, apiCalls, request.sourceCharacters);
 		if (result.finishReason === "length") {
 			recordTruncatedResponse(context.requestDebug, result, usage);
@@ -129,7 +143,11 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 		for (const segments of groups) {
 			let recovered;
 			try {
-				recovered = await translateWithRecovery({ ...context, segments });
+				const rootIds = new Map(segments.map((segment) => [
+					segment.id,
+					singleSegment ? context.rootIds.get(context.segments[0].id) : context.rootIds.get(segment.id),
+				]));
+				recovered = await translateWithRecovery({ ...context, segments, rootIds, recoveryDepth: context.recoveryDepth + 1 });
 			} catch (error) {
 				throw attachTranslationUsage(error, usage);
 			}

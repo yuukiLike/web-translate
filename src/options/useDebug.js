@@ -1,19 +1,24 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 
 import { isRecord } from "../core/value-utils.js";
+import { createSafeDebugEvent } from "../../chrome-extension/background/debug-event-sanitizer.js";
 import { normalizeDebugEvents } from "./debugFormat.js";
 import { createDebugRequests, createDebugRows } from "./debugRows.js";
+import { createDebugTraces } from "./debugTraces.js";
 import { errorText } from "./formatters.js";
 
 const DEBUG_PORT_NAME = "debug-events-v1";
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const RECONNECT_DELAY_MS = 1_000;
 
-export function useDebug({ enabled, saved, runtime, sendMessage }) {
+export function useDebug({ enabled, saved, captureEnabled, runtime, sendMessage }) {
 	const events = ref([]);
 	const rows = computed(() => createDebugRows(events.value));
 	const requests = computed(() => createDebugRequests(events.value));
+	const traces = computed(() => createDebugTraces(events.value, requests.value));
+	const retention = ref({ droppedEvents: 0, retainedEvents: 0, retainedBytes: 0 });
 	const connection = reactive({ text: "调试已关闭", state: "off" });
+	let revision = 0;
 	let port;
 	let reconnectTimer;
 	let heartbeatTimer;
@@ -52,21 +57,38 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		}, HEARTBEAT_INTERVAL_MS);
 	}
 
+	function acceptRetention(value) {
+		if (!isRecord(value)) return;
+		retention.value = Object.fromEntries(
+			["droppedEvents", "retainedEvents", "retainedBytes", "maxEvents", "maxBytes"].map((key) =>
+				[key, Number.isFinite(value[key]) ? Math.max(0, value[key]) : 0],
+			),
+		);
+	}
+
 	function replaceEvents(value) {
-		events.value = normalizeDebugEvents(value);
+		revision += 1;
+		const normalized = normalizeDebugEvents(value);
+		events.value = captureEnabled.value ? normalized : normalized.map((event) => createSafeDebugEvent(event, false));
 	}
 
 	function appendEvent(event) {
 		if (!isRecord(event)) {
 			return;
 		}
-		events.value = normalizeDebugEvents([...events.value, event]);
+		revision += 1;
+		const previous = events.value.filter((item) =>
+			item.seq !== event.seq || item.workerInstanceId !== event.workerInstanceId || !event.seq,
+		);
+		const safe = captureEnabled.value ? event : createSafeDebugEvent(event, false);
+		events.value = normalizeDebugEvents([...previous, safe]);
 	}
 
 	function handlePortMessage(message) {
 		if (!isRecord(message)) {
 			return;
 		}
+		acceptRetention(message.retention);
 		if (message.type === "DEBUG_EVENT") {
 			appendEvent(message.event);
 			return;
@@ -77,6 +99,7 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		}
 		if (message.type === "DEBUG_RESET") {
 			replaceEvents([]);
+			retention.value = { droppedEvents: 0, retainedEvents: 0, retainedBytes: 0 };
 		}
 	}
 
@@ -105,7 +128,9 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		try {
 			const nextPort = runtime.connect({ name: DEBUG_PORT_NAME });
 			port = nextPort;
-			nextPort.onMessage.addListener(handlePortMessage);
+			nextPort.onMessage.addListener((message) => {
+				if (port === nextPort) handlePortMessage(message);
+			});
 			nextPort.onDisconnect.addListener(() => handlePortDisconnect(nextPort));
 			updateHeartbeat();
 			setConnection("实时调试已连接", "connected");
@@ -136,8 +161,12 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 			return;
 		}
 		try {
+			const requestedRevision = revision;
 			const response = await sendMessage({ type: "GET_DEBUG_LOGS" });
+			// A live update or reset supersedes an older in-flight snapshot.
+			if (requestedRevision !== revision) return;
 			replaceEvents(response.events);
+			acceptRetention(response.retention);
 		} catch (error) {
 			setConnection(errorText(error), "error");
 		}
@@ -145,8 +174,12 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 
 	async function clear() {
 		try {
+			const requestedRevision = revision;
 			await sendMessage({ type: "CLEAR_DEBUG_LOGS" });
-			replaceEvents([]);
+			if (revision === requestedRevision) {
+				replaceEvents([]);
+				retention.value = { droppedEvents: 0, retainedEvents: 0, retainedBytes: 0 };
+			}
 			if (!enabled.value) {
 				setConnection("事件已清空", "off");
 				return true;
@@ -195,6 +228,10 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 
 	watch(enabled, updateEnabled, { immediate: true });
 	watch(saved, updateSaved);
+	// Revocation must clear open details even after the event port disconnects.
+	watch(captureEnabled, (allowed) => {
+		if (!allowed) replaceEvents(events.value);
+	}, { flush: "sync" });
 
 	onMounted(() => {
 		document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -208,5 +245,5 @@ export function useDebug({ enabled, saved, runtime, sendMessage }) {
 		disconnect();
 	});
 
-	return { rows, requests, connection, clear };
+	return { rows, requests, traces, retention, connection, clear };
 }

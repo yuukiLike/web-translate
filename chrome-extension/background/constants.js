@@ -21,13 +21,16 @@ export const STORAGE_KEYS = Object.freeze({
 	currentRunPrefix: "current-run:",
 	runSnapshotPrefix: "run-snapshot:",
 	debugEvents: "debug-events-v1",
+	debugRetention: "debug-retention-v1",
 });
 
 export const DEBUG_LIMITS = Object.freeze({
-	maxEvents: 300,
-	maxBytes: 512_000,
+	maxEvents: 600,
+	maxBytes: 4_000_000,
 	maxRequestMessages: 32,
-	maxRequestPayloadBytes: 32_768,
+	maxRequestPayloadBytes: 262_144,
+	maxContentTraceBytes: 524_288,
+	maxContentItems: 1_000,
 });
 
 export const DEBUG_PORT_NAME = "debug-events-v1";
@@ -56,6 +59,9 @@ export const DEBUG_STRING_FIELDS = Object.freeze([
 	"eventType",
 	"runId",
 	"requestId",
+	"batchId",
+	"modelRequestId",
+	"parentModelRequestId",
 	"provider",
 	"model",
 	"operation",
@@ -98,6 +104,7 @@ export const DEBUG_NUMBER_FIELDS = Object.freeze([
 	"configuredConcurrency",
 	"batchIndex",
 	"queueDepth",
+	"recoveryDepth",
 ]);
 
 export const DEBUG_BOOLEAN_FIELDS = Object.freeze(["retryable", "cancelled"]);

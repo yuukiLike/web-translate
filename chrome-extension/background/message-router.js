@@ -1,4 +1,5 @@
 import { createRunMessageHandlers } from "./run-message-handlers.js";
+import { createContentTraceHandler } from "./content-trace-handler.js";
 
 const POPUP_PROTOCOL_VERSION = 2;
 
@@ -19,6 +20,7 @@ export function createMessageRouter({
 	batchTranslator,
 	providerService,
 }) {
+	const recordContentTrace = createContentTraceHandler({ settingsStore, runStore, validators, debug });
 	const runMessages = createRunMessageHandlers({
 		core,
 		providerCatalog,
@@ -47,6 +49,9 @@ export function createMessageRouter({
 				return await toggleActiveTab(sender);
 			case "START_RUN":
 				return await runMessages.startRun(message, sender);
+			case "CONTENT_TRACE":
+			case "CONTENT_TRACE_ALIAS":
+				return await recordContentTrace(message, sender);
 			case "GET_OPTIONS_STATE":
 				return await getOptionsState(sender);
 			case "SAVE_SETTINGS":
@@ -195,7 +200,7 @@ export function createMessageRouter({
 
 	async function getDebugLogs(sender) {
 		settingsStore.assertExtensionPage(sender);
-		return { events: await debug.getEvents() };
+		return await debug.getSnapshot();
 	}
 
 	async function clearDebugLogs(sender) {

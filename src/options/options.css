@@ -7,3 +7,6 @@
 @import "./styles/debug.css";
 @import "./styles/debug-events.css";
 @import "./styles/responsive.css";
+@import "./styles/debug-traces.css";
+@import "./styles/debug-source.css";
+@import "./styles/debug-payload.css";

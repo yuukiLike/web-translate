@@ -43,6 +43,8 @@ const {
 	connection: debugConnection,
 	requests: debugRequests,
 	rows: debugRows,
+	traces: debugTraces,
+	retention: debugRetention,
 } = debug;
 
 function show(nextView) {
@@ -62,7 +64,7 @@ function getSubmitLabel() {
 </script>
 
 <template>
-	<div class="shell">
+	<div class="shell" :class="{ 'shell-debug': view === 'debug' }">
 		<header class="topbar">
 			<button class="brand" type="button" aria-label="打开翻译配置" @click="show('setup')">
 				<span class="mark-wrap"><Mark /></span>
@@ -226,6 +228,8 @@ function getSubmitLabel() {
 				:connection="debugConnection"
 				:requests="debugRequests"
 				:rows="debugRows"
+				:traces="debugTraces"
+				:retention="debugRetention"
 				:status="status"
 				@clear="clearDebug"
 					@save="saveDebug"

@@ -13,7 +13,7 @@
 - **Identity:** An open book with a turning page, drawn in warm paper and sage on forest ink. The clear central gutter connects the two languages without placing tiny letters inside the mark.
 - **Mood:** A carefully typeset reading tool. Quiet materials, generous language typography, precise controls, and a clear reading order carry the character.
 - **Decoration:** The book silhouette belongs to the product identity. Actions use small directional strokes; they do not repeat the brand mark.
-- **Scope:** The popup and shared product mark use this direction. The settings form retains its existing layout and utility colors; remaining botanical sample decorations are legacy settings details.
+- **Scope:** The popup, shared product mark, and translation inspector use this direction. The settings form retains its existing layout and utility colors; remaining botanical sample decorations are legacy settings details.
 
 ### Safe choices
 
@@ -46,8 +46,9 @@ The default model, automatic language direction, dynamic translation, and concur
 - **Popup identity and destination:** `Iowan Old Style`, `Palatino Linotype`, `Songti SC`, `Noto Serif CJK SC`, and `SimSun`, then the platform serif fallback. The source stays in the UI sans face.
 - **Code and data:** `SFMono-Regular`, then `Consolas` and `Liberation Mono`.
 - **Loading:** Local system fonts only. Manifest V3 pages must not depend on remote font files.
-- **Popup scale:** 10px metadata, 11px labels and status, 14px primary action and provider, 21px identity and source, 28px destination.
+- **Popup scale:** 10px metadata, 11px labels and status, 12px primary action, 13px menu options, 14px provider, 18px identity, 21px source, 28px destination. Open menu options have their own type scale instead of inheriting the large selected-language display.
 - **Settings scale:** 11px metadata, 12–14px controls and body, 21px section heading, 30–40px page heading.
+- **Debug scale:** Compact 11–13px labels and controls, 13px source/message/JSON text, 14px detail headings, and a 28px page heading. Diagnostic content receives the space previously used by the large introduction.
 
 ## Color
 
@@ -86,14 +87,24 @@ Use pine for primary actions and focus, small state dots for readiness, and red 
 ## Layout
 
 - **Approach:** Grid-disciplined single column.
-- **Maximum width:** 720px.
+- **Maximum width:** 720px for setup; 1120px for the debug inspector.
 - **Breakpoints:** 700px for stacked content; 480px for compact navigation and disclosures.
 - **Surfaces:** One primary form surface. Do not create a card for every subsection.
 - **Provider selection:** A two-column 2×2 radio grid for DeepSeek, OpenAI, Gemini, and more. Secondary Providers expand only on demand; switch to one column below 520px.
 - **Popup radius:** 14px reading surface, 8px primary action; the book icon has its own 16/64 corner proportion.
-- **Popup:** A 360px surface with 22px side margins. Product identity comes first, then one vertical input/output path, its explanation, a 50px translation action, and live status. A separate service row and quiet utility footer complete the view.
-- **Popup controls:** Native selects retain labels, keyboard behavior, disabled semantics, and visible focus. The vertical rail is decorative; do not add a swap control to it. Let long provider names, models, and error messages wrap.
+- **Popup:** A 360px surface with 22px side margins. Product identity and version sit beside a compact 46px-high translation action at the upper right, close to the toolbar entry point. This action is also the first keyboard-reachable control. The vertical input/output path, explanation, and live status follow in the reading surface; a separate service row and quiet utility footer complete the view.
+- **Popup controls:** The Chrome 140 minimum supports native customizable selects. Apply `appearance: base-select` to both the control and `::picker(select)` so the menu uses the same paper, ink, borders, selection, and focus language as the popup. Keep native labels, keyboard handling, values, and disabled semantics instead of maintaining a second JavaScript selection state. The vertical rail is decorative; do not add a swap control to it. Let long provider names, models, and error messages wrap.
 - **Popup states:** Unsupported pages keep language settings usable and show a neutral reason. Real failures retain red text. Busy actions retain contrast, lock language changes, and expose progress through both text and `aria-busy`.
+
+## Translation Inspector
+
+- **Default view:** **原文结构**. Begin with a page task, then show its selected source blocks and the path from each block to deduplicated segments, DOM targets, batches, cache decisions, and actual HTTP requests. Keep **HTTP 请求**, **全部事件**, and **错误** as alternate views.
+- **Workspace:** Use the wider desktop surface for a source outline beside a readable detail area. Show the captured DOM tag/path, node revision, and normalized source text before the segment and request sections. Stack the workspace on narrow screens. Long text and JSON scroll within bounded regions.
+- **Relationships:** Preserve `runId`, scan/chunk identity, node identity and revision, segment/target mappings, and batch identity. Separate `modelRequestId` from the SDK's actual `requestId` and `attempt`; use parent calls, recovery depth, and root segment IDs to trace split recovery back to the source. Cached segments should explain why they have no new HTTP request.
+- **Request detail:** Separate actual system/user messages, decode valid user-message segment JSON with real line breaks, and provide parameter and formatted JSON views. Keep raw message text available. Offer explicit source and request-JSON copy actions; render content as text, never executable HTML.
+- **Capture state:** **记录事件** enables metadata only. **原文与请求内容** is a separate authorization for new DeepSeek captures. Missing, partial, and captured states must be visually distinct; disclose truncation, omitted fields, missing scan chunks, and history eviction. The request view reuses the shared payload sanitizer and never rebuilds an absent body from metadata or prompt templates.
+- **Scope:** Capture selected translation blocks in the main frame, including dynamic scans. The inspector does not represent every page element, explain every filtering decision, or prove final DOM insertion. Do not label captured HTTP status as rendered translation success.
+- **Privacy:** Old event-only settings do not grant content capture. Incognito excludes source and payload capture. Turning off either authorization removes retained source text, structure mappings, and request bodies. API keys, headers, and response bodies stay outside the diagnostic data.
 
 ## Icon
 
@@ -125,3 +136,6 @@ Use pine for primary actions and focus, small state dots for readiness, and red 
 | 2026-08-06 | Made the Popup a compact language-direction tool | Gives input and output selection first-class utility while avoiding the mirrored cards, oversized button, and bottom navigation used by established translation extensions |
 | 2026-09-07 | Replaced the sprout with the Facing Pages identity and rebuilt the popup hierarchy | Connects the product to bilingual reading through a custom book silhouette, expressive destination typography, and a vertical language path; separates neutral unavailability from actual failures |
 | 2026-09-07 | Shared one SVG across product surfaces and added a checked icon export command | Keeps toolbar assets and UI branding consistent without duplicated drawing code or a new dependency |
+| 2026-09-07 | Moved translation to the popup's upper right and styled the native select picker | Shortens pointer travel from the toolbar and gives language menus a consistent, readable scale while retaining native control semantics |
+| 2026-09-07 | Made source structure the default debug view and linked it to actual HTTP captures | Lets readers trace a selected DOM block through deduplication, cache, batching, retries, and recovery without mistaking metadata for the sent body |
+| 2026-09-07 | Shared capture sanitization and exposed missing, partial, and evicted data | Keeps the inspector's completeness claims aligned with retained evidence and preserves the existing explicit content-authorization boundary |

@@ -1,0 +1,181 @@
+.trace-breadcrumb {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	margin: 15px 0;
+	padding: 0;
+	color: var(--ink-soft);
+	font-size: 10px;
+	line-height: 1.8;
+	list-style: none;
+}
+.trace-breadcrumb li + li::before {
+	margin-right: 5px;
+	color: var(--line-strong);
+	content: "›";
+}
+.trace-breadcrumb code {
+	overflow-wrap: anywhere;
+}
+.trace-source {
+	max-height: 320px;
+	overflow: auto;
+	margin: 0;
+	padding: 16px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--surface-soft);
+	color: var(--ink);
+	font: 13px / 1.8 "Avenir Next", "PingFang SC", sans-serif;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	scrollbar-color: var(--line-strong) transparent;
+}
+.trace-copy-status {
+	display: block;
+	margin-top: 5px;
+	color: var(--pine);
+	font-size: 10px;
+}
+.trace-segment {
+	padding: 0 12px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+}
+.trace-segment + .trace-segment {
+	margin-top: 7px;
+}
+.trace-segment summary {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 54px;
+	list-style: none;
+}
+.trace-segment summary::-webkit-details-marker {
+	display: none;
+}
+.trace-segment summary > span:first-child {
+	display: grid;
+	gap: 4px;
+}
+.trace-segment summary strong {
+	font-size: 12px;
+	font-weight: 600;
+}
+.trace-segment summary small {
+	color: var(--ink-soft);
+	font-size: 10px;
+}
+.trace-route {
+	color: var(--pine);
+	font-size: 10px;
+}
+.trace-route::after {
+	margin-left: 8px;
+	content: "+";
+}
+.trace-segment[open] .trace-route::after {
+	content: "−";
+}
+.trace-segment-id {
+	display: block;
+	margin: 0 0 10px;
+	color: var(--ink-soft);
+	font-size: 10px;
+	overflow-wrap: anywhere;
+}
+.trace-alias {
+	color: var(--ink-soft);
+	font-size: 11px;
+	overflow-wrap: anywhere;
+}
+.trace-targets {
+	display: block;
+	padding: 10px 0;
+	color: var(--ink-soft);
+	font-size: 10px;
+}
+.trace-detail .debug-events {
+	max-height: none;
+	overflow: visible;
+}
+.trace-detail .debug-event > summary {
+	grid-template-columns: 7px minmax(0, 1fr) auto;
+}
+.trace-detail .debug-event-time {
+	grid-column: 2;
+}
+.trace-detail .debug-event-main {
+	grid-column: 2 / -1;
+	min-width: 0;
+}
+.trace-detail .debug-event > summary > b {
+	grid-column: 3;
+	grid-row: 1;
+}
+.trace-detail .debug-event-main code {
+	display: none;
+}
+.trace-detail .empty {
+	padding: 18px 0;
+	font-size: 12px;
+	line-height: 1.7;
+}
+@media (max-width: 520px) {
+	.trace-node-heading,
+	.trace-section-heading {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+}
+.trace-target-map {
+	margin: 10px 0;
+}
+.trace-target-map > summary {
+	min-height: 32px;
+	color: var(--pine);
+	font-size: 11px;
+	list-style: disclosure-closed;
+}
+.trace-target-map[open] > summary {
+	list-style: disclosure-open;
+}
+.trace-target-map ul {
+	display: grid;
+	gap: 6px;
+	margin: 4px 0 10px;
+	padding: 0;
+	list-style: none;
+}
+.trace-target-map button {
+	display: grid;
+	gap: 5px;
+	width: 100%;
+	padding: 9px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	text-align: left;
+}
+.trace-target-map button code,
+.trace-targets code {
+	font-size: 10px;
+	overflow-wrap: anywhere;
+}
+.trace-targets code {
+	display: block;
+	margin-top: 5px;
+}
+.trace-detail .debug-event[data-recovery-depth="1"] {
+	margin-left: 14px;
+	padding-left: 10px;
+	border-left: 1px solid var(--line-strong);
+}
+.trace-detail .debug-event[data-recovery-depth="2"] {
+	margin-left: 28px;
+	padding-left: 10px;
+	border-left: 1px solid var(--line-strong);
+}

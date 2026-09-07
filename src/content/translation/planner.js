@@ -96,6 +96,7 @@ export class TranslationPlanner {
 		].join("\u0000");
 		const record = {
 			element,
+			...(this.settings.captureContentTrace === true ? { sourceText: text } : {}),
 			parts,
 			translations: new Array(parts.length),
 			originalHash,

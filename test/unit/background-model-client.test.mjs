@@ -37,7 +37,7 @@ test("模型网络重试保留调用次数与请求身份", async () => {
 
 	const result = await client.generateWithRetry({ sourceCharacters: 12 }, new AbortController().signal, {});
 
-	assert.deepEqual(result, { result: expected, apiCalls: 2 });
+	assert.deepEqual(result, { result: expected, apiCalls: 2, finalAttempt: 2 });
 	const starts = events.filter((event) => event.eventType === "model.request.started");
 	assert.deepEqual(starts.map((event) => event.attempt), [1, 2]);
 	assert.equal(starts[0].requestId, starts[1].requestId);
