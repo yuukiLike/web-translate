@@ -90,13 +90,6 @@ export function createDebugRequests(events) {
 		const method = scalarText(request.event.method);
 		const host = endpointParts?.host || formatApiHost(request.event.apiHost);
 		const fields = debugFields(request.event);
-		const httpStatus =
-			typeof request.event.httpStatus === "number" ? request.event.httpStatus : undefined;
-		const badge =
-			httpStatus !== undefined
-				? `HTTP ${httpStatus}`
-				: scalarText(request.event.errorCode) ||
-					(request.status === "pending" ? "等待响应" : "完成");
 		const row = {
 			id: request.id,
 			time: formatDebugTime(request.dateTime),
@@ -112,10 +105,21 @@ export function createDebugRequests(events) {
 			]
 				.filter(Boolean)
 				.join(" · "),
-			badge,
+			badge: requestBadge(request.event, request.status),
 			status: request.status,
 			fields,
 		};
 		return { ...row, searchText: createDebugSearchText(row) };
 	});
+}
+
+function requestBadge(event, status) {
+	const hasHttpStatus = typeof event.httpStatus === "number";
+	const errorCode = scalarText(event.errorCode);
+	if (status === "error" && errorCode && (!hasHttpStatus || event.httpStatus < 400)) {
+		return errorCode;
+	}
+	if (hasHttpStatus) return `HTTP ${event.httpStatus}`;
+	if (status === "error") return DEBUG_EVENT_NAMES[event.eventType] || "请求失败";
+	return status === "pending" ? "等待响应" : "完成";
 }

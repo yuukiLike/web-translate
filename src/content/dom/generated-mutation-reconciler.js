@@ -26,14 +26,8 @@ export class GeneratedMutationReconciler {
 				continue;
 			}
 			const pendingState = this.elementStore.getState(pending);
-			if (
-				!pending.isConnected ||
-				pendingState?.presentation !== SITE_PRESENTATION.generated
-			) {
+			if (pendingState?.presentation !== SITE_PRESENTATION.generated) {
 				this.#pendingSources.delete(pending);
-				if (pendingState?.presentation === SITE_PRESENTATION.generated) {
-					this.invalidator.invalidate(pending);
-				}
 			}
 		}
 		this.#pendingSources.add(source);
@@ -105,8 +99,8 @@ export class GeneratedMutationReconciler {
 				continue;
 			}
 
-			this.invalidator.invalidate(source);
-			this.rootQueue.add(source);
+			// 原文 carrier 可能暂时移出 source；沿用本轮 mutation debounce 后再决定失效。
+			this.queue(source);
 			recovered = true;
 		}
 		return recovered;

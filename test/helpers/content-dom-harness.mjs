@@ -1,7 +1,8 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { Window } from "happy-dom";
+
+export { waitFor } from "./wait-for.mjs";
 
 const catalogSource = readGenerated("provider-catalog.js");
 const coreSource = readGenerated("core.js");
@@ -12,16 +13,6 @@ function readGenerated(fileName) {
 		new URL(`../../chrome-extension/generated/${fileName}`, import.meta.url),
 		"utf8",
 	);
-}
-
-export async function waitFor(predicate, message, timeout = 3_000) {
-	const deadline = Date.now() + timeout;
-	while (!predicate()) {
-		if (Date.now() >= deadline) {
-			assert.fail(message);
-		}
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
 }
 
 const DEFAULT_CONTENT_FILTERS = Object.freeze({

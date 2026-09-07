@@ -1,4 +1,4 @@
-import { SOURCE_MODES, TARGET_MODES } from "../core/constants.js";
+import { SOURCE_MODES, TARGET_MODES } from "./constants.js";
 
 export function parseLanguagePair(value) {
 	const sourceMode = value?.sourceMode;
@@ -8,7 +8,7 @@ export function parseLanguagePair(value) {
 		!TARGET_MODES.has(targetLanguage) ||
 		(sourceMode !== "auto" && sourceMode === targetLanguage)
 	) {
-		throw new Error("Popup 语言配置无效");
+		throw new Error("语言配置无效");
 	}
 	return { sourceMode, targetLanguage };
 }

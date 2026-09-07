@@ -84,14 +84,7 @@ export class CloudTranslator {
 	#discardStaleTargets(queue) {
 		for (let index = queue.length - 1; index >= 0; index -= 1) {
 			const segment = queue[index];
-			segment.targets = segment.targets.filter(({ record }) => {
-				const state = this.elementStore.getState(record.element);
-				return (
-					record.element.isConnected &&
-					state?.revision === record.revision &&
-					state.originalHash === record.originalHash
-				);
-			});
+			segment.targets = segment.targets.filter(({ record }) => this.#isCurrentRecord(record));
 			if (segment.targets.length === 0) {
 				queue.splice(index, 1);
 			}
@@ -139,25 +132,30 @@ export class CloudTranslator {
 		for (const element of this.loadingSources) {
 			const state = this.elementStore.getState(element);
 			state?.loading?.requests.clear();
-			if (state) {
-				delete state.loading;
-			}
-			if (element.dataset.btLoading === this.runId) {
-				delete element.dataset.btLoading;
-			}
+			this.#removeLoading(element, state);
 		}
-		this.loadingSources.clear();
+	}
+
+	#isCurrentRecord(record, state = this.elementStore.getState(record.element)) {
+		return record.element.isConnected &&
+			state?.revision === record.revision && state.originalHash === record.originalHash;
+	}
+
+	#removeLoading(element, state) {
+		if (state) {
+			delete state.loading;
+		}
+		if (element.dataset.btLoading === this.runId) {
+			delete element.dataset.btLoading;
+		}
+		this.loadingSources.delete(element);
 	}
 
 	#beginLoading(batch) {
 		const records = getBatchRecords(batch);
 		for (const record of records) {
 			const state = this.elementStore.getState(record.element);
-			if (
-				!record.element.isConnected ||
-				state?.revision !== record.revision ||
-				state.originalHash !== record.originalHash
-			) {
+			if (!this.#isCurrentRecord(record, state)) {
 				continue;
 			}
 			state.loading ??= { requests: new Set() };
@@ -181,11 +179,7 @@ export class CloudTranslator {
 			if (loading.requests.size > 0) {
 				continue;
 			}
-			delete state.loading;
-			if (record.element.dataset.btLoading === this.runId) {
-				delete record.element.dataset.btLoading;
-			}
-			this.loadingSources.delete(record.element);
+			this.#removeLoading(record.element, state);
 		}
 	}
 

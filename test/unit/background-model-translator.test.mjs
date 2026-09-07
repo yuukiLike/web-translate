@@ -1,53 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createModelTranslator } from "../../chrome-extension/background/providers/model-translator.js";
+import { createConfiguredSettings } from "../helpers/background-harness.mjs";
 import {
-	backgroundCore,
-	createConfiguredSettings,
-} from "../helpers/background-harness.mjs";
-
-function createTranslator(generateTranslation) {
-	const debugEvents = [];
-	return {
-		debugEvents,
-		translator: createModelTranslator({
-			core: backgroundCore,
-			providerRuntime: { generateTranslation },
-			debug: {
-				getSafeEndpoint: (endpoint) => endpoint,
-				recordRequest: (_context, event) => debugEvents.push(structuredClone(event)),
-			},
-			debugMetadata: {
-				createRequestContext: () => ({}),
-			},
-		}),
-	};
-}
-
-function successfulResult(request, usage = { inputTokens: 10, outputTokens: 5 }) {
-	const payload = JSON.parse(request.messages[0].content);
-	return {
-		text: JSON.stringify({
-			translations: payload.segments.map((segment) => ({
-				id: segment.id,
-				text: `译文：${segment.text}`,
-			})),
-		}),
-		finishReason: "stop",
-		usage,
-	};
-}
-
-async function translate(translator, segments, settings = createConfiguredSettings()) {
-	return await translator.translate(
-		settings,
-		"en",
-		"zh",
-		segments,
-		new AbortController().signal,
-	);
-}
+	createTranslator,
+	successfulResult,
+	translate,
+} from "../helpers/model-translator-harness.mjs";
 
 // 验证官方模型的输出预算不再被旧的 8192 token 常量截断，并为 JSON 包装保留余量。
 test("模型批次获得超过旧上限的输出预算", async () => {
@@ -194,7 +153,7 @@ test("单个长段落输出截断后自动拆分文本", async () => {
 	assert.equal(result.usage.tokenUsageMissingCalls, 1);
 });
 
-// 验证自动恢复最多只拆分一层，避免异常模型持续截断时无限增加付费请求。
+// 验证整个恢复过程共享两次拆分预算，避免异常模型持续截断时无限增加付费请求。
 test("连续输出截断时有界停止恢复请求", async () => {
 	let requestCount = 0;
 	const { translator } = createTranslator(async (request) => {

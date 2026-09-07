@@ -217,8 +217,8 @@ test("RootQueue.add 主动清理断连旧根", () =>
 		assert.deepEqual(queue.take(), [freshRoot]);
 	}));
 
-// 验证连续 fresh generated source 会清除断连前驱，并让缺少译文节点的当前状态失效。
-test("GeneratedMutationReconciler 不保留断连 fresh source", () => {
+// 验证断连 generated source 先等待共享防抖复核，永久移除和缺少译文的状态随后统一释放。
+test("GeneratedMutationReconciler 在复核时清理断连 source", () => {
 	const first = createElement();
 	const second = createElement();
 	const current = createElement();
@@ -234,9 +234,10 @@ test("GeneratedMutationReconciler 不保留断连 fresh source", () => {
 			}),
 		},
 		scanner: {
-			matchesCurrentCandidate(source) {
+			core: { hashText: () => "hash" },
+			currentCandidate(source) {
 				inspected.push(source);
-				return true;
+				return { text: "current source", presentationAnchor: source };
 			},
 		},
 		invalidator: { invalidate: (source) => invalidated.push(source) },
@@ -248,6 +249,7 @@ test("GeneratedMutationReconciler 不保留断连 fresh source", () => {
 	reconciler.queue(second);
 	second.isConnected = false;
 	reconciler.queue(current);
+	assert.deepEqual(invalidated, [], "共享防抖窗口内不能提前清除断连前驱");
 	reconciler.reconcile();
 
 	assert.deepEqual(inspected, [current]);

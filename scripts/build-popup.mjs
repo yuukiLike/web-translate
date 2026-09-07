@@ -1,25 +1,23 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
 
+import {
+	assertNoExternalImports,
+	assertSafeJavaScript,
+	collectBundleOutputs,
+	parseBuildArguments,
+	writeOrCheckOutputs,
+} from "./build-outputs.mjs";
+
 const applicationRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDirectory = resolve(applicationRoot, "chrome-extension/popup");
-const commandArguments = process.argv.slice(2);
-const expectedOutputs = new Map([
-	[resolve(outputDirectory, "popup.js"), "popup.js"],
-	[resolve(outputDirectory, "popup.css"), "popup.css"],
-]);
-
-if (
-	commandArguments.length > 1 ||
-	(commandArguments.length === 1 && commandArguments[0] !== "--check")
-) {
-	throw new Error("Usage: node scripts/build-popup.mjs [--check]");
-}
-
-const checkOnly = commandArguments[0] === "--check";
+const expectedPaths = [
+	resolve(outputDirectory, "popup.js"),
+	resolve(outputDirectory, "popup.css"),
+];
+const { checkOnly } = parseBuildArguments("build-popup.mjs");
 
 const bundle = await build({
 	absWorkingDir: applicationRoot,
@@ -43,47 +41,10 @@ const bundle = await build({
 	write: false,
 });
 
-for (const entry of [
-	...Object.values(bundle.metafile.inputs),
-	...Object.values(bundle.metafile.outputs),
-]) {
-	if (entry.imports.some((item) => item.external)) {
-		throw new Error("Popup bundle contains an external import");
-	}
-}
-
-const generated = new Map();
-for (const output of bundle.outputFiles) {
-	if (![".css", ".js"].includes(extname(output.path)) || !expectedOutputs.has(output.path)) {
-		throw new Error(`Unexpected popup output: ${output.path}`);
-	}
-	generated.set(output.path, Buffer.from(output.contents));
-}
-
-const javascript = generated.get(resolve(outputDirectory, "popup.js"))?.toString("utf8") ?? "";
-if (/\beval\s*\(|\bnew\s+Function\s*\(/u.test(javascript)) {
-	throw new Error("Generated popup.js contains forbidden dynamic code");
-}
-
-for (const [outputPath, outputName] of expectedOutputs) {
-	const contents = generated.get(outputPath);
-	if (!contents) {
-		throw new Error(`esbuild did not produce ${outputName}`);
-	}
-	if (!checkOnly) {
-		await writeFile(outputPath, contents);
-		continue;
-	}
-	let existing;
-	try {
-		existing = await readFile(outputPath);
-	} catch {
-		throw new Error(`Generated ${outputName} is missing. Run npm run build:popup.`);
-	}
-	if (!existing.equals(contents)) {
-		throw new Error(`Generated ${outputName} is stale. Run npm run build:popup.`);
-	}
-}
+assertNoExternalImports(bundle.metafile, "Popup");
+const outputs = collectBundleOutputs(bundle.outputFiles, expectedPaths, "popup");
+assertSafeJavaScript(outputs.get(resolve(outputDirectory, "popup.js")).toString("utf8"), "popup.js");
+await writeOrCheckOutputs(outputs, { checkOnly, buildCommand: "npm run build:popup" });
 
 console.log(
 	checkOnly

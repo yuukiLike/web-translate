@@ -332,3 +332,11 @@ npm run check
 - [`test/integration/content-x-surfaces.test.mjs`](../test/integration/content-x-surfaces.test.mjs)：Explore、Show more、生命周期和 stale context。
 - [`test/integration/content-x-stop-lifecycle.test.mjs`](../test/integration/content-x-stop-lifecycle.test.mjs)：observer 交付前停止运行的清理竞态。
 - [`todo.md`](../todo.md)：这次复用并落地的站点策略、语义/布局分层与回归原则。
+
+## 2026-09-07：恢复原文临时脱离的宽限期
+
+项目重构期间，现有 `X 长帖 Show more hover 不改变译文呈现` 回归在 `contentWrapper.remove()` 后 30ms 失败：source 的 `data-bt-description-id` 已被清掉。原文 carrier 被移出时，source 本身仍连通，但 scanner 暂时找不到原始正文；reconciler 同步复挂失败后直接执行失效，绕过了原本用于等待宿主 DOM 稳定的窗口。另一条路径在新 source 入队时立即清理已脱离的前驱，也会提前结束宽限期。
+
+修复继续使用同一个 pending source 集合和 `MutationScanQueue` 的 180ms 防抖，不增加独立定时器，也不按全局同文寻找替代 source。能在当前 DOM 找到同文 carrier 时仍同步复挂；无法复挂时先保留本来源的译文节点和属性，交给扫描队列 `beforeFlush` 中的 `reconcile()` 再检查。原节点在窗口内挂回后继续使用相同译文 Element 和 ID；窗口结束仍断连或正文不匹配的来源才统一失效。这里的 180ms 是现有共享防抖窗口，后续相关 mutation 会重置它，并非每个节点独立计时的固定清理期限。
+
+停止运行仍立即停止扫描队列并遍历 `ElementStore.generatedSources` 清理，包括已经脱离文档的来源与 carrier 中的真实译文；重新挂回这些原文不会复活旧运行。`content-generated-detachment.test.mjs` 覆盖 carrier、source、article 三种边界的短暂脱离、永久移除和窗口内停止，并用旁边的同文帖子检查身份不会串用。原 Show more 回归已验证恢复；这些是 Happy DOM 状态与节点身份测试，本次未执行真实浏览器或真实 Provider 调用。

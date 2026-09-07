@@ -1,5 +1,5 @@
 import { isRecord, safeString } from "../core/value-utils.js";
-import { DEBUG_EVENT_LIMIT } from "./debugConstants.js";
+import { DEBUG_EVENT_LIMIT, DEBUG_REQUEST_ERROR_EVENTS } from "./debugConstants.js";
 import { formatNumber } from "./formatters.js";
 
 export function normalizeDebugEvents(value) {
@@ -186,6 +186,9 @@ export function debugFields(event) {
 }
 
 export function debugStatus(event) {
+	if (DEBUG_REQUEST_ERROR_EVENTS.has(event.eventType)) {
+		return "error";
+	}
 	if (typeof event.httpStatus === "number" && event.httpStatus >= 400) {
 		return "error";
 	}

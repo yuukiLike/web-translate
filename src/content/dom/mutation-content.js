@@ -1,6 +1,7 @@
 import {
 	forEachTextNode,
-	getUnownedTextContent,
+	getContentRootKey,
+	normalizeText,
 	isOwnedNode,
 } from "./node-utils.js";
 
@@ -25,10 +26,6 @@ export function hasSameReplacementText({ removed, added }) {
 	return Boolean(removed.text) && removed.text === added.text;
 }
 
-export function normalizeText(value) {
-	return String(value ?? "").replace(/\s+/gu, " ").trim();
-}
-
 export function addTextFallback(side, fallback) {
 	if (side.text && side.roots.size === 0) {
 		side.roots.add(fallback);
@@ -47,7 +44,7 @@ export function pairContentRoots(removed, added) {
 		(source, target) =>
 			Boolean(removed.textByRoot.get(source)) &&
 			removed.textByRoot.get(source) === added.textByRoot.get(target) &&
-			contentRootKey(source) === contentRootKey(target),
+			getContentRootKey(source) === getContentRootKey(target),
 		removed,
 		added,
 	);
@@ -65,7 +62,7 @@ export function pairContentRoots(removed, added) {
 		remainingRemoved,
 		remainingAdded,
 		pairs,
-		(source, target) => contentRootKey(source) === contentRootKey(target),
+		(source, target) => getContentRootKey(source) === getContentRootKey(target),
 		removed,
 		added,
 	);
@@ -76,157 +73,6 @@ export function pairContentRoots(removed, added) {
 		pairs,
 		unpairedRemoved: remainingRemoved,
 	};
-}
-
-export function pairReplacementNodes(removedNodes, addedNodes) {
-	const remainingRemoved = indexNodes(removedNodes);
-	const remainingAdded = indexNodes(addedNodes);
-	const removedStrongKeys = countStrongKeys(remainingRemoved);
-	const addedStrongKeys = countStrongKeys(remainingAdded);
-	const pairs = [];
-	if (remainingRemoved.length === 0 || remainingAdded.length === 0) {
-		return {
-			pairs,
-			remainingRemoved: [...removedNodes],
-			remainingAdded: [...addedNodes],
-			unpairedRemoved: [],
-			unpairedAdded: [],
-		};
-	}
-	pairIndexedNodesWhere(
-		remainingRemoved,
-		remainingAdded,
-		pairs,
-		(source, target) => {
-			const key = strongReplacementKey(source.node);
-			return Boolean(
-				key &&
-				key === strongReplacementKey(target.node) &&
-				removedStrongKeys.get(key) === 1 &&
-				addedStrongKeys.get(key) === 1,
-			);
-		},
-	);
-	pairIndexedNodesWhere(
-		remainingRemoved,
-		remainingAdded,
-		pairs,
-		(source, target) => canUseWeakPair(
-			source,
-			target,
-			removedStrongKeys,
-			addedStrongKeys,
-		) && hasSameNodeText(source.node, target.node) &&
-			contentRootKey(source.node) === contentRootKey(target.node),
-	);
-	pairIndexedNodesWhere(
-		remainingRemoved,
-		remainingAdded,
-		pairs,
-		(source, target) => canUseWeakPair(
-			source,
-			target,
-			removedStrongKeys,
-			addedStrongKeys,
-		) && hasSameNodeText(source.node, target.node),
-	);
-	pairIndexedNodesWhere(
-		remainingRemoved,
-		remainingAdded,
-		pairs,
-		(source, target) => canUseWeakPair(
-			source,
-			target,
-			removedStrongKeys,
-			addedStrongKeys,
-		) && source.index === target.index,
-	);
-	return {
-		pairs: pairs.map(({ source, target }) => ({
-			removedNode: source.node,
-			addedNode: target.node,
-		})),
-		remainingRemoved: [],
-		remainingAdded: [],
-		unpairedRemoved: remainingRemoved.map(({ node }) => node),
-		unpairedAdded: remainingAdded.map(({ node }) => node),
-	};
-}
-
-function indexNodes(nodes) {
-	return [...nodes].map((node, index) => ({ index, node }));
-}
-
-function hasSameNodeText(source, target) {
-	const sourceText = normalizeText(getUnownedTextContent(source));
-	return (
-		Boolean(sourceText) &&
-		sourceText === normalizeText(getUnownedTextContent(target))
-	);
-}
-
-function countStrongKeys(nodes) {
-	const counts = new Map();
-	for (const { node } of nodes) {
-		const key = strongReplacementKey(node);
-		if (key) {
-			counts.set(key, (counts.get(key) ?? 0) + 1);
-		}
-	}
-	return counts;
-}
-
-function canUseWeakPair(source, target, sourceCounts, targetCounts) {
-	return (
-		!hasUniqueStrongKey(source.node, sourceCounts) &&
-		!hasUniqueStrongKey(target.node, targetCounts)
-	);
-}
-
-function hasUniqueStrongKey(node, counts) {
-	const key = strongReplacementKey(node);
-	return Boolean(key && counts.get(key) === 1);
-}
-
-function strongReplacementKey(root) {
-	const testId = root.dataset?.testid ?? "";
-	const elementId = root.id ?? "";
-	const liveRegion = root.getAttribute?.("aria-live") ?? "";
-	const role = root.getAttribute?.("role") ?? "";
-	const dynamicRole = ["log", "marquee", "progressbar", "status", "timer"].includes(role)
-		? role
-		: "";
-	if (!testId && !elementId && !liveRegion && !dynamicRole) {
-		return null;
-	}
-	return [
-		root.tagName ?? "",
-		testId,
-		elementId,
-		dynamicRole,
-		liveRegion,
-		root.getAttribute?.("lang") ?? "",
-	].join("\u0000");
-}
-
-function pairIndexedNodesWhere(sources, targets, pairs, matches) {
-	for (let sourceIndex = 0; sourceIndex < sources.length;) {
-		const source = sources[sourceIndex];
-		const sameSlotIndex = targets.findIndex(
-			(target) => target.index === source.index && matches(source, target),
-		);
-		const targetIndex = sameSlotIndex >= 0
-			? sameSlotIndex
-			: targets.findIndex((target) => matches(source, target));
-		if (targetIndex < 0) {
-			sourceIndex += 1;
-			continue;
-		}
-		pairs.push({
-			source: sources.splice(sourceIndex, 1)[0],
-			target: targets.splice(targetIndex, 1)[0],
-		});
-	}
 }
 
 function pairMatchingRoots(sources, targets, pairs, matches, removed, added) {
@@ -288,13 +134,4 @@ export function collectContentRoots(nodes, { elementStore, tracker, scanner }) {
 
 function createContentSide(root, text = "") {
 	return { roots: new Set([root]), text };
-}
-
-function contentRootKey(root) {
-	return [
-		root.tagName ?? "",
-		root.dataset?.testid ?? "",
-		root.getAttribute?.("role") ?? "",
-		root.getAttribute?.("lang") ?? "",
-	].join("\u0000");
 }

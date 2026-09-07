@@ -111,3 +111,16 @@ export function getUnownedTextContent(node) {
 export function sourceSelector(runId) {
 	return `[data-bt-source="${CSS.escape(runId)}"]`;
 }
+
+export function normalizeText(value) {
+	return String(value ?? "").replace(/\s+/gu, " ").trim();
+}
+
+export function getContentRootKey(root) {
+	return [
+		root.tagName ?? "",
+		root.dataset?.testid ?? "",
+		root.getAttribute?.("role") ?? "",
+		root.getAttribute?.("lang") ?? "",
+	].join("\u0000");
+}

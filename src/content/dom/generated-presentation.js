@@ -1,10 +1,8 @@
 import { SITE_PRESENTATION } from "../site-profile.js";
 import {
 	createGeneratedTranslationNode,
-	GENERATED_TRANSLATION_SELECTOR,
 	isGeneratedTranslationStructureIntact,
 	isOwnedGeneratedNode,
-	LEGACY_DESCRIPTION_SELECTOR,
 	normalizeGeneratedTranslation,
 	OWNED_GENERATED_NODE_SELECTOR,
 } from "./generated-translation-structure.js";

@@ -6,7 +6,6 @@ import {
 	assertGeneratedTranslation,
 	assertHostNodes,
 	assertSelectableTranslation,
-	getGeneratedTranslation,
 } from "../helpers/generated-translation-assertions.mjs";
 
 // 验证 X 的 hover mutation、宿主清理与虚拟行复用不会改变帖子原始内容或重建可选择译文。
@@ -54,7 +53,7 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
 		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
 		assertHostNodes(tweet.article, originalArticleChildren);
-		assert.equal(harness.getTranslation(tweet.text), initialTranslationNode);
+		assert.ok(harness.getTranslation(tweet.text) === initialTranslationNode, "应保留同一译文节点");
 		assert.equal(harness.requestCount(sourceText), 1);
 		assert.equal(harness.requestCount(navigation.textContent), 0);
 		assert.equal(harness.requestCount(tweet.author.textContent), 0);
@@ -80,17 +79,18 @@ test("X hover 保持帖子原始 DOM 与译文呈现稳定", async () => {
 		assert.equal(tweet.text.getAttribute("aria-describedby"), hostDescription.id);
 		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
 		assertHostNodes(tweet.article, originalArticleChildren);
-		assert.equal(harness.getTranslation(tweet.text), initialTranslationNode);
+		assert.ok(harness.getTranslation(tweet.text) === initialTranslationNode, "应保留同一译文节点");
 		assert.equal(harness.requestCount(sourceText), 1);
 		assert.deepEqual(new Set(simulatedHeights), new Set([84]));
 
 		const initialTextNode = initialTranslationNode.firstChild;
+		const originalCarrier = initialTranslationNode.parentElement;
 		initialTranslationNode.remove();
 		await waitFor(
-			() => tweet.text.lastChild === initialTranslationNode,
+			() => originalCarrier.lastChild === initialTranslationNode,
 			"X 删除真实译文后没有复挂同一个节点",
 		);
-		assert.equal(initialTranslationNode.firstChild, initialTextNode);
+		assert.ok(initialTranslationNode.firstChild === initialTextNode, "复挂不能重建译文子节点");
 		assertHostNodes(tweet.text, originalTweetChildren, initialTranslationNode);
 		assert.equal(harness.requestCount(sourceText), 1);
 
@@ -182,7 +182,7 @@ test("X 站点策略只作用于精确的应用域名", async () => {
 				`${url} 没有使用 X 稳定呈现策略`,
 			);
 			const translation = harness.getTranslation(tweet.text);
-			assert.equal(translation?.parentElement, tweet.text);
+			assert.ok(translation?.parentElement === tweet.text.firstElementChild, "译文应挂在原文 carrier 内");
 			assert.equal(translation?.classList.contains("bt-translation-generated"), true);
 		} finally {
 			harness.dispose();

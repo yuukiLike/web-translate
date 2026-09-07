@@ -14,6 +14,8 @@ export const DEBUG_EVENT_NAMES = Object.freeze({
 	"model.request.failed": "模型请求失败",
 	"model.request.retry-scheduled": "模型请求等待重试",
 	"model.response.validated": "模型响应已校验",
+	"model.response.invalid": "模型响应格式无效",
+	"model.response.truncated": "模型响应被截断",
 	"request.started": "翻译 API 请求发出",
 	"request.completed": "翻译 API 响应返回",
 	"request.failed": "翻译 API 请求失败",
@@ -42,4 +44,6 @@ export const DEBUG_REQUEST_ERROR_EVENTS = new Set([
 	"sdk.request-error",
 	"request.failed",
 	"request-error",
+	"model.response.invalid",
+	"model.response.truncated",
 ]);

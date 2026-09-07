@@ -79,6 +79,9 @@ export function createModelProviderError(error) {
 }
 
 export function abortableDelay(milliseconds, signal) {
+	if (signal.aborted) {
+		return Promise.reject(signal.reason ?? new Error("翻译已取消"));
+	}
 	return new Promise((resolve, reject) => {
 		const onAbort = () => {
 			clearTimeout(timeout);

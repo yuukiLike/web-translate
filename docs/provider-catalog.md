@@ -179,7 +179,7 @@ globalThis.BilingualTranslatorProviderRuntime.generateTranslation({
 
 `baseUrl` 只用于自定义 OpenAI-compatible 服务；固定 Provider 从本地 allowlist 读取 API Base URL。`captureRequestBody` 是扩展内部的观测开关，只有普通窗口且用户同时开启两项调试授权时才为 `true`，它不会进入 HTTP body。`abortSignal` 和 `onRequestEvent` 分别是运行时对象与函数，不是 JSON 字段。返回值统一为文本、标准/原始结束原因、响应 ID、实际响应模型、token 明细和警告数量。Provider 原始响应不会写入调试存储。
 
-SDK 内部重试固定为 `0`。扩展后台统一处理超时、最多三次尝试和 `Retry-After`，避免 SDK 与业务层叠加重试造成额外成本。DeepSeek 关闭 thinking；OpenAI 和 Anthropic 使用 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking。
+SDK 内部重试固定为 `0`。后台 `model-client.js` 统一处理超时、每个请求最多三次尝试和 `Retry-After`。`model-translator.js` 严格校验返回的 JSON；格式错误与输出截断共用两次拆分预算，恢复成功才返回译文，并保留恢复失败或取消前的全部实际用量。DeepSeek 关闭 thinking；OpenAI 和 Anthropic 使用 `reasoning: none`；Gemini 3.5 使用其支持的最低 `minimal` thinking。
 
 ## DeepSeek 请求实例：从后台参数到 HTTP Body
 

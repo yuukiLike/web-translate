@@ -71,7 +71,9 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `model.request.completed` | 模型请求层 | SDK 返回统一结果 |
 | `model.request.failed` | 模型请求层 | 本次尝试失败；查看状态、错误码和可重试标记 |
 | `model.request.retry-scheduled` | 模型请求层 | 后台已安排退避重试 |
-| `model.response.validated` | 模型响应层 | 完成结束原因与统一 usage 提取，准备解析译文 JSON |
+| `model.response.validated` | 模型响应层 | 已通过结束原因、JSON、译文数量和 ID 校验 |
+| `model.response.invalid` | 模型响应层 | 正常结束但格式或 ID 校验失败，正在有界缩批恢复 |
+| `model.response.truncated` | 模型响应层 | 输出被截断，正在有界缩批恢复 |
 | `request.*` | Azure/DeepL REST 层 | 专用翻译 API 的请求、失败和重试 |
 | `provider.usage` | 后台 | 提取并准备累加 token 或计费字符 |
 | `batch.completed` | 后台 | 全部 ID 已对齐、译文已校验并可返回内容脚本 |
@@ -135,7 +137,7 @@ Azure 和 DeepL 不经过 Vercel AI SDK，因此网络层事件仍使用原来�
 | `cancelled` | 用户恢复页面或任务失效导致的取消 |
 | `errorCode` | 白名单化的错误类别，不包含原始 Provider 错误消息 |
 
-扩展只自动重试网络错误、超时及有限的 `408/429/5xx` 状态，最多三次尝试。Vercel AI SDK 的内部重试被关闭，避免双重重试和额外费用。
+网络层仅自动重试网络错误、超时及有限的 `408/429/5xx` 状态，每个请求最多三次尝试。Vercel AI SDK 的内部重试被关闭。模型响应层另有格式/截断恢复：一个原始批次共用两次二分预算，至多生成五个请求组，各组仍遵守网络尝试上限。预算耗尽后停止，不修补或缓存非法译文；恢复失败或取消也计入已发生用量。
 
 ### DeepSeek 请求正文安全投影
 
@@ -219,9 +221,10 @@ Network、Copy as cURL 和 HAR 都不会自动脱敏。它们可能同时包含 
 ### 请求成功但页面没有译文
 
 1. 如果有 `sdk.request-end` 但没有 `model.request.completed`，SDK 解析 Provider 响应失败。
-2. 有 `model.request.completed` 但没有 `model.response.validated`，检查结束原因。
-3. 有 `model.response.validated` 后出现 `batch.failed`，通常是模型 JSON、段落 ID、数量或译文长度校验失败。
-4. 有 `batch.completed`，转到网页 DevTools 检查内容脚本和 DOM 插入。
+2. 有 `model.request.completed` 但没有 `model.response.validated`，查看 `model.response.invalid` 或 `model.response.truncated`；它们表示格式异常或截断正在自动恢复。预算耗尽会出现 `batch.failed`。
+3. 有 `model.response.validated` 后出现 `batch.failed`，JSON、段落 ID 和数量已经通过，继续检查译文长度、取消或后续处理错误。
+4. 响应校验事件按 `runId`/`batchId` 追踪；缺少 `requestId` 时在请求视图单列，避免关联到错误的网络尝试。
+5. 有 `batch.completed`，转到网页 DevTools 检查内容脚本和 DOM 插入。
 
 ### 事件突然从序号 1 重新开始
 

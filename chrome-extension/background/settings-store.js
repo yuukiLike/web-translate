@@ -44,55 +44,52 @@ export function createSettingsStore({
 	}
 
 	function save(settings) {
-		return writeQueue.run(async () => {
+		return updateSettings((current) => {
 			// 语言只由 SET_LANGUAGE_PAIR 写入，避免设置页的旧全量快照覆盖 Popup 新选择。
-			const current = await getSettings();
-			const updated = core.normalizeSettings({
+			return core.normalizeSettings({
 				...settings,
 				sourceMode: current.sourceMode,
 				targetMode: current.targetMode,
 			});
-			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
-			await notifyDebugSettings(updated);
-			return updated;
 		});
 	}
 
 	function updateDebugLogging(enabled) {
-		return writeQueue.run(async () => {
-			const settings = await getSettings();
-			const updated = core.normalizeSettings({
+		return updateSettings((settings) =>
+			core.normalizeSettings({
 				...settings,
 				debugLogging: enabled,
 				...(enabled ? {} : { debugRequestPayload: false }),
-			});
-			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
-			await notifyDebugSettings(updated);
-			return updated;
-		});
+			}),
+		);
 	}
 
 	function updateDebugRequestPayload(enabled) {
-		return writeQueue.run(async () => {
-			const settings = await getSettings();
-			const updated = core.normalizeSettings({
-				...settings,
-				debugRequestPayload: enabled,
-			});
-			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
-			await notifyDebugSettings(updated);
-			return updated;
-		});
+		return updateSettings((settings) =>
+			core.normalizeSettings({ ...settings, debugRequestPayload: enabled }),
+		);
 	}
 
 	function updateLanguagePair(sourceMode, targetMode) {
+		return updateSettings(
+			(settings) => {
+				const updated = core.normalizeSettings({ ...settings, sourceMode, targetMode });
+				if (updated.sourceMode !== sourceMode || updated.targetMode !== targetMode) {
+					throw new Error("翻译语言组合无效");
+				}
+				return updated;
+			},
+			{ notifyDebug: false },
+		);
+	}
+
+	function updateSettings(createUpdatedSettings, { notifyDebug = true } = {}) {
 		return writeQueue.run(async () => {
+			// 读、改、写和授权通知共用队列，后续写入始终基于前一次提交后的设置。
 			const settings = await getSettings();
-			const updated = core.normalizeSettings({ ...settings, sourceMode, targetMode });
-			if (updated.sourceMode !== sourceMode || updated.targetMode !== targetMode) {
-				throw new Error("翻译语言组合无效");
-			}
+			const updated = createUpdatedSettings(settings);
 			await chrome.storage.local.set({ [core.SETTINGS_KEY]: updated });
+			if (notifyDebug) await notifyDebugSettings(updated);
 			return updated;
 		});
 	}

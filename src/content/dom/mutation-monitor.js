@@ -1,42 +1,10 @@
+import { EXCLUSION_ATTRIBUTES, GENERATED_ATTRIBUTES, getObservedAttributes } from "./mutation-attributes.js";
 import { findSiteProfileMutationRoot } from "../site-profile.js";
 import { GeneratedMutationReconciler } from "./generated-mutation-reconciler.js";
 import { transferGeneratedReplacements } from "./generated-replacement-transfer.js";
 import { MutationScanQueue } from "./mutation-scan-queue.js";
 import { forEachTextNode, isOwnedNode } from "./node-utils.js";
 import { VolatileMutationFilter } from "./volatile-mutation-filter.js";
-
-const GENERATED_ATTRIBUTES = new Set([
-	"aria-describedby",
-	"data-bt-description-id",
-	"data-bt-generated-owned",
-	"data-bt-owned",
-	"data-bt-presentation",
-	"data-bt-presentation-run",
-	"data-bt-run",
-	"data-bt-source",
-	"data-bt-translation",
-	"data-bt-translation-lang",
-	"id",
-]);
-const EXCLUSION_ATTRIBUTES = new Set(["aria-hidden", "inert", "translate"]);
-
-const OBSERVED_ATTRIBUTES = [
-	...GENERATED_ATTRIBUTES,
-	"aria-hidden",
-	"aria-label",
-	"class",
-	"data-hovercard-type",
-	"hidden",
-	"inert",
-	"lang",
-	"role",
-	"style",
-	"translate",
-];
-
-function getObservedAttributes(hostname) {
-	return hostname === "github.com" ? [...OBSERVED_ATTRIBUTES, "href"] : OBSERVED_ATTRIBUTES;
-}
 
 /** 把 MutationObserver 事件归一化为“失效元素 + 待扫描根节点”。 */
 export class MutationMonitor {
@@ -236,7 +204,6 @@ export class MutationMonitor {
 		}
 
 		const affectedElements = new Set();
-		const styleCache = new WeakMap();
 		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
 		// target 被排除时，新增子树仍可能用 translate=yes 或正文根节点恢复资格。
 		let shouldScan = Boolean(siteMutationRoot);
@@ -244,7 +211,21 @@ export class MutationMonitor {
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
 			this.scanQueue.add(siteMutationRoot);
 		}
-		for (const node of removedNodes) {
+		shouldScan = this.#handleRemovedNodes(removedNodes, affectedElements) || shouldScan;
+		shouldScan = this.#collectAddedCandidates(addedNodes, affectedElements) || shouldScan;
+		for (const element of affectedElements) {
+			this.invalidator.invalidate(element);
+			if (element.isConnected) {
+				this.scanQueue.add(element);
+				shouldScan = true;
+			}
+		}
+		return shouldScan;
+	}
+
+	#handleRemovedNodes(nodes, affectedElements) {
+		let shouldScan = false;
+		for (const node of nodes) {
 			const recovered = this.generatedReconciler.recoverRemovedTranslation(node);
 			shouldScan = recovered || this.invalidator.recoverRemovedTranslation(node) || shouldScan;
 			if (isOwnedNode(node)) {
@@ -268,7 +249,13 @@ export class MutationMonitor {
 				return false;
 			});
 		}
-		for (const node of addedNodes) {
+		return shouldScan;
+	}
+
+	#collectAddedCandidates(nodes, affectedElements) {
+		let shouldScan = false;
+		const styleCache = new WeakMap();
+		for (const node of nodes) {
 			let hasCandidate = false;
 			forEachTextNode(node, (textNode) => {
 				const candidate = this.scanner.findContentUnit(textNode.parentElement, styleCache);
@@ -283,13 +270,6 @@ export class MutationMonitor {
 			});
 			if (hasCandidate) {
 				this.scanQueue.add(node);
-				shouldScan = true;
-			}
-		}
-		for (const element of affectedElements) {
-			this.invalidator.invalidate(element);
-			if (element.isConnected) {
-				this.scanQueue.add(element);
 				shouldScan = true;
 			}
 		}

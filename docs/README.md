@@ -19,6 +19,7 @@
 | [`debugging.md`](./debugging.md) | 解释受控事件、DeepSeek 请求正文投影、复制/清空、Network 交叉验证和常见故障诊断路径 | 开发者、测试人员、排查 Provider 问题的人 | 需要核对实际请求、重试、无请求或无译文时 |
 | [`provider-catalog.md`](./provider-catalog.md) | 解释固定 models.dev snapshot、JSON Schema、allowlist、SDK runtime、价格元数据、DeepSeek 三层请求转换和更新流程 | 维护 Provider、模型、目录数据或构建安全边界的人 | 修改模型、价格、API 地址、依赖或目录数据前 |
 | [`x-hover-rendering-postmortem.md`](./x-hover-rendering-postmortem.md) | 记录 X hover fresh 节点替换导致布局跳动的根因、失败方案、最终状态迁移设计，以及相邻 HN 布局契约 | 内容脚本维护者、DOM/SPA 故障排查者 | 修改 X 站点策略、generated presentation、MutationObserver、虚拟列表或 HN 标题布局前 |
+| [`refactor-review-2026-09-07.md`](./refactor-review-2026-09-07.md) | 博客 JSON 格式故障证据、全项目维护性重构、评分依据和验证边界 | 维护者与本次变更审查者 | 复核模型恢复、模块拆分或本次评分时 |
 
 ## 按任务选择
 

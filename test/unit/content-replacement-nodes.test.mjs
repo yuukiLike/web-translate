@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { Window } from "happy-dom";
 
-import { pairReplacementNodes } from "../../src/content/dom/mutation-content.js";
+import { pairReplacementNodes } from "../../src/content/dom/replacement-node-pairing.js";
 
 // 验证整窗 fresh 滑动只传播同文 survivor，离窗 head 与入窗 tail 不共享身份。
 test("多节点滑动窗口保持边缘节点独立", () => {

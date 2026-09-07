@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+export { waitFor } from "./wait-for.mjs";
 
 function restoreGlobalDescriptors(descriptors) {
 	for (const [name, descriptor] of descriptors.toReversed()) {
@@ -39,12 +39,4 @@ export async function settle() {
 	await Promise.resolve();
 	await new Promise((resolve) => setTimeout(resolve, 0));
 	await Promise.resolve();
-}
-
-export async function waitFor(predicate, message) {
-	for (let attempt = 0; attempt < 60; attempt += 1) {
-		if (predicate()) return;
-		await settle();
-	}
-	assert.fail(message);
 }

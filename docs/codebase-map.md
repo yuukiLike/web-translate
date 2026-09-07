@@ -75,7 +75,8 @@ chrome-extension/manifest.json
 | `service-worker.js` | 极薄装配入口：导入三个生成 runtime 与 `app.js`、创建应用、同步注册安装、右键菜单、消息、Port 和标签页关闭监听器并启动。Manifest V3 要求监听器在入口求值时注册；这里不再注册 `action.onClicked`。 |
 | `app.js` | 组合全部后台服务，管理启动就绪 Promise，把安装、菜单、消息、Port 和标签页关闭事件适配为应用方法。popup 的主动作通过消息进入，不再需要 action 点击适配器。 |
 | `action-ui.js` | 管理 popup 触发后的脚本注入、徽标、title 与图标右键菜单；为每个标签页保存最新 Badge 修订，慢写入结束后会重放最新状态。 |
-| `message-router.js` | 按消息类型路由 popup、内容脚本和设置页请求；先校验来源，再调用具体服务；设置页状态同时返回设置与用量。 |
+| `message-router.js` | 按消息类型路由请求，先校验来源，再调用扩展页设置服务或网页运行 handler。 |
+| `run-message-handlers.js` | 处理网页 START、TRANSLATE、CANCEL、STATUS，维护启动、取消和状态消息时序。 |
 | `validation.js` | 校验 runId、语言方向、段落 ID、单段长度、批次数量和总字符数。 |
 | `settings-store.js` | 初始化受信任存储访问级别，规范化/保存设置，检查 Key、模型和自定义域名权限。 |
 | `run-store.js` | 编排任务启动、替换、取消和标签页关闭；把内存活动、启动 token、在途清理与持久状态组合成同一标签页串行生命周期。 |
@@ -97,7 +98,11 @@ chrome-extension/manifest.json
 | `request-payload-sanitizer.js` | 把 DeepSeek 的瞬时 `requestBody` 重建为有字段、条数和容量上限的 `requestPayload` 安全投影。 |
 | `constants.js` | 集中维护缓存、消息、网络、调试字段、状态稳定窗口和菜单 ID 的限制。 |
 | `utilities.js` | 提供数字规范化、ID、存储大小估算、运行键和自动回收的按键串行任务队列等后台通用能力。 |
-| `providers/model-translator.js` | 构造防提示词注入的 JSON 翻译任务，控制模型层超时与重试，并校验完成原因。 |
+| `providers/model-translator.js` | 编排严格响应校验和有界恢复；格式异常与输出截断共用两次拆分预算，成功后按原顺序合并译文。 |
+| `providers/model-client.js` | 执行模型网络请求、最多三次尝试、退避、超时和取消，记录请求事件。 |
+| `providers/model-request.js` | 构造防提示词注入的翻译 prompt，按原文和 JSON 包装计算输出预算。 |
+| `providers/model-usage.js` | 统一成功、未知、恢复和取消路径的用量聚合，随失败异常携带已发生费用。 |
+| `providers/model-translation-recovery.js` | 定义恢复预算和按字符均衡的批次/单段二分规则。 |
 | `providers/rest-translators.js` | 构造 Azure 与 DeepL 的固定 REST 请求，并验证各自响应结构和计费字符。 |
 
 ## `src/core/`：无 Chrome API 的共享核心
@@ -113,7 +118,8 @@ chrome-extension/manifest.json
 | `provider-definitions.js` | 定义每种 Provider 的标签、字符/段落限制、最大并发和调用类型。 |
 | `text.js` | 规范化正文、判断中英文方向、过滤无需翻译文本、切分长文、分批和计算稳定哈希。 |
 | `cache.js` | 生成包含站点、Provider、模型、协议、方向和原文的缓存键，并选择 DeepL Free/Pro host。 |
-| `model-response.js` | 从模型文本提取 JSON，严格校验译文数量、ID 唯一性和顺序。 |
+| `model-response.js` | 严格解析 JSON、数量和 ID；协议错误统一携带 `MODEL_RESPONSE_INVALID`，不修补损坏 JSON。 |
+| `language-selection.js` | Options 与 Popup 共用的语言方向校验和输入/输出冲突调整纯函数。 |
 | `value-utils.js` | 提供 record 判断、安全字符串、整数裁剪和月份键等通用纯函数。 |
 
 ## `src/content/`：网页扫描与双语渲染源码
@@ -145,9 +151,12 @@ chrome-extension/manifest.json
 | `renderer.js` | 校验原文仍未变化；为普通站点创建 flow 译文，为 X 在末段原文 carrier 内创建真实 generated 译文 child。 |
 | `generated-presentation.js` | 管理真实 generated Element/Text、稳定身份、宿主破坏恢复、fresh replacement 迁移、嵌套 clone 去重，以及旧版离屏 description 的兼容清理。 |
 | `generated-replacement-transfer.js` | 在同一 MutationObserver 批次内，把已跟踪 generated surface 原子迁移到语义等价的 fresh Element。 |
-| `generated-mutation-reconciler.js` | 按运行时节点身份修复 generated 结构；carrier replacement 时同步复挂 canonical 译文，并在同文 replacement 中保留真正有在途 token 的 queued revision。 |
+| `generated-mutation-reconciler.js` | 按运行时节点身份修复 generated 结构；carrier replacement 时同步复挂 canonical 译文；暂时脱离的 carrier/source/article 留到现有 180ms mutation 防抖的 beforeFlush 复核，永久移除才失效，stop 则立即清理；同文 replacement 保留真正有在途 token 的 queued revision。 |
 | `invalidation.js` | 统一使过期元素失效，清除 loading/旧译文，处理普通 flow 译文移除，并清理移除子树。 |
-| `mutation-monitor.js` | 先迁移同批 fresh source replacement，再同步修复 carrier replacement，最后把其他事件归一化为待复核 source 和扫描根节点。 |
+| `mutation-monitor.js` | 先迁移同批 replacement，再分别处理移除、新增，最后统一失效和排队扫描，保持 DOM 处理顺序可见。 |
+| `mutation-attributes.js` | 集中声明属性监听、generated 修复和语义排除规则。 |
+| `mutation-content.js` | 收集 mutation 正文根、比较文本并配对正文边界。 |
+| `replacement-node-pairing.js` | 按唯一强身份、同文结构、同文、槽位依次配对替换节点，强身份不能降级匹配。 |
 | `visibility-monitor.js` | 真正防抖处理 class/style 的布局与可见性变化；瞬时状态不清除 generated presentation。 |
 | `node-utils.js` | 识别扩展自有节点、读取排除 owned descendants 的原文、遍历文本节点并构造当前运行的 source 选择器。 |
 
@@ -192,7 +201,8 @@ Vue 设置页的视觉规则来自 `DESIGN.md`。重构状态和数据层时，�
 
 | 文件 | 职责 |
 | --- | --- |
-| `useOptions.js` | 设置页主状态：加载、规范化、保存、测试、自定义权限、缓存清理和 storage 同步。 |
+| `useOptions.js` | 管理 Vue 草稿、状态展示、缓存清理和 storage 同步，保存动作交给 providerSetup。 |
+| `providerSetup.js` | 明确编排校验、自定义域名授权、语言保存、完整设置保存和连接测试。 |
 | `useDebug.js` | 调试 Port 的连接、心跳、重连、快照同步和组件卸载清理。 |
 | `useDebugSettings.js` | 独立保存调试元数据与请求正文开关，并在失败时恢复已保存状态。 |
 | `optionsRuntime.js` | 检查核心/runtime 完整性并统一设置页消息响应错误。 |
@@ -226,7 +236,8 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | 文件 | 职责 |
 | --- | --- |
 | `main.js` | popup bundle 入口：注入 Chrome API、document 和关闭函数，创建应用并加载状态。 |
-| `popup-app.js` | 发送 `GET_POPUP_STATE` / `TOGGLE_ACTIVE_TAB`，控制忙碌与错误提示；设置使用 `openOptionsPage()`，调试打开 `options/index.html#debug`。 |
+| `popup-app.js` | 编排后台消息、用户动作、busy 状态与协议失败处理，交给 view 更新页面。 |
+| `popup-view.js` | 集中管理 DOM 元素、控件渲染、文案、可访问性状态和事件绑定。 |
 | `popup.css` | 维护 350px popup 的既有视觉、按钮、状态和减少动态效果样式。 |
 
 ## Provider 配置、数据与 Schema
@@ -244,7 +255,9 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | --- | --- |
 | `validate-provider-config.mjs` | 用 AJV 校验两个 JSON Schema，再检查来源 SHA、Provider 集合、SDK、URL 和默认模型等跨文件不变量。 |
 | `build-extension-runtime.mjs` | 生成目录脚本，并用 esbuild 分别打包核心、内容脚本和 Provider runtime；`--check` 只比较，不写文件。 |
-| `build-options.mjs` | 编译 Vue SFC 与 CSS，拒绝外部依赖和动态代码；`--check` 验证提交产物未过期。 |
+| `build-options.mjs` | 配置 Options 构建并调用 Vue 插件和共用产物检查。 |
+| `vue-sfc-plugin.mjs` | 编译 Vue script/template/style，绑定 scoped 样式身份，并限制组件来源目录。 |
+| `build-outputs.mjs` | 三个构建入口共用的参数、产物完整性、安全检查及写入/只读比较；保留真实读取异常。 |
 | `build-popup.mjs` | 从 `src/popup/main.js` 打包 `popup.js` 与 `popup.css`，拒绝外部依赖和动态代码；`--check` 验证提交产物未过期。 |
 | `check-javascript.mjs` | 递归查找手写 JavaScript，并逐个运行 Node 语法检查。 |
 
@@ -269,7 +282,10 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `content-dom-harness.mjs` | 用 happy-dom 加载生成内容脚本，模拟布局、runtime 消息与 DOM 变化。 |
 | `generated-translation-assertions.mjs` | 集中断言 generated 真实 Text、自然可访问语义、宿主原节点 identity 和程序化 Selection。 |
 | `options-page-harness.mjs` | 加载设置页产物，模拟扩展 API、调试 Port 和用户交互。 |
-| `page-harness.mjs` | 集中管理 Options 与 Popup 共用的异步等待和全局 descriptor 安装、恢复。 |
+| `page-harness.mjs` | 管理页面测试全局 descriptor 的安装与恢复，复用有界等待。 |
+| `wait-for.mjs` | 带默认截止时间的异步断言，失败时报告具体等待行为。 |
+| `model-translator-harness.mjs` | 模型翻译测试共用的 Provider fake、请求响应与事件记录。 |
+| `reader-article-fixture.mjs` | 故障博客的 Hugo/AsciiDoc 结构、14 个长段落和内联元素；使用原创测试正文。 |
 | `popup-page-harness.mjs` | 用 happy-dom 加载 popup 产物，模拟 runtime 消息、当前页状态和页面跳转。 |
 | `provider-runtime-harness.mjs` | 模拟 fetch 并加载 Provider runtime，用于检查真实 SDK 请求形状。 |
 
@@ -286,6 +302,8 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `background-storage-failures.test.mjs` | 验证 cancelled 写入失败时的删除兜底，以及 Badge API 挂起不能锁死取消、重启或后续任务。 |
 | `background-usage.test.mjs` | 验证 Provider 缺少 usage 时，后台保留未知语义而不是持久化成零 token。 |
 | `content-script.test.mjs` | 验证中文过滤、显式中译英、动态 DOM、运行缓存、重复注入和稳定进度。 |
+| `content-generated-detachment.test.mjs` | 验证 carrier/source/article 短暂脱离、永久移除、宽限期内停止及相邻同文身份隔离。 |
+| `content-reader-article.test.mjs` | 连接真实内容脚本与后台，在首次模型 JSON 非法后恢复全部 15 块正文并核对用量。 |
 | `content-hacker-news.test.mjs` | 验证 HN 标题的换行后同行延续、元信息过滤、动态条目和 hostname 隔离。 |
 | `content-x-generated-integrity.test.mjs` | 验证宿主破坏真实译文属性/Text 后按运行时身份恢复，以及 wrapped clone replacement 只保留 canonical 节点。 |
 | `content-x-hover.test.mjs` | 验证 X 帖子 hover 保留全部宿主原 child identity/order，并只追加一个稳定、可选择的 generated child。 |
@@ -311,6 +329,12 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 | `core-cache.test.mjs` | 缓存语义边界、DeepL host 和译文长度上限。 |
 | `core-settings.test.mjs` | 默认值、枚举、并发、模型 allowlist、自定义 URL、公开设置和错误提示。 |
 | `core-text.test.mjs` | 语言判断、正文过滤、规范化、长文切分、批次顺序和模型 JSON ID。 |
+| `core-language-selection.test.mjs` | 验证 Options/Popup 共用语言方向规则、冲突调整与非法输入拒绝。 |
+| `core-model-response.test.mjs` | 验证严格 JSON/数量/ID 校验、统一错误码以及合法引号、括号和转义。 |
+| `background-model-response-recovery.test.mjs` | 验证非法 JSON 的缩批恢复、共享预算、原顺序和取消用量。 |
+| `background-model-client.test.mjs` | 验证重试、限流、预先取消和退避中取消。 |
+| `options-provider-setup.test.mjs` | 验证校验与域名授权失败阻断保存，以及语言/完整设置/测试顺序。 |
+| `build-outputs.test.mjs`、`build-vue-plugin.test.mjs` | 验证构建失败诊断、只读检查、组件路径与 scoped 样式绑定。 |
 | `options-data.test.mjs` | 模型目录、用量、调试脱敏和请求生命周期合并。 |
 | `provider-observed-fetch.test.mjs` | 验证只有显式启用时才采集瞬时请求 body，且常规请求事件仍保持安全元数据边界。 |
 
@@ -342,7 +366,7 @@ popup 是短生命周期的受信任扩展页面，不持有翻译任务，也�
 11. `message-router.js` 再次验证 runId、方向、段落数量、ID 和字符数，并从 `run-store.js` 取回启动时的固定快照。
 12. `batch-translator.js` 先调用 `cache-store.js`。缓存键包含站点、Provider、模型、协议、语言方向和原文，因此不会跨语义误用。
 13. 全命中时后台直接返回。未命中时 `provider-service.js` 选择 `model-translator.js` 或 `rest-translators.js`；请求层统一处理取消、超时、有限重试和安全调试事件。
-14. Provider 响应通过完成原因、JSON、ID、数量和译文长度校验后，后台记录普通用量统计，写入持久缓存，再把 ID 对齐的结果返回内容脚本。
+14. 模型 JSON/数量/ID 无效或输出截断时，自动缩批恢复；整批共用两次拆分预算。有效响应才记录 validated，恢复前后的实际用量都会累计。后台再校验译文长度、写入持久缓存，把 ID 对齐的结果返回内容脚本。
 15. `cloud-translator.js` 写入运行缓存并回填所有去重目标，在 `finally` 只清除当前批次的 loading token；`dom/renderer.js` 确认原文未变化，普通页面创建 flow 译文，X 则在末段原文 carrier 内维护带真实 `Text` 的 generated child；`progress-tracker.js` 只增加已完成数。
 16. `status-reporter.js` 等待 DOM 和计数稳定后发送完成状态；`status-controller.js` 先按消息到达顺序分配修订，再做后台稳定窗口检查；`action-ui.js` 在慢 Badge API 返回后重放最新修订，因此旧完成或旧进度都不能覆盖新状态。
 17. SPA、无限滚动或懒加载触发 `mutation-monitor.js` 与 `visibility-monitor.js`。同批 fresh source replacement 会先迁移 generated surface；source 未变但末段 carrier 被替换时，同一 observer callback 会把 canonical 译文复挂到新 anchor；其他根节点才进入防抖复核。

@@ -5,7 +5,7 @@ import {
 	changeSourceLanguage,
 	changeTargetLanguage,
 	parseLanguagePair,
-} from "../../src/popup/language-pair.js";
+} from "../../src/core/language-selection.js";
 
 // 验证自动输入可以独立选择中英文输出，同时拒绝固定语言的同语种翻译。
 test("Popup 语言对只接受四种有意义组合", () => {

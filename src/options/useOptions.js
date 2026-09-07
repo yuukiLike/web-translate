@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from "vue";
 
+import { changeSourceLanguage, changeTargetLanguage } from "../core/language-selection.js";
 import { isRecord } from "../core/value-utils.js";
 import { createCatalogInfo, createFallbackSettings } from "./catalogData.js";
 import { errorText } from "./formatters.js";
@@ -9,6 +10,7 @@ import {
 	getCoreError,
 	getManifestVersion,
 } from "./optionsRuntime.js";
+import { createProviderSetup } from "./providerSetup.js";
 import { useDebug } from "./useDebug.js";
 import { useDebugSettings } from "./useDebugSettings.js";
 import { createUsageRows } from "./usageData.js";
@@ -19,6 +21,7 @@ export function useOptions() {
 	const chromeApi = globalThis.chrome;
 	const runtime = chromeApi?.runtime;
 	const sendMessage = createRuntimeMessenger(runtime);
+	const providerSetup = createProviderSetup({ core, permissions: chromeApi?.permissions, sendMessage });
 	const catalogInfo = createCatalogInfo(catalog);
 	const ready = ref(false);
 	const fatal = ref(catalogInfo.error || getCoreError(core));
@@ -87,61 +90,27 @@ export function useOptions() {
 		status.error = error;
 	}
 
+	function currentLanguagePair() {
+		return { sourceMode: draft.sourceMode, targetLanguage: draft.targetMode };
+	}
+
+	function acceptLanguagePair(pair) {
+		draft.sourceMode = pair.sourceMode;
+		draft.targetMode = pair.targetLanguage;
+	}
+
 	function setSourceMode(sourceMode) {
 		if (!SOURCES.some((source) => source.id === sourceMode)) {
 			return;
 		}
-		draft.sourceMode = sourceMode;
-		if (sourceMode !== "auto" && sourceMode === draft.targetMode) {
-			draft.targetMode = sourceMode === "zh" ? "en" : "zh";
-		}
+		acceptLanguagePair(changeSourceLanguage(currentLanguagePair(), sourceMode));
 	}
 
 	function setTargetMode(targetMode) {
 		if (!TARGETS.some((target) => target.id === targetMode)) {
 			return;
 		}
-		draft.targetMode = targetMode;
-		if (draft.sourceMode === targetMode) {
-			draft.sourceMode = targetMode === "zh" ? "en" : "zh";
-		}
-	}
-
-	function settingsForSave() {
-		if (fatal.value) {
-			throw new Error(fatal.value);
-		}
-		const settings = core.normalizeSettings(draft);
-		const configurationError = core.getProviderConfigurationError(settings);
-		if (configurationError) {
-			throw new Error(configurationError);
-		}
-		return settings;
-	}
-
-	async function ensureCustomHostPermission(settings) {
-		if (settings.provider !== "custom") {
-			return;
-		}
-		const origin = core.getCustomApiOrigin(settings.custom.baseUrl);
-		if (!origin) {
-			throw new Error("自定义 Base URL 无效");
-		}
-		const permissions = chromeApi?.permissions;
-		if (!permissions || typeof permissions.request !== "function") {
-			return;
-		}
-		const origins = [`${origin}/*`];
-		if (typeof permissions.contains === "function") {
-			const alreadyGranted = await permissions.contains({ origins });
-			if (alreadyGranted) {
-				return;
-			}
-		}
-		const granted = await permissions.request({ origins });
-		if (!granted) {
-			throw new Error("需要授权访问该自定义 API 域名");
-		}
+		acceptLanguagePair(changeTargetLanguage(currentLanguagePair(), targetMode));
 	}
 
 	function acceptSavedSettings(value) {
@@ -194,20 +163,11 @@ export function useOptions() {
 		connected.value = false;
 		setStatus("正在测试连接…");
 		try {
-			const settings = settingsForSave();
-			await ensureCustomHostPermission(settings);
-			await sendMessage({
-				type: "SET_LANGUAGE_PAIR",
-				sourceMode: settings.sourceMode,
-				targetLanguage: settings.targetMode,
-			});
-			const saved = await sendMessage({ type: "SAVE_SETTINGS", settings });
-			acceptSavedSettings(saved.settings);
-			const tested = await sendMessage({ type: "TEST_PROVIDER" });
-			const refreshed = await sendMessage({ type: "GET_OPTIONS_STATE" });
-			acceptUsage(refreshed.usage);
-			const message = typeof tested.message === "string" ? tested.message : "连接测试完成";
-			setStatus(message);
+			if (fatal.value) throw new Error(fatal.value);
+			acceptSavedSettings(await providerSetup.saveSettings(draft));
+			const tested = await providerSetup.testConnection();
+			acceptUsage(tested.usage);
+			setStatus(tested.message);
 			connected.value = true;
 			return true;
 		} catch (error) {

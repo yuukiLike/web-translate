@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { glob, readFile } from "node:fs/promises";
 import { extname, relative, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const applicationRoot = resolve(new URL("../..", import.meta.url).pathname);
+const applicationRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 async function listFiles(directory) {
 	const files = [];

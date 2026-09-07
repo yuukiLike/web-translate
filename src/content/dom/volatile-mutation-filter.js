@@ -1,3 +1,4 @@
+import { pairReplacementNodes } from "./replacement-node-pairing.js";
 import { matchCompleteGeneratedReplacements } from "./generated-replacement-transfer.js";
 import {
 	addTextFallback,
@@ -7,7 +8,6 @@ import {
 	hasSameTextValue,
 	meaningfulNodes,
 	pairContentRoots,
-	pairReplacementNodes,
 } from "./mutation-content.js";
 import { isOwnedNode } from "./node-utils.js";
 import { groupClosedReplacementMutations } from "./replacement-batch.js";

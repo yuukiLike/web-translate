@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { waitFor } from "../helpers/wait-for.mjs";
 
 import { VisibilityMonitor } from "../../src/content/dom/visibility-monitor.js";
 import { ProgressTracker } from "../../src/content/progress-tracker.js";
@@ -8,12 +9,6 @@ import { RunTranslationCache } from "../../src/content/translation/run-cache.js"
 
 function segment(text, sourceLanguage = "en", targetLanguage = "zh") {
 	return { text, sourceLanguage, targetLanguage };
-}
-
-async function waitFor(predicate) {
-	while (!predicate()) {
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
 }
 
 function createElementStub(dataset = {}) {

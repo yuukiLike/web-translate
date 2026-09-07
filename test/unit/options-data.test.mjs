@@ -156,3 +156,54 @@ test("调试请求视图正确关联开始与结束事件", () => {
 	assert.equal(request.status, "error");
 	assert.doesNotMatch(request.searchText, /api_key=secret/u);
 });
+
+// HTTP 已返回也可能得到无效译文；调试事件需显示恢复原因和实际用量，但不能展示响应正文。
+test("无效和截断的模型响应显示安全诊断并标明本次响应异常", () => {
+	const events = [
+		{
+			eventType: "model.response.invalid",
+			finishReason: "stop",
+			errorCode: "MODEL_RESPONSE_INVALID",
+			inputTokens: 120,
+			outputTokens: 45,
+			status: "recovering",
+			responseBody: "must-not-render",
+		},
+		{
+			eventType: "model.response.truncated",
+			finishReason: "length",
+			rawFinishReason: "max_tokens",
+			status: "recovering",
+		},
+	];
+	const rows = createDebugRows(events);
+	assert.deepEqual(rows.map(({ name }) => name), ["模型响应格式无效", "模型响应被截断"]);
+	assert.ok(rows.every(({ status }) => status === "error"));
+	const fields = Object.fromEntries(rows[0].fields.map(({ key, value }) => [key, value]));
+	assert.equal(fields.finishReason, "stop");
+	assert.equal(fields.errorCode, "MODEL_RESPONSE_INVALID");
+	assert.equal(fields.inputTokens, "120");
+	assert.equal(fields.outputTokens, "45");
+	assert.equal(fields.status, "recovering");
+	assert.doesNotMatch(JSON.stringify(rows), /must-not-render/u);
+
+	const requests = createDebugRequests(events);
+	assert.ok(requests.every(({ status }) => status === "error"));
+	assert.deepEqual(requests.map(({ badge }) => badge), ["MODEL_RESPONSE_INVALID", "模型响应被截断"]);
+});
+
+// 同一请求已收到 HTTP 200 后若格式校验失败，徽标必须指出响应无效而不是仅展示成功状态码。
+test("HTTP 200 后的格式错误保留失败诊断", () => {
+	const [request] = createDebugRequests([
+		{ eventType: "sdk.request-end", requestId: "same-request", httpStatus: 200 },
+		{
+			eventType: "model.response.invalid",
+			requestId: "same-request",
+			errorCode: "MODEL_RESPONSE_INVALID",
+			status: "recovering",
+		},
+	]);
+	assert.equal(request.status, "error");
+	assert.equal(request.badge, "MODEL_RESPONSE_INVALID");
+	assert.equal(request.fields.find(({ key }) => key === "httpStatus").value, "200");
+});

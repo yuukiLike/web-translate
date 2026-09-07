@@ -1,4 +1,4 @@
-import { PRIORITY, SELECTORS } from "../constants.js";
+import { PRIORITY } from "../constants.js";
 import { isTranslationExcluded } from "./node-utils.js";
 
 /** 与布局有关的浏览器读取集中在此，避免扫描和监听器各自实现一套。 */
