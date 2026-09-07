@@ -2,6 +2,8 @@
 
 Chrome Manifest V3 双语翻译扩展。安装、服务配置和使用限制见[项目 README](../README.md)。
 
+历史排查网址与回归入口见[测试过的网站](tested-websites.md)。
+
 ## 开发与验证
 
 使用 Node.js 24，具体版本见 [`.nvmrc`](../.nvmrc)。
