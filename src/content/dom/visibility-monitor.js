@@ -18,6 +18,7 @@ export class VisibilityMonitor {
 		renderer,
 		invalidator,
 		rootQueue,
+		deferredContent,
 		onScan,
 		onActivity = () => {},
 		onError,
@@ -29,6 +30,7 @@ export class VisibilityMonitor {
 		this.renderer = renderer;
 		this.invalidator = invalidator;
 		this.rootQueue = rootQueue;
+		this.deferredContent = deferredContent;
 		this.onScan = onScan;
 		this.onActivity = onActivity;
 		this.onError = onError;
@@ -51,7 +53,7 @@ export class VisibilityMonitor {
 			this.#knownLayoutChanges.add(element);
 		}
 		const blocksCompletion =
-			this.#hasRestoredDeferredElement(element) ||
+			this.deferredContent.hasRestoredElement(element) ||
 			this.#hasHiddenTrackedElement(element);
 		if (blocksCompletion) {
 			if (this.#addTarget(this.#blockingTargets, element)) {
@@ -121,7 +123,7 @@ export class VisibilityMonitor {
 		const affected = this.#collectAffectedElements(connectedTargets, layoutRoots);
 		this.#invalidateChangedLayouts(affected.layoutRoots);
 		this.#reconcileTrackedVisibility(affected.trackedElements);
-		this.#restoreDeferredElements(connectedTargets);
+		this.deferredContent.restore(connectedTargets);
 		// 即使布局未改变，也要让被 DOM 活动取消的完成状态重新收敛。
 		void this.onScan().catch(this.onError);
 	}
@@ -160,17 +162,6 @@ export class VisibilityMonitor {
 			}
 		}
 		return trackedElements;
-	}
-
-	#hasRestoredDeferredElement(target) {
-		for (const element of this.elementStore.deferredElements) {
-			const related =
-				target === element || target.contains(element) || element.contains(target);
-			if (related && this.layout.isEligible(element)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	#hasHiddenTrackedElement(target) {
@@ -270,27 +261,5 @@ export class VisibilityMonitor {
 				this.renderer.copySourcePresentation(element, elementState.translationNode);
 			}
 		}
-	}
-
-	#restoreDeferredElements(targets) {
-		let restored = false;
-		for (const element of [...this.elementStore.deferredElements]) {
-			if (!element.isConnected) {
-				this.elementStore.deferredElements.delete(element);
-				continue;
-			}
-			const affected =
-				targets.length === 0 ||
-				targets.some(
-					(target) =>
-						target === element || target.contains(element) || element.contains(target),
-				);
-			if (affected && this.layout.isEligible(element)) {
-				this.elementStore.deferredElements.delete(element);
-				this.rootQueue.add(element);
-				restored = true;
-			}
-		}
-		return restored;
 	}
 }

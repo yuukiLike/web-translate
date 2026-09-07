@@ -127,6 +127,7 @@ test("动态重复段落合并到待发送批次时报告别名；日志失败�
 			core: { batchSegments, getProviderLimits: () => ({ maximumItems: 10, maximumCharacters: 3_000 }), getProviderMaximumConcurrency: () => 1 },
 			settings: { provider: "deepseek", concurrency: 1 }, runId: "trace-run",
 			runtime: harness.runtime, rootQueue, planner: { collectSegments: () => [duplicate] },
+			layout: { getPriority: () => 0 },
 			runCache: harness.runCache, contentTrace: harness.trace,
 			renderer: { renderIfReady() {} }, elementStore: harness.elementStore,
 			invalidator: { invalidate() { assert.fail("日志失败不应使正文失效"); } },

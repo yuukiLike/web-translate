@@ -10,6 +10,7 @@ export class CloudTranslator {
 		runtime,
 		rootQueue,
 		planner,
+		layout,
 		runCache,
 		contentTrace,
 		renderer,
@@ -24,6 +25,7 @@ export class CloudTranslator {
 		this.runtime = runtime;
 		this.rootQueue = rootQueue;
 		this.planner = planner;
+		this.layout = layout;
 		this.runCache = runCache;
 		this.contentTrace = contentTrace;
 		this.renderer = renderer;
@@ -63,6 +65,7 @@ export class CloudTranslator {
 			if (queue.length === 0) {
 				continue;
 			}
+			this.#refreshPriorities(queue);
 
 			const wave = [];
 			for (let index = 0; index < concurrency && queue.length > 0; index += 1) {
@@ -90,6 +93,19 @@ export class CloudTranslator {
 			segment.targets = segment.targets.filter(({ record }) => this.#isCurrentRecord(record));
 			if (segment.targets.length === 0) {
 				queue.splice(index, 1);
+			}
+		}
+	}
+
+	#refreshPriorities(queue) {
+		const priorities = new Map();
+		for (const segment of queue) {
+			segment.priority = Infinity;
+			for (const { record } of segment.targets) {
+				if (!priorities.has(record.element)) {
+					priorities.set(record.element, this.layout.getPriority(record.element));
+				}
+				segment.priority = Math.min(segment.priority, priorities.get(record.element));
 			}
 		}
 	}

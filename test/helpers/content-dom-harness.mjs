@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { Window } from "happy-dom";
+import { retainMutationObserverCallbacks } from "./retain-mutation-observers.mjs";
 
 export { waitFor } from "./wait-for.mjs";
 
@@ -28,8 +29,10 @@ export function createContentHarness({
 	translateText,
 	contentFilters = {},
 	captureContentTrace = false,
+	translateDynamicContent = true,
 } = {}) {
 	const window = new Window({ url: "https://example.com/article" });
+	retainMutationObserverCallbacks(window);
 	const { document } = window;
 	Object.defineProperty(document, "contentType", { configurable: true, value: contentType });
 	const messages = [];
@@ -59,7 +62,7 @@ export function createContentHarness({
 							sourceMode,
 							targetMode,
 							contentFilters: normalizedContentFilters,
-							translateDynamicContent: true,
+							translateDynamicContent,
 							concurrency: 2,
 							captureContentTrace,
 						},

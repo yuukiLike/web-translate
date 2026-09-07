@@ -98,7 +98,7 @@ export class TranslationPlanner {
 			element,
 			...(this.settings.captureContentTrace === true ? { sourceText: text } : {}),
 			parts,
-			translations: new Array(parts.length),
+			translations: new Array(parts.length).fill(null),
 			originalHash,
 			progressKey,
 			revision,

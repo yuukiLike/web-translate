@@ -63,6 +63,7 @@ function createVisibilityHarness(updateLayout, { generated = false } = {}) {
 			},
 		},
 		rootQueue: { add() {} },
+		deferredContent: { hasRestoredElement: () => false, restore() {} },
 		onScan: async () => {
 			scans += 1;
 		},

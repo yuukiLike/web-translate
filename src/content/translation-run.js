@@ -11,6 +11,7 @@ import { ElementInvalidator } from "./dom/invalidation.js";
 import { TranslationRenderer } from "./dom/renderer.js";
 import { MutationMonitor } from "./dom/mutation-monitor.js";
 import { VisibilityMonitor } from "./dom/visibility-monitor.js";
+import { DeferredContentMonitor } from "./dom/deferred-content-monitor.js";
 import { TranslationPlanner } from "./translation/planner.js";
 import { CloudTranslator } from "./translation/cloud-translator.js";
 import { ContentTrace } from "./translation/content-trace.js";
@@ -46,6 +47,7 @@ export class TranslationRun {
 		this.settings = settings;
 		this.#createServices();
 		this.rootQueue.add(document.body);
+		this.deferredContent.start();
 		if (settings.translateDynamicContent) {
 			this.mutationMonitor.start();
 		}
@@ -57,6 +59,7 @@ export class TranslationRun {
 			return;
 		}
 		this.active = false;
+		this.deferredContent?.stop();
 		this.mutationMonitor?.stop();
 		this.cloudTranslator?.clearLoading();
 		removeRunArtifacts(this.runId);
@@ -152,6 +155,7 @@ export class TranslationRun {
 			runtime: this.runtime,
 			rootQueue: this.rootQueue,
 			planner: this.planner,
+			layout: this.layout,
 			runCache: this.runCache,
 			contentTrace: new ContentTrace({
 				enabled: this.settings.captureContentTrace,
@@ -179,8 +183,13 @@ export class TranslationRun {
 			onActivity: () => this.statusReporter.invalidatePendingCompletion(),
 			onError: (error) => this.handleError(error),
 		};
+		this.deferredContent = new DeferredContentMonitor({
+			...monitorDependencies,
+			layout: this.layout,
+		});
 		this.visibilityMonitor = new VisibilityMonitor({
 			...monitorDependencies,
+			deferredContent: this.deferredContent,
 			layout: this.layout,
 			renderer: this.renderer,
 		});
