@@ -51,35 +51,37 @@
 .language-field select::picker(select) {
 	min-inline-size: anchor-size(width);
 	max-inline-size: calc(100vw - 44px);
-	margin-block: 6px;
-	padding: 5px;
-	border: 1px solid var(--line-strong);
-	border-radius: 10px;
+	margin-block: 4px;
+	padding: 4px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
 	background: var(--surface);
 	color: var(--ink);
-	box-shadow: 0 6px 20px #233d341a, 0 1px 3px #233d340a;
+	box-shadow: 0 8px 24px #233d3412, 0 2px 6px #233d3408;
 	font-family: var(--sans);
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 500;
 	line-height: 1.5;
 }
 .language-field option {
-	gap: 12px;
-	min-height: 40px;
-	padding: 9px 10px;
-	border-radius: 6px;
-	font: 500 13px / 1.5 var(--sans);
+	gap: 8px;
+	min-height: 34px;
+	padding: 7px 10px;
+	border-radius: 4px;
+	font: 500 12px / 1.5 var(--sans);
 	cursor: pointer;
 }
 .language-field option:checked {
-	background: #e9efe3;
+	background: #edf1e8;
 	color: var(--pine-dark);
 }
-.language-field option:hover,
+.language-field option:hover:not(:checked) {
+	background: #f5f5f0;
+}
+/* Hover stays quiet; only keyboard focus receives an outline. */
 .language-field option:focus-visible {
-	outline: 1px solid var(--line-strong);
-	outline-offset: -1px;
-	background: #f0f2eb;
+	outline: 1px solid var(--pine);
+	outline-offset: -2px;
 }
 .language-field option::checkmark {
 	order: 1;
@@ -97,10 +99,17 @@
 		background: Highlight;
 		color: HighlightText;
 	}
+	.language-field option:hover:not(:checked) {
+		background: Canvas;
+		color: CanvasText;
+	}
 	.language-field option::checkmark {
 		color: inherit;
 	}
 	.language-field option:focus-visible {
 		outline-color: Highlight;
+	}
+	.language-field option:checked:focus-visible {
+		outline-color: HighlightText;
 	}
 }
