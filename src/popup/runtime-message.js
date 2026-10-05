@@ -1,6 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 5_000;
 
-export async function sendRuntimeMessage(chrome, message, timeoutMs = DEFAULT_TIMEOUT_MS) {
+export async function sendRuntimeMessage(chrome, message, timeoutMs =
+	message.type === "GET_POPUP_STATE" ? DEFAULT_TIMEOUT_MS : 30_000) {
 	let timeoutId;
 	try {
 		const response = await Promise.race([

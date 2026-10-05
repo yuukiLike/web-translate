@@ -205,15 +205,17 @@ export function createCacheStore({ chrome, core }) {
 		return (
 			core.isRecord(entry) &&
 			typeof entry.translation === "string" &&
-			(sourceLength === undefined ||
-				entry.translation.length <= core.getMaximumTranslationLength(sourceLength)) &&
+			entry.translation.trim().length > 0 &&
+			entry.translation.length <= core.getMaximumTranslationLength(sourceLength ?? 30_000) &&
 			typeof entry.savedAt === "number" &&
+			Number.isFinite(entry.savedAt) &&
 			now - entry.savedAt <= CACHE_LIMITS.ttlMs
 		);
 	}
 
 	function normalizeIndex(value) {
-		return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+		return Array.isArray(value)
+			? value.filter((item) => typeof item === "string" && item.startsWith(core.CACHE_PREFIX)) : [];
 	}
 
 	return { clear, getGeneration, initialize, lookup, queueMaintenance, store };

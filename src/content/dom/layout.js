@@ -40,6 +40,9 @@ export class LayoutInspector {
 		if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
 			return false;
 		}
+		if (style.display !== "contents" && element.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) === false) {
+			return false;
+		}
 		const rectangle = this.getRectangle(element);
 		return rectangle.width > 1 && rectangle.height > 1;
 	}

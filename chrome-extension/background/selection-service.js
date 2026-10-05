@@ -6,13 +6,15 @@ const MAX_SELECTION_CHARACTERS = 12_000;
 export function createSelectionService({ core, validators, settingsStore, cacheStore, batchTranslator }) {
 	const pending = new Map();
 
-	function ownerKey(sender) {
+	function owner(sender) {
 		if (!Number.isInteger(sender.tab?.id)) throw new Error("划词翻译必须来自网页");
-		return `${sender.tab.id}:${sender.frameId ?? 0}`;
+		const tabId = sender.tab.id;
+		const frameId = sender.frameId ?? 0;
+		return { tabId, frameId, key: `${tabId}:${frameId}:${sender.documentId ?? sender.url ?? ""}` };
 	}
 
 	async function translate(message, sender) {
-		const key = ownerKey(sender);
+		const { tabId, frameId, key } = owner(sender);
 		const requestId = validators.validateRunId(message.requestId);
 		if (typeof message.text !== "string" || message.text.length > MAX_SELECTION_CHARACTERS) {
 			throw new Error("选中文字过长，请选择不超过 12,000 个字符");
@@ -20,9 +22,10 @@ export function createSelectionService({ core, validators, settingsStore, cacheS
 		const text = core.normalizeSourceText(message.text);
 		if (!text || !/\p{L}/u.test(text)) throw new Error("请先选择需要翻译的文字");
 		pending.get(key)?.controller.abort();
-		const task = { requestId, controller: new AbortController() };
+		const task = { tabId, frameId, requestId, controller: new AbortController() };
 		pending.set(key, task);
-		const signal = task.controller.signal;
+		const deadline = AbortSignal.timeout(60_000);
+		const signal = AbortSignal.any([task.controller.signal, deadline]);
 		try {
 			const settings = await settingsStore.getSettings();
 			signal.throwIfAborted();
@@ -57,13 +60,19 @@ export function createSelectionService({ core, validators, settingsStore, cacheS
 			}
 			signal.throwIfAborted();
 			return { requestId, ...pair, text: segments.map((segment) => translations.get(segment.id)).join("\n") };
+		} catch (error) {
+			if (deadline.aborted && !task.controller.signal.aborted) {
+				throw new Error("划词翻译超时，请重试或更换翻译服务");
+			}
+			throw error;
 		} finally {
 			if (pending.get(key) === task) pending.delete(key);
 		}
 	}
 
 	function cancel(message, sender) {
-		const key = ownerKey(sender);
+		const { key } = owner(sender);
+		validators.validateRunId(message.requestId);
 		const task = pending.get(key);
 		if (task?.requestId === message.requestId) {
 			task.controller.abort();
@@ -74,7 +83,7 @@ export function createSelectionService({ core, validators, settingsStore, cacheS
 
 	function removeTab(tabId, frameId = null) {
 		for (const [key, task] of pending) {
-			if (frameId === null ? key.startsWith(`${tabId}:`) : key === `${tabId}:${frameId}`) {
+			if (task.tabId === tabId && (frameId === null || task.frameId === frameId)) {
 				task.controller.abort();
 				pending.delete(key);
 			}

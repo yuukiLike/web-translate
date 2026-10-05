@@ -19,6 +19,7 @@ import { ContentTrace } from "./translation/content-trace.js";
 
 /** 一次 start -> stop 的完整运行。依赖对象都限定在本次运行内。 */
 export class TranslationRun {
+	#failed = false;
 	active = true;
 	passRunning = false;
 	rescanRequested = false;
@@ -40,6 +41,7 @@ export class TranslationRun {
 			hasPendingWork: () => this.#hasPendingWork(),
 			onRetry: () => {
 				if (!this.planner) return this.runtime.openOptions();
+				this.#failed = false;
 				return this.runTranslationPass();
 			},
 		});
@@ -89,7 +91,7 @@ export class TranslationRun {
 	}
 
 	async runTranslationPass() {
-		if (!this.active) {
+		if (!this.active || this.#failed) {
 			return;
 		}
 		if (this.passRunning) {
@@ -123,7 +125,14 @@ export class TranslationRun {
 	}
 
 	handleError(error) {
+		if (!this.active || error?.name === "AbortError" || error?.message === "翻译已取消") return;
+		// 保留已显示的译文和待处理根，等待用户重试，避免动态页面反复触发失败请求。
+		this.#failed = true;
 		this.statusReporter.handleError(error);
+		if (!this.planner) {
+			this.active = false;
+			void this.runtime.cancelRun(this.runId).catch(() => {});
+		}
 	}
 
 	#createServices() {

@@ -28,7 +28,8 @@ export function parseModelTranslations(content, expectedIds) {
 	if (
 		parsed.translations.length !== expectedIds.length ||
 		!parsed.translations.every(
-			(item) => isRecord(item) && typeof item.id === "string" && typeof item.text === "string",
+			(item) => isRecord(item) && typeof item.id === "string" &&
+				typeof item.text === "string" && item.text.trim().length > 0,
 		)
 	) {
 		throw invalidModelResponse("模型返回的译文数量与原文不一致");

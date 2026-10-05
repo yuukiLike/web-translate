@@ -1,198 +1,210 @@
-import { closestComposed, textParent } from "../dom/node-utils.js";
+import { captureSelection, selectionConnected } from "./selection-snapshot.js";
+import { SelectionTracker } from "./selection-tracker.js";
 import { SelectionView } from "./selection-view.js";
 
-/** 选择只在本机预览；点击翻译或发音时才向后台提交文字。 */
+const MAX_TRANSLATION_LENGTH = 12_000;
+const MAX_SPEECH_LENGTH = 6_000;
+
+/** 每次选择拥有自己的请求和结果；关闭后旧回调不能再改写新浮层。 */
 export class SelectionController {
-	#listeners = null;
-	#timer = null;
-	#selecting = false;
-	#selection = null;
-	#requestId = null;
-	#speechId = null;
-	#response = null;
-	#dismissedText = "";
+	#session = null;
 	active = false;
 
 	constructor({ core, runtime }) {
-		this.core = core;
-		this.runtime = runtime;
+		Object.assign(this, { core, runtime });
 		this.view = new SelectionView({
-			translate: () => void this.translate(),
-			speak: () => void this.speak(),
+			translate: (event) => void this.translate(event.detail === 0),
+			speak: (event) => void this.speak(event.detail === 0),
 			copy: () => void this.copy(),
 			close: () => this.close(),
-			settings: () => void this.runtime.openOptions().catch((error) => this.view.setNotice(error.message, true)),
+			lost: () => this.close({ restoreFocus: false }),
+			settings: () => void this.openSettings(),
+		});
+		this.tracker = new SelectionTracker({
+			core, view: this.view,
+			onSelection: (snapshot) => this.#preview(snapshot),
+			onOutside: () => this.close({ restoreFocus: false }),
+			onEscape: () => this.close(),
 		});
 	}
 
 	enable() {
 		if (this.active) return;
 		this.active = true;
-		this.#listeners = new AbortController();
-		const options = { signal: this.#listeners.signal };
-		document.addEventListener("pointerdown", (event) => {
-			if (this.view.contains(event)) return;
-			this.#selecting = true;
-			this.close();
-			this.#dismissedText = "";
-		}, options);
-		document.addEventListener("pointerup", () => {
-			this.#selecting = false;
-			this.#schedule();
-		}, options);
-		document.addEventListener("selectionchange", () => this.#schedule(), options);
-		document.addEventListener("keyup", () => this.#schedule(), options);
-		document.addEventListener("keydown", (event) => {
-			if (event.key === "Escape") this.close();
-		}, options);
-		window.addEventListener("scroll", () => {
-			if (!this.view.panelOpen) this.view.remove();
-		}, { ...options, capture: true, passive: true });
-		window.addEventListener("resize", () => this.view.position(), options);
-		window.addEventListener("pagehide", () => this.disable(), options);
+		this.tracker.enable();
 	}
 
 	disable() {
 		this.active = false;
-		this.#listeners?.abort();
-		this.#listeners = null;
-		this.close();
+		this.tracker.disable();
+		this.close({ restoreFocus: false });
+	}
+
+	getSelection() {
+		const snapshot = this.view.focused ? this.#session?.snapshot : captureSelection(this.core);
+		return snapshot && selectionConnected(snapshot) ? { text: snapshot.text, focused: document.hasFocus() } : null;
 	}
 
 	open(text = "", speakOnly = false) {
+		if (typeof text !== "string") throw new Error("选中文字格式无效");
+		const normalized = this.core.normalizeSourceText(text);
+		const current = captureSelection(this.core);
+		const saved = this.#session?.snapshot;
+		let snapshot = current;
+		if (normalized && current?.text !== normalized) {
+			snapshot = this.view.focused && saved?.text === normalized && selectionConnected(saved)
+				? saved : { text: normalized };
+		}
+		if (!snapshot?.text || !/\p{L}/u.test(snapshot.text)) throw new Error("请先选择需要翻译的文字");
 		this.enable();
-		const selected = this.#readSelection();
-		if (text) this.#selection = { text: this.core.normalizeSourceText(text), rectangle: selected?.rectangle };
-		else if (selected) this.#selection = selected;
-		if (!this.#selection?.text) throw new Error("请先选择需要翻译的文字");
-		this.#response = null;
-		const source = this.core.getLanguagePair("", this.#selection.text).sourceLanguage;
-		this.view.showPanel(this.#selection.text, source);
-		this.view.position(this.#selection.rectangle);
-		if (speakOnly) {
-			this.view.showError("点击「重新翻译」查看双语译文");
-			this.view.resultText.dataset.error = "false";
-			void this.speak();
-		} else void this.translate();
-	}
-
-	async translate() {
-		if (!this.#selection) return;
-		if (!this.view.panelOpen) {
-			this.open(this.#selection.text);
+		if (snapshot === saved && this.view.panelOpen) {
+			if (speakOnly) void this.speak();
+			else void this.translate();
 			return;
 		}
-		this.#cancelTranslation();
-		this.#response = null;
+		this.close({ restoreFocus: false });
+		this.#session = this.#createSession(snapshot);
+		this.#showPanel(true);
+		if (speakOnly) void this.speak();
+		else void this.translate();
+	}
+
+	async translate(focus = false) {
+		const session = this.#session;
+		if (!session || session.requestId) return;
+		if (!this.view.panelOpen) this.#showPanel(focus);
+		this.#stopSpeech(session);
+		session.response = null;
+		this.#updateSpeechAvailability(session);
+		if (session.snapshot.text.length > MAX_TRANSLATION_LENGTH) {
+			this.view.showError("选中文字超过 12,000 个字符，请缩小选择范围");
+			return;
+		}
 		const requestId = crypto.randomUUID();
-		this.#requestId = requestId;
+		session.requestId = requestId;
 		this.view.loading();
 		try {
-			const response = await this.runtime.send({ type: "TRANSLATE_SELECTION", requestId, text: this.#selection.text });
-			if (this.#requestId !== requestId || !this.view.panelOpen) return;
-			this.#response = response;
+			const response = await this.runtime.send({ type: "TRANSLATE_SELECTION", requestId, text: session.snapshot.text });
+			if (this.#session !== session || session.requestId !== requestId) return;
+			session.response = response;
 			this.view.showResult(response);
+			this.#updateSpeechAvailability(session);
 		} catch (error) {
-			if (this.#requestId === requestId) this.view.showError(error.message);
+			if (this.#session === session && session.requestId === requestId) this.view.showError(error.message);
 		} finally {
-			if (this.#requestId === requestId) this.#requestId = null;
+			if (session.requestId === requestId) session.requestId = null;
 		}
 	}
 
-	async speak() {
-		if (this.#speechId) {
-			this.#stopSpeech();
+	async speak(focus = false) {
+		const session = this.#session;
+		if (!session) return;
+		if (!this.view.panelOpen) this.#showPanel(focus);
+		if (session.speechId) {
+			this.#stopSpeech(session);
+			this.view.setNotice("朗读已停止");
 			return;
 		}
-		if (!this.#selection) return;
-		const sourceLanguage = this.#response?.sourceLanguage ?? this.core.getLanguagePair("", this.#selection.text).sourceLanguage;
-		const text = sourceLanguage === "en" ? this.#selection.text : this.#response?.text;
-		if (!text) {
-			this.view.setNotice("英语译文完成后即可朗读", true);
+		const text = this.#englishText(session);
+		if (!text || text.length > MAX_SPEECH_LENGTH) {
+			this.view.setNotice(text ? "朗读最多支持 6,000 个字符，请缩小选择范围" : "英语译文完成后即可朗读", true);
 			return;
 		}
 		const requestId = crypto.randomUUID();
-		this.#speechId = requestId;
+		session.speechId = requestId;
 		this.view.showSpeech("loading");
 		try {
 			const response = await this.runtime.send({ type: "SPEAK_TEXT", requestId, text });
-			if (this.#speechId !== requestId) return;
-			if (response.cancelled) this.#stopSpeech();
-			else this.view.showSpeech("playing", response.engine);
+			if (this.#session !== session || session.speechId !== requestId) return;
+			if (response.cancelled) {
+				this.#stopSpeech(session);
+				this.view.setNotice("朗读已取消");
+			} else this.view.showSpeech("playing", response.engine);
 		} catch (error) {
-			if (this.#speechId !== requestId) return;
-			this.#speechId = null;
+			if (this.#session !== session || session.speechId !== requestId) return;
+			session.speechId = null;
 			this.view.showSpeech("idle");
 			this.view.setNotice(error.message, true);
 		}
 	}
 
 	onSpeechEvent(message) {
-		if (this.#speechId !== message.requestId) return;
+		const session = this.#session;
+		if (!session || session.speechId !== message.requestId) return;
+		if (message.state === "start") this.view.showSpeech("playing", message.engine);
 		if (["end", "cancelled", "interrupted", "error"].includes(message.state)) {
-			this.#speechId = null;
+			session.speechId = null;
 			this.view.showSpeech("idle");
-			this.view.setNotice(message.error || "朗读已结束", message.state === "error");
+			this.view.setNotice(message.error || (message.state === "end" ? "朗读已结束" : "朗读已停止"), message.state === "error");
 		}
 	}
 
 	async copy() {
-		if (!this.#response?.text) return;
+		const session = this.#session;
+		const text = session?.response?.text;
+		if (!text) return;
 		try {
-			await navigator.clipboard.writeText(this.#response.text);
-			this.view.setNotice("译文已复制");
+			await navigator.clipboard.writeText(text);
+			if (this.#session === session) this.view.setNotice("译文已复制");
 		} catch {
-			this.view.setNotice("无法访问剪贴板，请直接选中译文复制", true);
+			if (this.#session !== session) return;
+			this.view.selectTranslation();
+			this.view.setNotice("浏览器限制直接复制，请按 Ctrl/Cmd+C 复制已选中的译文");
 		}
 	}
 
-	close() {
-		this.#dismissedText = this.#selection?.text ?? "";
-		clearTimeout(this.#timer);
-		this.#timer = null;
-		this.#cancelTranslation();
-		this.#stopSpeech();
-		this.view.remove();
-		this.#response = null;
+	async openSettings() {
+		const session = this.#session;
+		try { await this.runtime.openOptions(); }
+		catch (error) {
+			if (this.#session === session) this.view.setNotice(error.message, true);
+		}
 	}
 
-	#cancelTranslation() {
-		if (!this.#requestId) return;
-		void this.runtime.send({ type: "CANCEL_SELECTION", requestId: this.#requestId }).catch(() => {});
-		this.#requestId = null;
+	close(options = {}) {
+		const session = this.#session;
+		this.#session = null;
+		this.tracker.dismiss();
+		if (session?.requestId) void this.runtime.send({ type: "CANCEL_SELECTION", requestId: session.requestId }).catch(() => {});
+		this.#stopSpeech(session);
+		this.view.remove(options);
 	}
 
-	#stopSpeech() {
-		if (this.#speechId) void this.runtime.send({ type: "STOP_SPEECH", requestId: this.#speechId }).catch(() => {});
-		this.#speechId = null;
+	#preview(snapshot) {
+		if (this.view.panelOpen) return;
+		if (!snapshot) { this.close({ restoreFocus: false }); return; }
+		this.#session = this.#createSession(snapshot);
+		const english = this.#englishText(this.#session);
+		this.view.showLauncher(snapshot, Boolean(english && english.length <= MAX_SPEECH_LENGTH));
+	}
+
+	#createSession(snapshot) {
+		return { snapshot, sourceLanguage: this.core.getLanguagePair("", snapshot.text).sourceLanguage,
+			response: null, requestId: null, speechId: null };
+	}
+
+	#showPanel(focus) {
+		const session = this.#session;
+		this.tracker.dismiss();
+		this.view.showPanel(session.snapshot, session.sourceLanguage, { focus });
+		this.#updateSpeechAvailability(session);
+	}
+
+	#englishText(session) {
+		return (session.response?.sourceLanguage ?? session.sourceLanguage) === "en" ? session.snapshot.text : session.response?.text;
+	}
+
+	#updateSpeechAvailability(session) {
+		const text = this.#englishText(session);
+		this.view.setSpeechAvailable(Boolean(text && text.length <= MAX_SPEECH_LENGTH),
+			text ? "朗读最多支持 6,000 个字符" : "翻译完成后可朗读英语译文");
+	}
+
+	#stopSpeech(session) {
+		if (session?.speechId) {
+			void this.runtime.send({ type: "STOP_SPEECH", requestId: session.speechId }).catch(() => {});
+			session.speechId = null;
+		}
 		this.view.showSpeech("idle");
-	}
-
-	#schedule() {
-		if (this.#selecting || this.view.panelOpen) return;
-		clearTimeout(this.#timer);
-		this.#timer = setTimeout(() => {
-			this.#timer = null;
-			const selected = this.#readSelection();
-			if (!selected || selected.text === this.#dismissedText) {
-				this.view.remove();
-				return;
-			}
-			this.#selection = selected;
-			this.view.showLauncher(selected.rectangle);
-		}, 140);
-	}
-
-	#readSelection() {
-		const selection = window.getSelection();
-		if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
-		const anchor = selection.anchorNode?.nodeType === Node.ELEMENT_NODE
-			? selection.anchorNode : selection.anchorNode ? textParent(selection.anchorNode) : null;
-		if (closestComposed(anchor, "[data-bt-ui], input, textarea, [contenteditable]:not([contenteditable='false'])")) return null;
-		const text = this.core.normalizeSourceText(selection.toString());
-		if (!text || !/\p{L}/u.test(text)) return null;
-		const rectangles = [...selection.getRangeAt(0).getClientRects()];
-		const rectangle = rectangles.findLast((rect) => rect.width > 0 && rect.height > 0);
-		return { text, rectangle };
 	}
 }

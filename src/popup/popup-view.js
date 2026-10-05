@@ -24,16 +24,14 @@ const LOAD_FAILURE_COPY = Object.freeze({
 	protocol: {
 		provider: "后台版本未同步",
 		model: "重新载入扩展后再试",
-		debug: "待重载",
 		status: "检测到旧版后台。重新载入扩展后，再次点击工具栏图标。",
 	},
 	timeout: {
 		provider: "后台响应超时",
 		model: "可重新载入扩展后再试",
-		debug: "待恢复",
 		status: "扩展后台长时间未响应，可以重新载入后再试。",
 	},
-	unavailable: { provider: "后台暂时不可用", model: "请稍后重试", debug: "不可用" },
+	unavailable: { provider: "后台暂时不可用", model: "请稍后重试" },
 });
 
 function getRequiredElement(document, selector) {
@@ -44,8 +42,7 @@ function getRequiredElement(document, selector) {
 
 export function createPopupView(document) {
 	const elements = {
-		debug: getRequiredElement(document, "#open-debug"),
-		debugState: getRequiredElement(document, "#debug-state"),
+		readingSettings: getRequiredElement(document, "#open-reading"),
 		label: getRequiredElement(document, "#toggle-label"),
 		languageFields: getRequiredElement(document, "#language-fields"),
 		languageNote: getRequiredElement(document, "#language-note"),
@@ -77,8 +74,6 @@ export function createPopupView(document) {
 		elements.version.textContent = `v${state.version}`;
 		elements.provider.textContent = state.providerLabel || "尚未选择";
 		elements.model.textContent = state.model || "无需选择模型";
-		elements.debugState.textContent = state.debugLogging ? "记录中" : "已关闭";
-		elements.debugState.dataset.enabled = String(Boolean(state.debugLogging));
 		elements.readingStyle.value = state.reading?.style ?? "soft";
 	}
 
@@ -86,8 +81,6 @@ export function createPopupView(document) {
 		const copy = LOAD_FAILURE_COPY[reason];
 		elements.provider.textContent = copy.provider;
 		elements.model.textContent = copy.model;
-		elements.debugState.textContent = copy.debug;
-		elements.debugState.dataset.enabled = "false";
 		showStatus(copy.status || errorMessage, true);
 	}
 
@@ -126,12 +119,12 @@ export function createPopupView(document) {
 		showStatus(ACTION_COPY[action].accessibleBusy);
 	}
 
-	function bindActions({ changeSource, changeTarget, changeStyle, toggleSelection, toggle, openSettings, openDebug }) {
+	function bindActions({ changeSource, changeTarget, changeStyle, toggleSelection, toggle, openSettings, openReadingSettings }) {
 		elements.source.addEventListener("change", () => changeSource(elements.source.value));
 		elements.target.addEventListener("change", () => changeTarget(elements.target.value));
 		elements.toggle.addEventListener("click", () => void toggle());
 		elements.settings.addEventListener("click", () => void openSettings());
-		elements.debug.addEventListener("click", () => void openDebug());
+		elements.readingSettings.addEventListener("click", () => void openReadingSettings());
 		elements.readingStyle.addEventListener("change", () => void changeStyle(elements.readingStyle.value));
 		elements.selection.addEventListener("click", () => void toggleSelection());
 	}

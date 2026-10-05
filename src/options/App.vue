@@ -66,6 +66,8 @@ function getSubmitLabel() {
 	if (reloadRequired.value) return "重新载入扩展";
 	return connected.value ? "重新测试" : "保存并测试";
 }
+
+function reloadOptions() { globalThis.location.reload(); }
 </script>
 
 <template>
@@ -96,6 +98,7 @@ function getSubmitLabel() {
 				<div>
 					<h1>设置页未能加载</h1>
 					<p>{{ fatal }}</p>
+					<button class="text-button" type="button" @click="reloadOptions">重新加载</button>
 				</div>
 			</section>
 
@@ -126,17 +129,19 @@ function getSubmitLabel() {
 						<span v-if="connected" class="connected"><i aria-hidden="true"></i>连接可用</span>
 					</div>
 
-					<ProviderPicker v-model="draft.provider" :providers="providers" />
+					<fieldset class="setup-fields" :disabled="Boolean(busy)">
+						<ProviderPicker v-model="draft.provider" :providers="providers" />
 
-					<ProviderFields
-						:key="selectedProvider.id"
-						v-model:api-key="draft[selectedProvider.id].apiKey"
-						v-model:base-url="draft.custom.baseUrl"
-						v-model:model="draft[selectedProvider.id].model"
-						v-model:region="draft.azure.region"
-						:models="catalogInfo.models[selectedProvider.id]"
-						:provider="selectedProvider"
-					/>
+						<ProviderFields
+							:key="selectedProvider.id"
+							v-model:api-key="draft[selectedProvider.id].apiKey"
+							v-model:base-url="draft.custom.baseUrl"
+							v-model:model="draft[selectedProvider.id].model"
+							v-model:region="draft.azure.region"
+							:models="catalogInfo.models[selectedProvider.id]"
+							:provider="selectedProvider"
+						/>
+					</fieldset>
 
 					<div class="submit-row">
 						<button id="test-provider" class="primary" type="submit" :disabled="Boolean(busy)">
@@ -152,41 +157,43 @@ function getSubmitLabel() {
 						密钥仅存本机；正文只发送给 {{ selectedProvider.name }}。
 					</p>
 
-					<details id="behavior" class="fold">
-						<summary>
-							<strong>翻译方式</strong>
-							<span>{{ selectedSource.name }} → {{ selectedTarget.name }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
-						</summary>
-						<div class="fold-body behavior-grid">
-							<label class="field">
-								<span>输入语言</span>
-								<select id="source-mode" :value="draft.sourceMode" @change="setSourceMode($event.target.value)">
-									<option v-for="source in sources" :key="source.id" :value="source.id">
-										{{ source.name }}
-									</option>
-								</select>
-							</label>
-							<label class="field">
-								<span>输出语言</span>
-								<select id="target-mode" :value="draft.targetMode" @change="setTargetMode($event.target.value)">
-									<option v-for="target in targets" :key="target.id" :value="target.id">
-										{{ target.name }}
-									</option>
-								</select>
-							</label>
-							<label class="field">
-								<span>云端并发</span>
-								<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
-							</label>
-							<label class="toggle-row">
-								<span><strong>增量翻译</strong><small>无限滚动、SPA 与懒加载</small></span>
-								<input id="translate-dynamic" v-model="draft.translateDynamicContent" type="checkbox" />
-								<i aria-hidden="true"></i>
-							</label>
-						</div>
-					</details>
+					<fieldset class="setup-fields" :disabled="Boolean(busy)">
+						<details id="behavior" class="fold">
+							<summary>
+								<strong>翻译方式</strong>
+								<span>{{ selectedSource.name }} → {{ selectedTarget.name }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
+							</summary>
+							<div class="fold-body behavior-grid">
+								<label class="field">
+									<span>输入语言</span>
+									<select id="source-mode" :value="draft.sourceMode" @change="setSourceMode($event.target.value)">
+										<option v-for="source in sources" :key="source.id" :value="source.id">
+											{{ source.name }}
+										</option>
+									</select>
+								</label>
+								<label class="field">
+									<span>输出语言</span>
+									<select id="target-mode" :value="draft.targetMode" @change="setTargetMode($event.target.value)">
+										<option v-for="target in targets" :key="target.id" :value="target.id">
+											{{ target.name }}
+										</option>
+									</select>
+								</label>
+								<label class="field">
+									<span>云端并发</span>
+									<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
+								</label>
+								<label class="toggle-row">
+									<span><strong>增量翻译</strong><small>无限滚动、SPA 与懒加载</small></span>
+									<input id="translate-dynamic" v-model="draft.translateDynamicContent" type="checkbox" />
+									<i aria-hidden="true"></i>
+								</label>
+							</div>
+						</details>
 
-					<ContentFilters v-model="draft.contentFilters" />
+						<ContentFilters v-model="draft.contentFilters" />
+					</fieldset>
 
 					<ReadingPreferences
 						v-model:reading="draft.reading"
@@ -198,26 +205,6 @@ function getSubmitLabel() {
 						@speak="previewSpeech"
 						@grant-frames="grantFrames"
 					/>
-
-					<details class="fold catalog-fold">
-						<summary>
-							<strong>模型目录</strong>
-							<span>固定快照，不在运行时联网更新</span>
-						</summary>
-						<p
-							id="catalog-status"
-							class="catalog-status"
-							:data-error="String(Boolean(catalogInfo.error))"
-							role="status"
-						>
-							<template v-if="catalogInfo.error">{{ catalogInfo.error }}</template>
-							<template v-else>
-								Snapshot <code id="catalog-source-sha">{{ catalogInfo.sha }}</code>
-								·
-								<time id="catalog-fetched-at" :datetime="catalogInfo.dateTime">{{ catalogInfo.dateText }}</time>
-							</template>
-						</p>
-					</details>
 
 					<details class="fold">
 						<summary>

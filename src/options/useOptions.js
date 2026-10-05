@@ -116,10 +116,14 @@ export function useOptions() {
 		acceptLanguagePair(changeTargetLanguage(currentLanguagePair(), targetMode));
 	}
 
-	function acceptSavedSettings(value) {
+	function acceptSavedSettings(value, { preserveReading = false } = {}) {
 		const settings = core.normalizeSettings(value);
+		const pendingReading = { reading: draft.reading, speech: draft.speech };
 		Object.assign(draft, settings);
-		readingPreferences.accept(settings);
+		if (preserveReading) {
+			Object.assign(draft, pendingReading);
+			readingPreferences.sync(settings);
+		} else readingPreferences.accept(settings);
 		debugSettings.accept(settings);
 		return settings;
 	}
@@ -155,13 +159,14 @@ export function useOptions() {
 			readingPreferences.accept(draft);
 			acceptUsage(response.usage);
 		} catch (error) {
-			setStatus(errorText(error), true);
+			fatal.value = errorText(error);
 		} finally {
 			ready.value = true;
 		}
 	}
 
 	async function testProvider() {
+		if (busy.value) return false;
 		if (reloadRequired.value) {
 			runtime.reload();
 			return false;
@@ -171,7 +176,11 @@ export function useOptions() {
 		setStatus("正在测试连接…");
 		try {
 			if (fatal.value) throw new Error(fatal.value);
-			acceptSavedSettings(await providerSetup.saveSettings(draft));
+			const revisionAtStart = preferencesRevision;
+			const saved = await providerSetup.saveSettings(draft);
+			const latestPair = currentLanguagePair();
+			acceptSavedSettings(saved, { preserveReading: true });
+			if (preferencesRevision !== revisionAtStart) acceptLanguagePair(latestPair);
 			const tested = await providerSetup.testConnection();
 			acceptUsage(tested.usage);
 			setStatus(tested.message);
@@ -190,6 +199,7 @@ export function useOptions() {
 	}
 
 	async function clearCache() {
+		if (busy.value) return false;
 		busy.value = "cache";
 		setStatus("正在清理缓存…");
 		try {

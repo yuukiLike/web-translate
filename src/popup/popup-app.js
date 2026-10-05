@@ -194,9 +194,9 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		}
 	}
 
-	async function openDebug() {
+	async function openReadingSettings() {
 		try {
-			await chrome.tabs.create({ url: chrome.runtime.getURL("options/index.html#debug") });
+			await chrome.tabs.create({ url: chrome.runtime.getURL("options/index.html#reading") });
 			closePopup();
 		} catch (error) {
 			showStatus(getErrorMessage(error), true);
@@ -214,7 +214,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		changeStyle,
 		toggleSelection,
 		openSettings,
-		openDebug,
+		openReadingSettings,
 	});
 
 	return { load };

@@ -40,6 +40,8 @@ export class StatusView {
 		const status = document.createElement("div");
 		status.className = "bt-status";
 		status.dataset.btOwned = "true";
+		status.dataset.btUi = "status";
+		status.setAttribute("translate", "no");
 		status.setAttribute("role", "status");
 		status.setAttribute("aria-live", "polite");
 

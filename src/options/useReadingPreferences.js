@@ -4,6 +4,7 @@ import { saveReadingPreferences } from "./readingSetup.js";
 
 export function useReadingPreferences({ busy, draft, permissions, runtime, sendMessage, setStatus }) {
 	let previewId = null;
+	let exiting = false;
 	const previewActive = ref(false);
 	let savedReading = JSON.stringify(draft.reading);
 	let savedSpeech = JSON.stringify(draft.speech);
@@ -23,6 +24,7 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 		if (busy.value) return false;
 		busy.value = "reading";
 		try {
+			if (previewId) await stopPreview();
 			const settings = await saveReadingPreferences({ permissions, sendMessage }, draft);
 			draft.reading = settings.reading;
 			draft.speech = settings.speech;
@@ -42,7 +44,7 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 			await stopPreview();
 			return;
 		}
-		if (!await save()) return;
+		if (!await save() || exiting) return;
 		busy.value = "speech";
 		previewId = crypto.randomUUID();
 		previewActive.value = true;
@@ -61,6 +63,7 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 
 	async function stopPreview() {
 		const requestId = previewId;
+		if (!requestId) return;
 		finishPreview("英语试听已停止");
 		try {
 			await sendMessage({ type: "STOP_SPEECH", requestId });
@@ -82,7 +85,20 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 		finishPreview(message.error || "英语试听已结束", message.state === "error");
 	}
 
-	onMounted(() => runtime?.onMessage?.addListener(onSpeechEvent));
+	function stopOnExit() {
+		exiting = true;
+		if (previewId) void sendMessage({ type: "STOP_SPEECH", requestId: previewId }).catch(() => {});
+		previewId = null;
+		previewActive.value = false;
+		if (busy.value === "speech") busy.value = "";
+	}
+	function resumePage() { exiting = false; }
+
+	onMounted(() => {
+		runtime?.onMessage?.addListener(onSpeechEvent);
+		window.addEventListener("pagehide", stopOnExit);
+		window.addEventListener("pageshow", resumePage);
+	});
 
 	async function grantFrames() {
 		if (busy.value) return;
@@ -100,7 +116,9 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 
 	onBeforeUnmount(() => {
 		runtime?.onMessage?.removeListener(onSpeechEvent);
-		if (previewId) void sendMessage({ type: "STOP_SPEECH", requestId: previewId }).catch(() => {});
+		window.removeEventListener("pagehide", stopOnExit);
+		window.removeEventListener("pageshow", resumePage);
+		stopOnExit();
 	});
 
 	return { save, previewSpeech, previewActive, grantFrames, accept, sync };

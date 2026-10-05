@@ -105,8 +105,7 @@
 	white-space: nowrap;
 }
 
-.fold-body,
-.catalog-status {
+.fold-body {
 	padding: 2px 34px 25px;
 }
 
@@ -212,22 +211,4 @@
 	cursor: not-allowed;
 }
 
-.catalog-status {
-	margin: 0;
-	color: var(--ink-soft);
-	font-size: 12px;
-	line-height: 1.6;
-}
-
-.catalog-status code {
-	padding: 2px 5px;
-	border-radius: 4px;
-	background: var(--surface-soft);
-	color: var(--pine);
-	font-size: 11px;
-	font-weight: 700;
-}
-
-.catalog-status[data-error="true"] {
-	color: var(--danger);
-}
+.setup-fields { min-width: 0; margin: 0; padding: 0; border: 0; }

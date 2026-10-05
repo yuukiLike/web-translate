@@ -24,23 +24,22 @@ export function isTranslationExcluded(element) {
 }
 
 export function composedParent(element) {
-	return element?.parentElement ?? element?.getRootNode?.().host ?? null;
+	return element?.assignedSlot ?? element?.parentElement ?? element?.getRootNode?.().host ?? null;
 }
 
 export function closestComposed(element, selector) {
-	for (let current = element; current; current = current.getRootNode?.().host ?? null) {
-		const match = current.closest?.(selector);
-		if (match) return match;
+	for (let current = element; current; current = composedParent(current)) {
+		if (current.matches?.(selector)) return current;
 	}
 	return null;
 }
 
 export function textParent(node) {
-	return node.parentElement ?? node.getRootNode?.().host ?? null;
+	return composedParent(node);
 }
 
 export function containsComposed(root, node) {
-	for (let current = node; current; current = current.getRootNode?.().host ?? null) {
+	for (let current = node; current; current = composedParent(current)) {
 		if (root === current || root?.contains(current)) return true;
 	}
 	return false;

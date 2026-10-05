@@ -35,23 +35,31 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 			segments,
 			{ ...debugMetadataFields, incognito, requestPayloadAllowed },
 		);
-		return await translateWithRecovery({
-			settings,
-			providerId,
-			providerSettings,
-			sourceLanguage,
-			targetLanguage,
-			segments,
-			signal,
-			requestDebug,
-			requestPayloadAllowed,
-			recoveryDepth: 0,
-			rootIds: new Map(segments.map((segment) => [segment.id, segment.id])),
-			recoveryState: {
-				remainingSplits: MAX_RESPONSE_RECOVERY_SPLITS,
-				nextSplitId: 0,
-			},
-		});
+		const deadline = AbortSignal.timeout(90_000);
+		try {
+			return await translateWithRecovery({
+				settings,
+				providerId,
+				providerSettings,
+				sourceLanguage,
+				targetLanguage,
+				segments,
+				signal: AbortSignal.any([signal, deadline]),
+				requestDebug,
+				requestPayloadAllowed,
+				recoveryDepth: 0,
+				rootIds: new Map(segments.map((segment) => [segment.id, segment.id])),
+				recoveryState: {
+					remainingSplits: MAX_RESPONSE_RECOVERY_SPLITS,
+					nextSplitId: 0,
+				},
+			});
+		} catch (error) {
+			if (deadline.aborted && !signal.aborted) {
+				throw attachTranslationUsage(new Error("模型翻译与自动恢复超时，请重试或更换服务"), error.translationUsage);
+			}
+			throw error;
+		}
 	}
 
 	async function translateWithRecovery(context) {

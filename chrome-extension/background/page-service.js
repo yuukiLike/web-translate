@@ -101,9 +101,9 @@ export function createPageService({ chrome, core, settingsStore, onNavigation })
 			}
 			const settings = await settingsStore.getSettings();
 			const previous = await getState(tab.id);
-			if (frameId !== 0) await sendCommand(tab.id, 0, {
-				command: "sync", active: previous.active, selectionActive: true, settings: core.publicSettings(settings),
-			});
+			if (!previous.selectionActive) await synchronize(tab.id, {
+				active: previous.active, selectionActive: true,
+			}, settings);
 			await sendCommand(tab.id, frameId, {
 				command: "selection",
 				settings: core.publicSettings(settings),
@@ -123,17 +123,31 @@ export function createPageService({ chrome, core, settingsStore, onNavigation })
 
 	async function findSelection(tabId) {
 		const frames = await getFrames(tabId);
-		const outcomes = await Promise.allSettled(frames.map((frameId) => chrome.scripting.executeScript({
-			target: { tabId, frameIds: [frameId] },
-			func: () => {
-				const focused = document.activeElement;
-				if (focused?.matches("input, textarea") || focused?.isContentEditable) return null;
-				const text = window.getSelection()?.toString().trim();
-				return text ? { text, focused: document.hasFocus() } : null;
-			},
-		})));
+		const outcomes = await Promise.allSettled(frames.map(async (frameId) => {
+			try {
+				return await chrome.tabs.sendMessage(tabId, { type: "BT_GET_SELECTION" }, { frameId });
+			} catch {
+				const [result] = await chrome.scripting.executeScript({
+					target: { tabId, frameIds: [frameId] },
+					func: () => {
+						let focused = document.activeElement;
+						while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+						if (focused?.matches("input, textarea") || focused?.isContentEditable) return null;
+						const selection = window.getSelection();
+						const excluded = "[data-bt-ui], input, textarea, [contenteditable]:not([contenteditable='false'])";
+						for (const node of [selection?.anchorNode, selection?.focusNode]) {
+							const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+							if (element?.closest(excluded)) return null;
+						}
+						const text = selection?.toString().trim();
+						return text ? { text, focused: document.hasFocus() } : null;
+					},
+				});
+				return result?.result ?? null;
+			}
+		}));
 		const selected = outcomes.flatMap((outcome, index) => {
-			const result = outcome.status === "fulfilled" ? outcome.value[0]?.result : null;
+			const result = outcome.status === "fulfilled" ? outcome.value : null;
 			return result ? [{ ...result, frameId: frames[index] }] : [];
 		});
 		return selected.findLast((item) => item.focused) ?? selected[0];
@@ -173,8 +187,7 @@ export function createPageService({ chrome, core, settingsStore, onNavigation })
 	function handleNavigation(details) {
 		return commands.run(details.tabId, async () => {
 			const session = await getSession(details.tabId);
-			if (!session) return;
-			if (details.frameId === 0) await removeSession(details.tabId);
+			if (session && details.frameId === 0) await removeSession(details.tabId);
 			await onNavigation(details.tabId, details.frameId);
 		});
 	}

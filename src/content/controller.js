@@ -30,16 +30,15 @@ class TranslationController {
 	}
 
 	async #execute(message) {
-		const selectionWasEnabled = this.settings?.reading.selectionEnabled;
 		if (message.settings) {
 			this.settings = message.settings;
 			const run = this.#currentRun;
 			run?.renderer?.updateReading(this.settings.reading, run.pageRoots.roots);
 		}
 		if (message.command === "preferences") {
-			if (selectionWasEnabled && !this.settings?.reading.selectionEnabled) this.selection.disable();
+			// 自动划词是下次启用整页翻译的默认值；不覆盖用户在当前页的手动开关。
+			return this.getState();
 		} else if (message.command === "selection") {
-			this.selection.close();
 			this.selection.open(message.text, message.speakOnly === true);
 		} else if (message.command === "sync") {
 			if (message.selectionActive) this.selection.enable();
@@ -125,6 +124,10 @@ export function installController(core) {
 		}
 		if (message?.type === "BT_SPEECH_EVENT") {
 			implementation.selection.onSpeechEvent(message);
+			return false;
+		}
+		if (message?.type === "BT_GET_SELECTION") {
+			sendResponse(implementation.selection.getSelection());
 			return false;
 		}
 		if (message?.type !== "BT_PAGE_COMMAND") return false;

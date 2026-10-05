@@ -14,8 +14,9 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 	}
 
 	function getOwner(sender) {
-		if (settingsStore.isExtensionPageUrl(sender.url)) return { tabId: null, frameId: null };
-		if (Number.isInteger(sender.tab?.id)) return { tabId: sender.tab.id, frameId: sender.frameId ?? 0 };
+		if (settingsStore.isExtensionPageUrl(sender.url)) return { tabId: null, frameId: null, documentId: sender.documentId ?? null };
+		if (Number.isInteger(sender.tab?.id)) return { tabId: sender.tab.id, frameId: sender.frameId ?? 0,
+			documentId: sender.documentId ?? null };
 		settingsStore.assertExtensionPage(sender);
 		return { tabId: null, frameId: null };
 	}
@@ -43,8 +44,9 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 			return;
 		}
 		await chrome.tabs.sendMessage(playback.tabId, {
-			type: "BT_SPEECH_EVENT", requestId: playback.requestId, state: type, error,
-		}, { frameId: playback.frameId }).catch(() => {});
+			type: "BT_SPEECH_EVENT", requestId: playback.requestId, state: type, engine: playback.engine, error,
+		}, playback.documentId
+			? { documentId: playback.documentId } : { frameId: playback.frameId }).catch(() => {});
 	}
 
 	async function stopPlayback(playback) {
@@ -118,9 +120,11 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 
 	function stop(message, sender) {
 		const owner = getOwner(sender);
+		validators.validateRunId(message.requestId);
 		return queue.run(async () => {
 			const playback = await active();
-			if (playback?.requestId === message.requestId && playback.tabId === owner.tabId && playback.frameId === owner.frameId) {
+			if (playback?.requestId === message.requestId && playback.tabId === owner.tabId &&
+				playback.frameId === owner.frameId && (playback.documentId ?? null) === owner.documentId) {
 				await stopPlayback(playback);
 			}
 			return {};

@@ -23,7 +23,7 @@ export function* readableNodes(root) {
 		for (const node of assigned) yield* readableNodes(node);
 		return;
 	}
-	const walker = root.ownerDocument.createTreeWalker(
+	const walker = (root.ownerDocument ?? root).createTreeWalker(
 		root,
 		NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
 		{

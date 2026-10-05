@@ -146,7 +146,7 @@ svg {
 	justify-content: space-between;
 	margin-top: 7px;
 }
-.debug-action {
+.utility-action {
 	display: inline-flex;
 	gap: 5px;
 	align-items: center;
@@ -158,21 +158,8 @@ svg {
 	cursor: pointer;
 	font-size: 10px;
 }
-.debug-action:hover {
+.utility-action:hover {
 	color: var(--pine-dark);
-}
-.debug-action > i {
-	width: 5px;
-	height: 5px;
-	border: 1px solid var(--line-strong);
-	border-radius: 50%;
-}
-.debug-action:has(.debug-state[data-enabled="true"]) > i {
-	border-color: var(--pine);
-	background: var(--pine);
-}
-.debug-state {
-	font-size: 10px;
 }
 .privacy-note {
 	margin: 0;
