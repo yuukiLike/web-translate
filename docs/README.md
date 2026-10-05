@@ -13,7 +13,7 @@ npm run build:chrome
 
 加载目录是 `chrome-extension/`。源码修改后重新构建、重新加载扩展，再刷新网页。构建成功不代表已经通过实际网站验证。
 
-图标的四块蓝色方块在 `scripts/export-icons.mjs` 定义。修改后运行 `npm run build:icons`，同时生成 SVG 和各尺寸 PNG；无需浏览器或额外图像依赖。
+图标的蓝色方块和“中 / A”矢量笔画在 `scripts/export-icons.mjs` 定义。修改后运行 `npm run build:icons`，同时生成 SVG 和各尺寸 PNG；无需浏览器、系统字体或额外图像依赖。
 
 ## 代码入口
 
