@@ -59,21 +59,36 @@
 	border: 0 !important;
 	background: transparent !important;
 }
-button > .bt-translation[data-bt-owned="true"],
-[role="button"] > .bt-translation[data-bt-owned="true"] {
-	width: 100% !important;
-	grid-column: 1 / -1 !important;
-	margin: 0.1em 0 0 !important;
+/* 控件内部保持原来的图标、行高与箭头；译文是文字旁的小标签。 */
+.bt-translation[data-bt-owned="true"][data-bt-layout="compact-inline"] {
+	display: inline-flex !important;
+	align-items: baseline !important;
+	flex: 0 1 auto !important;
+	max-inline-size: 16em !important;
+	margin: 0 !important;
 	padding: 0 !important;
 	border: 0 !important;
+	border-radius: 0 !important;
 	background: transparent !important;
-	font-size: 0.8em !important;
-	line-height: 1.3 !important;
+	font-size: calc(var(--bt-source-font-size, 1em) * 0.9) !important;
+	font-weight: inherit !important;
+	line-height: inherit !important;
+	vertical-align: baseline !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-decoration: none !important;
 }
+.bt-translation[data-bt-layout="compact-inline"] > .bt-translation-label-text[data-bt-owned="true"] {
+	all: unset !important;
+	display: block !important;
+	min-inline-size: 0 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+:has(> .bt-translation[data-bt-owned="true"][data-bt-layout="compact-inline"]) { white-space: nowrap !important; }
 [data-bt-source]:has(> .bt-translation[data-bt-control-layout="row-flex"]) { flex-wrap: wrap !important; }
 .bt-translation[data-bt-owned="true"][data-bt-control-layout="row-flex"] { flex-basis: 100% !important; }
-button:has(> .bt-translation[data-bt-owned="true"]),
-[role="button"]:has(> .bt-translation[data-bt-owned="true"]),
 [data-bt-reading-layout="expand"] {
 	height: auto !important;
 	max-height: none !important;
@@ -81,7 +96,9 @@ button:has(> .bt-translation[data-bt-owned="true"]),
 	-webkit-line-clamp: unset !important;
 }
 .bt-translation[data-bt-owned="true"]::before,
-.bt-translation[data-bt-owned="true"]::after { display: none !important; content: none !important; }
+.bt-translation[data-bt-owned="true"]::after,
+.bt-translation-label-text[data-bt-owned="true"]::before,
+.bt-translation-label-text[data-bt-owned="true"]::after { display: none !important; content: none !important; }
 
 /* 保持社交流的原生 carrier；真实 br 和内层文本可被选择与朗读。 */
 .bt-translation.bt-translation-generated[data-bt-owned="true"] {
@@ -149,60 +166,98 @@ button:has(> .bt-translation[data-bt-owned="true"]),
 	pointer-events: none !important;
 }
 
-/* spinner 不占据行盒，不因加载状态移动正文。 */
-[data-bt-source][data-bt-loading]:not([data-bt-presentation="generated"])::after {
-	all: unset;
-	content: "" !important;
-	display: inline-block !important;
-	position: absolute !important;
-	inset: auto !important;
-	box-sizing: border-box !important;
-	inline-size: 0.72em !important;
-	block-size: 0.72em !important;
-	margin-inline-start: 0.38em !important;
-	border: 0.12em solid currentColor !important;
-	border-inline-end-color: transparent !important;
-	border-radius: 50% !important;
-	opacity: 0.55 !important;
-	pointer-events: none !important;
-	transform-origin: center !important;
-	animation: bt-inline-loading-spin 0.72s linear infinite !important;
-}
-@keyframes bt-inline-loading-spin { from { rotate: 0turn; } to { rotate: 1turn; } }
-@media (prefers-reduced-motion: reduce) {
-	[data-bt-source][data-bt-loading]:not([data-bt-presentation="generated"])::after { border-inline-end-color: currentColor !important; animation: none !important; }
-}
-
+/* 动画限定在扩展自己的提示内，按中心对齐，不改变网站控件布局。 */
 .bt-status[data-bt-owned="true"] {
 	all: initial !important;
+	--bt-status-paper: #fffffff5 !important;
+	--bt-status-ink: #334155 !important;
+	--bt-status-line: #e2e8f0 !important;
 	position: fixed !important;
-	right: 20px !important;
-	bottom: 20px !important;
+	right: 16px !important;
+	bottom: 16px !important;
 	z-index: 2147483646 !important;
 	display: flex !important;
-	max-width: min(420px, calc(100vw - 40px)) !important;
+	max-width: min(360px, calc(100vw - 32px)) !important;
 	align-items: center !important;
-	gap: 12px !important;
+	gap: 9px !important;
 	box-sizing: border-box !important;
-	padding: 12px 16px !important;
-	border: 1px solid #ffffff20 !important;
+	padding: 10px 12px !important;
+	border: 1px solid var(--bt-status-line) !important;
 	border-radius: 12px !important;
-	background: #233d34f5 !important;
-	box-shadow: 0 6px 24px #0002 !important;
-	color: #fffefa !important;
-	font: 500 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif !important;
+	background: var(--bt-status-paper) !important;
+	box-shadow: 0 4px 20px #0f172a14 !important;
+	color: var(--bt-status-ink) !important;
+	font: 500 12px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif !important;
 	text-align: left !important;
 }
-.bt-status__text[data-bt-owned="true"] { all: unset !important; display: block !important; min-width: 0 !important; color: inherit !important; font: inherit !important; }
+/* 专属角度属性让动画在 important 样式隔离下仍能转动。 */
+@property --bt-status-spin-angle {
+	syntax: "<angle>";
+	inherits: false;
+	initial-value: 0deg;
+}
+.bt-status__indicator[data-bt-owned="true"] {
+	all: unset !important;
+	display: none !important;
+	position: static !important;
+	flex: 0 0 auto !important;
+	box-sizing: border-box !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	transform: none !important;
+	pointer-events: none !important;
+}
+.bt-status[data-state="working"] > .bt-status__indicator[data-bt-owned="true"] {
+	display: block !important;
+	width: 14px !important;
+	height: 14px !important;
+	border: 1.5px solid #bfdbfe !important;
+	border-top-color: #2563eb !important;
+	border-radius: 50% !important;
+	rotate: var(--bt-status-spin-angle) !important;
+	animation: bt-status-spin 800ms linear infinite !important;
+}
+.bt-status[data-state="done"] > .bt-status__indicator[data-bt-owned="true"] {
+	display: block !important;
+	width: 7px !important;
+	height: 12px !important;
+	margin: -3px 4px 0 2px !important;
+	border: solid #16a34a !important;
+	border-width: 0 2px 2px 0 !important;
+	rotate: 45deg !important;
+}
+.bt-status[data-state="error"] > .bt-status__indicator[data-bt-owned="true"] {
+	display: block !important;
+	width: 7px !important;
+	height: 7px !important;
+	border-radius: 50% !important;
+	background: #ef4444 !important;
+}
+.bt-status__indicator[data-bt-owned="true"]::before,
+.bt-status__indicator[data-bt-owned="true"]::after { display: none !important; content: none !important; }
+.bt-status__text[data-bt-owned="true"] { all: unset !important; display: block !important; min-width: 0 !important; color: inherit !important; font: inherit !important; white-space: normal !important; overflow-wrap: anywhere !important; }
 .bt-status__action[data-bt-owned="true"] {
 	all: unset !important;
 	flex: 0 0 auto !important;
 	box-sizing: border-box !important;
 	padding: 6px 10px !important;
 	border-radius: 6px !important;
-	background: #e0e9d4 !important;
-	color: #233d34 !important;
+	background: #eff6ff !important;
+	color: #1d4ed8 !important;
 	font: 600 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 	cursor: pointer !important;
 }
-.bt-status__action[data-bt-owned="true"]:focus-visible { outline: 2px solid #e0e9d4 !important; outline-offset: 3px !important; }
+.bt-status__action[data-bt-owned="true"]:focus-visible { outline: 2px solid #60a5fa !important; outline-offset: 3px !important; }
+@keyframes bt-status-spin { to { --bt-status-spin-angle: 360deg; } }
+@media (prefers-color-scheme: dark) {
+	.bt-status[data-bt-owned="true"] { --bt-status-paper: #182235f5 !important; --bt-status-ink: #e2e8f0 !important; --bt-status-line: #334155 !important; }
+	.bt-status__action[data-bt-owned="true"] { background: #263a57 !important; color: #93c5fd !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.bt-status__indicator[data-bt-owned="true"] { animation: none !important; }
+}
+@media (forced-colors: active) {
+	.bt-status[data-bt-owned="true"] { --bt-status-paper: Canvas !important; --bt-status-ink: CanvasText !important; --bt-status-line: CanvasText !important; }
+	.bt-status__indicator[data-bt-owned="true"] { border-color: Highlight !important; }
+	.bt-status__action[data-bt-owned="true"] { background: ButtonFace !important; color: ButtonText !important; border: 1px solid ButtonText !important; }
+}

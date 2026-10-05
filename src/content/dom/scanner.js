@@ -173,6 +173,8 @@ export class DomScanner {
 			.map((draft) => ({
 				element: draft.element,
 				partial: Boolean(draft.partial),
+				textAnchor: draft.nodes.findLast((entry) => /\S/u.test(entry.node.textContent ?? ""))?.node,
+				controlAnchor: findControlAnchor(draft),
 				placementAnchor: findPlacementAnchor(draft),
 				presentationAnchor: findPresentationAnchor(draft),
 				text: this.#serializeAssignedText(draft.nodes),
@@ -252,6 +254,19 @@ function getInteractiveKind(element) {
 		return "link";
 	}
 	return null;
+}
+
+/** 只把同一个控件拥有的文字识别为标签，不把正文末尾的链接当成整段控件。 */
+function findControlAnchor({ nodes }) {
+	let control = null;
+	for (const { node } of nodes) {
+		if (!/\S/u.test(node.textContent ?? "")) continue;
+		const owner = closestComposed(textParent(node),
+			"a[href], button, summary, label, [role='button'], [role='link'], [role='tab'], [role^='menuitem']");
+		if (!owner || (control && control !== owner)) return null;
+		control = owner;
+	}
+	return control;
 }
 
 function findPlacementAnchor(draft) {

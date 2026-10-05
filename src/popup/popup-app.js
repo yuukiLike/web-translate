@@ -94,7 +94,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		const previousPair = savedLanguagePair;
 		renderLanguagePair(nextPair);
 		setControls({ busy: "language" });
-		showStatus("正在保存语言方向…");
+		showStatus("正在保存语言方向…", false, "working");
 		try {
 			const response = await sendMessage(chrome, {
 				type: "SET_LANGUAGE_PAIR",
@@ -122,6 +122,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 	async function changeStyle(style) {
 		if (controls.busy) return;
 		setControls({ busy: "reading" });
+		showStatus("正在更新译文样式…", false, "working");
 		try {
 			const response = await sendMessage(chrome, { type: "SET_READING_PREFERENCES", reading: { style } });
 			savedStyle = response.settings.reading.style;
@@ -137,6 +138,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 	async function toggleSelection() {
 		if (controls.busy || !controls.available) return;
 		setControls({ busy: "reading" });
+		showStatus("正在更新划词设置…", false, "working");
 		try {
 			const response = await sendMessage(chrome, { type: "TOGGLE_SELECTION" });
 			setControls({ selectionActive: response.selectionActive === true });
@@ -150,7 +152,7 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 
 	async function reloadExtension() {
 		setControls({ busy: "action" });
-		showStatus("正在重新载入扩展…");
+		showStatus("正在重新载入扩展…", false, "working");
 		try {
 			if (typeof chrome.runtime.reload !== "function") {
 				throw new Error("请在 chrome://extensions 中手动重新加载本插件");

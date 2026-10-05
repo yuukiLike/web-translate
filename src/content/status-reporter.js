@@ -18,7 +18,7 @@ export class StatusReporter {
 		if (!this.isCurrent() || this.progress.completed >= this.progress.total) {
 			return;
 		}
-		this.view.show(`正在翻译，已完成 ${this.progress.completed} 个文本块…`);
+		this.view.show(`正在翻译 ${this.progress.completed} / ${this.progress.total} 个文本块…`, null, "working");
 		this.progress.statusVisible = true;
 		await this.runtime.reportStatus(this.runId, "working", {
 			completed: this.progress.completed,
@@ -55,7 +55,7 @@ export class StatusReporter {
 			});
 			return;
 		}
-		this.view.show(`双语翻译完成，已覆盖 ${completed} 个文本块`);
+		this.view.show(`已覆盖 ${completed} 个文本块`, null, "done");
 		this.view.hideAfterCompletion();
 	}
 
@@ -79,7 +79,7 @@ export class StatusReporter {
 				if (error?.requiresSettings || !this.onRetry) void this.runtime.openOptions().catch(() => {});
 				else void this.onRetry().catch((retryError) => this.handleError(retryError));
 			},
-		});
+		}, "error");
 		this.progress.statusVisible = false;
 		void this.runtime.reportStatus(this.runId, "error", { error: message }).catch(() => {});
 	}

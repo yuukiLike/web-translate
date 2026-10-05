@@ -62,6 +62,7 @@ export function createPopupView(document) {
 		elements.status.textContent = message;
 		elements.status.dataset.error = String(error);
 		elements.status.dataset.tone = error ? "error" : tone;
+		elements.status.setAttribute("aria-busy", String(!error && tone === "working"));
 	}
 
 	function renderLanguagePair(pair) {
@@ -74,6 +75,8 @@ export function createPopupView(document) {
 		elements.version.textContent = `v${state.version}`;
 		elements.provider.textContent = state.providerLabel || "尚未选择";
 		elements.model.textContent = state.model || "无需选择模型";
+		elements.provider.title = elements.provider.textContent;
+		elements.model.title = elements.model.textContent;
 		elements.readingStyle.value = state.reading?.style ?? "soft";
 	}
 
@@ -81,6 +84,8 @@ export function createPopupView(document) {
 		const copy = LOAD_FAILURE_COPY[reason];
 		elements.provider.textContent = copy.provider;
 		elements.model.textContent = copy.model;
+		elements.provider.title = copy.provider;
+		elements.model.title = copy.model;
 		showStatus(copy.status || errorMessage, true);
 	}
 
@@ -101,7 +106,8 @@ export function createPopupView(document) {
 		);
 		elements.selection.disabled = anyBusy || !controls.available || controls.action === ACTIONS.reload;
 		elements.selection.setAttribute("aria-pressed", String(Boolean(controls.selectionActive)));
-		elements.selection.textContent = controls.selectionActive ? "关闭划词" : "启用划词";
+		elements.selection.textContent = "划词翻译";
+		elements.selection.title = controls.selectionActive ? "关闭划词翻译" : "开启划词翻译";
 		elements.readingStyle.disabled = anyBusy || !controls.languageEnabled;
 	}
 
@@ -116,7 +122,7 @@ export function createPopupView(document) {
 	}
 
 	function showActionProgress(action) {
-		showStatus(ACTION_COPY[action].accessibleBusy);
+		showStatus(ACTION_COPY[action].accessibleBusy, false, "working");
 	}
 
 	function bindActions({ changeSource, changeTarget, changeStyle, toggleSelection, toggle, openSettings, openReadingSettings }) {

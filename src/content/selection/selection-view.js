@@ -149,6 +149,7 @@ export class SelectionView {
 		this.#speechState = state;
 		if (!this.#elements) return;
 		const { speak } = this.#elements;
+		speak.dataset.state = state;
 		speak.textContent = state === "loading" ? "停止准备" : state === "playing" ? "停止朗读" : "朗读英语";
 		speak.setAttribute("aria-pressed", String(state !== "idle"));
 		speak.disabled = state === "idle" && !this.#speechAllowed;

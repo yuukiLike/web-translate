@@ -5,9 +5,11 @@ export class StatusView {
 	#node = null;
 	#timer = null;
 
-	show(text, action = null) {
+	show(text, action = null, state = "neutral") {
 		this.#clearTimer();
 		const status = this.#ensureNode();
+		status.dataset.state = state;
+		status.setAttribute("aria-busy", String(state === "working"));
 		status.querySelector(".bt-status__text").textContent = text;
 		status.querySelector(".bt-status__action")?.remove();
 		if (action) {
@@ -45,10 +47,14 @@ export class StatusView {
 		status.setAttribute("role", "status");
 		status.setAttribute("aria-live", "polite");
 
+		const indicator = document.createElement("span");
+		indicator.className = "bt-status__indicator";
+		indicator.dataset.btOwned = "true";
+		indicator.setAttribute("aria-hidden", "true");
 		const text = document.createElement("span");
 		text.className = "bt-status__text";
 		text.dataset.btOwned = "true";
-		status.append(text);
+		status.append(indicator, text);
 		document.documentElement.append(status);
 		this.#node = status;
 		return status;

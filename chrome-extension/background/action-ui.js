@@ -113,7 +113,7 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 		tabBadgeStates.set(tabId, badgeState);
 		let pendingState = badgeState;
 		while (pendingState) {
-			await setBadge(tabId, pendingState.text, pendingState.color, pendingState.title);
+			await setBadge(tabId, pendingState.text, pendingState.color, pendingState.title, pendingState.textColor);
 			const latestState = tabBadgeStates.get(tabId);
 			if (!latestState || latestState.revision === pendingState.revision) {
 				return;
@@ -132,10 +132,10 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 				const completed = numberOrZero(message.completed);
 				const total = Math.max(1, numberOrZero(message.total));
 				const percentage = String(Math.min(99, Math.round((completed / total) * 100)));
-				return { text: percentage, color: "#285f9e", title: "正在翻译" };
+				return { text: percentage, color: "#2563eb", title: "正在翻译" };
 			}
 			case "done":
-				return { text: "OK", color: "#287b50", title: "当前网页已完成双语翻译" };
+				return { text: "✓", color: "#dcfce7", textColor: "#15803d", title: "当前网页已完成双语翻译" };
 			case "error":
 				return {
 					text: "ERR",
@@ -143,14 +143,15 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 					title: typeof message.error === "string" ? message.error : "翻译失败",
 				};
 			default:
-				return { text: "", color: "#285f9e", title: "打开翻译面板" };
+				return { text: "", color: "#2563eb", title: "打开翻译面板" };
 		}
 	}
 
-	async function setBadge(tabId, text, color, title) {
+	async function setBadge(tabId, text, color, title, textColor = "#ffffff") {
 		await Promise.allSettled([
 			chrome.action.setBadgeText({ tabId, text }),
 			chrome.action.setBadgeBackgroundColor({ tabId, color }),
+			chrome.action.setBadgeTextColor?.({ tabId, color: textColor }),
 			chrome.action.setTitle({ tabId, title: `${title} · v${extensionVersion}` }),
 		]);
 	}

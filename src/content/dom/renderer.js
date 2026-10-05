@@ -1,10 +1,8 @@
-import {
-	findSiteTranslationLinkAnchor,
-	SITE_PRESENTATION,
-} from "../site-profile.js";
+import { SITE_PRESENTATION } from "../site-profile.js";
 import { createGeneratedTranslation } from "./generated-presentation.js";
 import { normalizeReadingSettings } from "../../core/reading-settings.js";
-import { isOwnedNode } from "./node-utils.js";
+import { placeFlowTranslation } from "./flow-placement.js";
+import { textParent } from "./node-utils.js";
 
 /** 负责创建翻译节点、继承源样式并选择插入位置。 */
 export class TranslationRenderer {
@@ -64,8 +62,7 @@ export class TranslationRenderer {
 						targetLanguage: record.targetLanguage,
 						runId,
 						presentation,
-						placementAnchor: candidate.placementAnchor,
-						partial: candidate.partial,
+						candidate,
 					});
 		}
 
@@ -85,18 +82,22 @@ export class TranslationRenderer {
 
 	copySourcePresentation(source, translation) {
 		const sourceStyle = getComputedStyle(source);
-		if (Number.parseInt(sourceStyle.webkitLineClamp, 10) > 0 ||
-			(sourceStyle.whiteSpace === "nowrap" && translation.parentElement === source)) {
+		const compact = translation.dataset.btLayout === "compact-inline";
+		const labelParent = compact ? textParent(translation) : null;
+		const textStyle = labelParent ? getComputedStyle(labelParent) : sourceStyle;
+		if (!compact && (Number.parseInt(sourceStyle.webkitLineClamp, 10) > 0 ||
+			(sourceStyle.whiteSpace === "nowrap" && translation.parentElement === source))) {
 			source.dataset.btReadingLayout = "expand";
 		}
 		translation.dataset.btStyle = this.reading.style;
 		translation.setAttribute("translate", "no");
 		translation.dir = "auto";
 		this.layout.remember(source, sourceStyle);
-		const fontSize = Number.parseFloat(sourceStyle.fontSize);
-		const fontScale = source.matches("h1, h2, h3, h4, h5, h6") ? 0.76 : 1;
+		const fontSize = Number.parseFloat(textStyle.fontSize);
+		// 控件译文沿用标签字号，阅读字号与行距不能把固定高度的工具栏撑开。
+		const fontScale = compact ? 1 : this.reading.fontScale * (source.matches("h1, h2, h3, h4, h5, h6") ? 0.76 : 1);
 		if (Number.isFinite(fontSize)) {
-			translation.style.setProperty("--bt-source-font-size", `${fontSize * fontScale * this.reading.fontScale}px`);
+			translation.style.setProperty("--bt-source-font-size", `${fontSize * fontScale}px`);
 		}
 		translation.style.setProperty(
 			"--bt-translation-line-height",
@@ -104,17 +105,17 @@ export class TranslationRenderer {
 		);
 		const marginBottom = getTransferableMarginBottom(sourceStyle);
 		translation.style.setProperty("--bt-source-margin-bottom", `${marginBottom}px`);
-		const fontWeight = getTranslationFontWeight(sourceStyle.fontWeight);
+		const fontWeight = getTranslationFontWeight(textStyle.fontWeight);
 		if (fontWeight) {
 			translation.style.setProperty("--bt-translation-font-weight", fontWeight);
 		}
-		if (isHorizontalFlex(sourceStyle)) {
+		if (!compact && translation.parentElement === source && isHorizontalFlex(sourceStyle)) {
 			translation.dataset.btControlLayout = "row-flex";
-		}
+		} else delete translation.dataset.btControlLayout;
 		for (const [property, value] of [
-			["--bt-source-color", sourceStyle.color],
-			["--bt-source-font-family", sourceStyle.fontFamily],
-			["--bt-source-text-align", sourceStyle.textAlign],
+			["--bt-source-color", textStyle.color],
+			["--bt-source-font-family", textStyle.fontFamily],
+			["--bt-source-text-align", textStyle.textAlign],
 		]) {
 			if (value) {
 				translation.style.setProperty(property, value);
@@ -140,8 +141,7 @@ function createFlowTranslation({
 	targetLanguage,
 	runId,
 	presentation,
-	placementAnchor,
-	partial,
+	candidate,
 }) {
 	const translation = document.createElement("span");
 	translation.className = "bt-translation notranslate";
@@ -157,11 +157,7 @@ function createFlowTranslation({
 	if (source.parentElement) {
 		renderer.layout.remember(source.parentElement, getComputedStyle(source.parentElement));
 	}
-	placeTranslation(source, translation, {
-		partial,
-		placementAnchor,
-		presentation,
-	});
+	placeFlowTranslation(source, translation, candidate, presentation);
 	return translation;
 }
 
@@ -197,70 +193,4 @@ function getTranslationFontWeight(value) {
 	}
 	const numericWeight = Number.parseInt(value, 10);
 	return Number.isFinite(numericWeight) ? String(Math.max(500, numericWeight)) : "";
-}
-
-function placeTranslation(
-	source,
-	translation,
-	{ partial, placementAnchor, presentation },
-) {
-	if (placementAnchor?.parentNode?.host === source) {
-		placementAnchor.parentNode.insertBefore(translation, placementAnchor.nextSibling);
-		return;
-	}
-	if (partial && placementAnchor !== source && placementAnchor.parentElement) {
-		if (placementAnchor.nodeType === Node.ELEMENT_NODE) {
-			placementAnchor.insertAdjacentElement("afterend", translation);
-		} else {
-			placementAnchor.parentElement.insertBefore(translation, placementAnchor.nextSibling);
-		}
-		return;
-	}
-	const linkAnchor = presentation === SITE_PRESENTATION.lineStartInline
-		? null
-		: findTranslationLinkAnchor(source);
-	if (linkAnchor) {
-		linkAnchor.append(translation);
-		return;
-	}
-	if (source.matches("li, td, th, caption, summary, dt, dd, button, [role='button']")) {
-		source.append(translation);
-		return;
-	}
-	const sourceDisplay = getComputedStyle(source).display;
-	if (sourceDisplay.startsWith("inline") || sourceDisplay === "contents") {
-		source.append(translation);
-		return;
-	}
-	const parentStyle = source.parentElement ? getComputedStyle(source.parentElement) : null;
-	if (
-		parentStyle &&
-		(parentStyle.display === "grid" ||
-			(parentStyle.display.includes("flex") &&
-				!String(parentStyle.flexDirection).startsWith("column")))
-	) {
-		source.append(translation);
-		return;
-	}
-	source.insertAdjacentElement("afterend", translation);
-}
-
-function findTranslationLinkAnchor(source) {
-	let sharedAnchor = null;
-	const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
-	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		if (isOwnedNode(node)) continue;
-		if (!/[\p{L}\p{N}]/u.test(node.textContent ?? "")) {
-			continue;
-		}
-		const anchor = node.parentElement?.closest("a[href]");
-		if (!anchor || !source.contains(anchor)) {
-			return findSiteTranslationLinkAnchor(source);
-		}
-		if (sharedAnchor && anchor !== sharedAnchor) {
-			return findSiteTranslationLinkAnchor(source);
-		}
-		sharedAnchor = anchor;
-	}
-	return sharedAnchor;
 }

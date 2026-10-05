@@ -4,132 +4,112 @@
 
 :root {
 	color-scheme: light dark;
-	--sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-	font-family: var(--sans);
-	--paper: #f4f2ec;
-	--surface: #fffefa;
-	--ink: #233d34;
-	--ink-soft: #667069;
-	--pine: #234c3c;
-	--pine-dark: #18382c;
-	--line: #dcded4;
-	--line-strong: #b8c2b6;
-	--danger: #a0392d;
-	--serif: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+	--sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+	--paper: #f6f8fc;
+	--surface: #ffffff;
+	--ink: #1e293b;
+	--ink-soft: #64748b;
+	--accent: #2563eb;
+	--accent-hover: #1d4ed8;
+	--accent-soft: #eff6ff;
+	--button-ink: #ffffff;
+	--line: #e2e8f0;
+	--line-strong: #cbd5e1;
+	--disabled: #edf1f7;
+	--success: #15803d;
+	--danger: #b91c1c;
+	font: 12px/1.5 var(--sans);
 }
-@media (prefers-color-scheme: dark) {
-	:root {
-		--paper: #1b2420;
-		--surface: #242f29;
-		--ink: #e2e9df;
-		--ink-soft: #b0bbb0;
-		--pine: #b5d6bc;
-		--pine-dark: #c8e5ce;
-		--line: #3d4b41;
-		--line-strong: #667b68;
-		--danger: #ffa598;
-	}
-	.main-action { color: #1b2420; }
-	.main-action[aria-busy="true"] { color: #1b2420; }
-	.main-action:disabled { background: #344239; color: #a6b0a4; }
-	.main-action:active:not(:disabled) { background: var(--pine-dark); }
-}
-* {
-	box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 body {
-	width: 360px;
+	width: 320px;
+	max-height: 600px;
 	margin: 0;
+	overflow-y: auto;
 	background: var(--paper);
 	color: var(--ink);
 }
-button, select {
-	font: inherit;
-}
-button {
-	-webkit-tap-highlight-color: transparent;
-}
+button, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
 svg {
 	flex-shrink: 0;
 	stroke: currentColor;
-	stroke-width: 1.5;
+	stroke-width: 1.6;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
-.popup {
-	padding: 20px 22px 12px;
-}
+.popup { padding: 16px 16px 10px; }
 .brand {
 	display: grid;
-	grid-template-columns: 36px minmax(0, 1fr) 122px;
-	gap: 10px;
+	grid-template-columns: 28px minmax(0, 1fr) auto;
+	gap: 8px;
 	align-items: center;
-	margin-bottom: 20px;
+	margin-bottom: 14px;
 }
 .brand img {
 	display: block;
-	width: 36px;
-	height: 36px;
-}
-.brand-copy {
-	display: grid;
-	gap: 3px;
+	width: 28px;
+	height: 28px;
 }
 .brand-title {
 	margin: 0;
-	font-family: var(--serif);
-	font-size: 18px;
-	font-weight: 700;
-	letter-spacing: 0.04em;
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: 0.02em;
 }
 .version {
+	padding: 2px 6px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--surface);
 	color: var(--ink-soft);
 	font-size: 10px;
 	font-variant-numeric: tabular-nums;
-	letter-spacing: 0.04em;
 }
 .provider-action {
 	display: flex;
-	gap: 16px;
+	gap: 10px;
 	align-items: center;
 	justify-content: space-between;
 	width: 100%;
-	margin-top: 8px;
-	padding: 14px 2px;
-	border: 0;
-	border-bottom: 1px solid var(--line);
-	background: transparent;
+	margin-top: 12px;
+	padding: 9px 11px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface);
 	color: var(--ink);
 	cursor: pointer;
 	text-align: left;
+	transition: border-color 120ms ease, background 120ms ease;
 }
-.provider-action:hover .change-label {
-	color: var(--pine-dark);
-	text-decoration: underline;
-	text-underline-offset: 3px;
+.provider-action:hover {
+	border-color: var(--line-strong);
+	background: var(--accent-soft);
 }
 .provider-copy {
 	display: grid;
-	gap: 3px;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 2px 7px;
 	min-width: 0;
 }
 .provider-copy small {
+	align-self: center;
 	color: var(--ink-soft);
 	font-size: 10px;
-	letter-spacing: 0.04em;
 }
 .provider-copy strong {
-	font-size: 14px;
+	font-size: 12px;
 	font-weight: 600;
-	line-height: 1.5;
 }
 .provider-copy > span {
+	grid-column: 1 / -1;
 	color: var(--ink-soft);
-	font-size: 11px;
-	line-height: 1.45;
+	font-size: 10px;
 }
 .provider-copy strong, .provider-copy > span {
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .change-label {
 	display: inline-flex;
@@ -137,40 +117,64 @@ svg {
 	align-items: center;
 	flex-shrink: 0;
 	color: var(--ink-soft);
-	font-size: 11px;
+	font-size: 10px;
 }
 .utility-row {
 	display: flex;
 	gap: 8px;
 	align-items: center;
 	justify-content: space-between;
-	margin-top: 7px;
+	margin-top: 6px;
 }
 .utility-action {
 	display: inline-flex;
 	gap: 5px;
 	align-items: center;
-	min-height: 34px;
-	padding: 6px 2px;
+	min-height: 30px;
+	padding: 4px 0;
 	border: 0;
 	background: transparent;
 	color: var(--ink-soft);
 	cursor: pointer;
-	font-size: 10px;
+	font-size: 11px;
 }
-.utility-action:hover {
-	color: var(--pine-dark);
-}
+.utility-action:hover { color: var(--accent); }
 .privacy-note {
 	margin: 0;
 	color: var(--ink-soft);
 	font-size: 10px;
-	line-height: 1.4;
-	text-align: right;
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
 }
 :where(button, select):focus-visible {
-	outline: 2px solid var(--pine);
-	outline-offset: 4px;
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--paper: #111a2a;
+		--surface: #182235;
+		--ink: #e2e8f0;
+		--ink-soft: #a5b4c9;
+		--accent: #60a5fa;
+		--accent-hover: #93c5fd;
+		--accent-soft: #22334d;
+		--button-ink: #0f172a;
+		--line: #2d3c53;
+		--line-strong: #475569;
+		--disabled: #223047;
+		--success: #4ade80;
+		--danger: #fca5a5;
+	}
 }
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after {
@@ -179,14 +183,24 @@ svg {
 	}
 }
 @media (forced-colors: active) {
-	.main-action {
-		border-color: ButtonText;
+	:root {
+		--paper: Canvas;
+		--surface: Canvas;
+		--ink: CanvasText;
+		--ink-soft: CanvasText;
+		--accent: Highlight;
+		--accent-hover: Highlight;
+		--accent-soft: Canvas;
+		--button-ink: HighlightText;
+		--line: ButtonText;
+		--line-strong: ButtonText;
+		--disabled: Canvas;
+		--success: Highlight;
+		--danger: CanvasText;
 	}
-	.main-action:disabled {
+	.main-action:disabled, .selection-action:disabled {
 		color: GrayText;
 		border-color: GrayText;
 	}
-	:where(button, select):focus-visible {
-		outline-color: Highlight;
-	}
+	:where(button, select):focus-visible { outline-color: Highlight; }
 }

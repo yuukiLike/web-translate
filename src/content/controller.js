@@ -78,7 +78,7 @@ class TranslationController {
 			statusView: this.statusView,
 		});
 		this.#currentRun = run;
-		this.statusView.show("正在分析当前网页…");
+		this.statusView.show("正在分析当前网页…", null, "working");
 		try {
 			const response = await this.runtime.startRun(run.runId);
 			if (!run.active || this.#currentRun !== run) {
