@@ -75,7 +75,6 @@ watch([mode, query], () => { copyState.value = ""; });
 	<section id="debug" class="debug-page">
 		<header class="debug-head">
 			<div>
-				<p class="kicker">翻译检查器</p>
 				<h1>原文与请求</h1>
 				<p>可另行授权记录网页原文、DOM 结构与 DeepSeek 实际请求。无痕窗口永不记录，API Key、请求头与响应体也不会记录。</p>
 			</div>
@@ -98,7 +97,7 @@ watch([mode, query], () => { copyState.value = ""; });
 			</label>
 			<p>先开启记录，再翻译网页。<br />关闭内容记录会清除已保存的原文和请求正文。</p>
 		</div>
-		<output v-if="status.text" class="debug-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.text }}</output>
+		<output v-if="status.text && ['debug', 'service'].includes(status.scope)" class="debug-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.text }}</output>
 		<p v-if="retention.droppedEvents" class="trace-notice" role="status">
 			保留上限已淘汰 {{ retention.droppedEvents }} 条旧事件。当前视图只包含仍保留的数据，较早任务可能不完整。
 		</p>
@@ -124,7 +123,7 @@ watch([mode, query], () => { copyState.value = ""; });
 		<footer class="debug-footer">
 			<span>显示 {{ visibleRows.length }} / {{ modeRows.length }} · 最近请求 {{ latestElapsed }}</span>
 			<output role="status" aria-live="polite">{{ copyState }}</output>
-			<a href="https://github.com/yuukiLike/web-translate/blob/main/docs/debugging.md" target="_blank" rel="noopener">调试指南 ↗</a>
+			<a href="https://github.com/yuukiLike/web-translate/blob/main/docs/README.md" target="_blank" rel="noopener">开发说明 ↗</a>
 		</footer>
 		<p class="debug-scope-note">原文结构记录实际选入翻译的正文块，路径对应采集时的 DOM。HTTP 状态表示请求结果，不能单独证明译文已经插入页面。</p>
 	</section>

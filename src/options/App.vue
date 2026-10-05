@@ -6,8 +6,8 @@ import DebugPanel from "./DebugPanel.vue";
 import Mark from "./Mark.vue";
 import ProviderFields from "./ProviderFields.vue";
 import ProviderPicker from "./ProviderPicker.vue";
-import UsagePanel from "./UsagePanel.vue";
 import ReadingPreferences from "./ReadingPreferences.vue";
+import UsagePanel from "./UsagePanel.vue";
 import { useOptions } from "./useOptions.js";
 
 defineOptions({ name: "OptionsApp" });
@@ -23,12 +23,11 @@ const {
 	fatal,
 	providers,
 	ready,
+	readingDirty,
 	reloadRequired,
 	saveDebug,
 	saveDebugRequestPayload,
 	selectedProvider,
-	selectedSource,
-	selectedTarget,
 	setSourceMode,
 	setTargetMode,
 	sources,
@@ -42,7 +41,6 @@ const {
 	usageRows,
 	version,
 } = useOptions();
-
 const {
 	clear: clearDebug,
 	connection: debugConnection,
@@ -56,39 +54,38 @@ function show(nextView) {
 	view.value = nextView;
 	const hash = nextView === "debug" ? "#debug" : "#setup";
 	globalThis.history?.replaceState(null, "", hash);
-	if (globalThis.location?.hash !== hash) {
-		globalThis.location.hash = hash;
-	}
+	if (globalThis.location?.hash !== hash) globalThis.location.hash = hash;
 }
 
 function getSubmitLabel() {
-	if (busy.value === "test") return "正在连接…";
+	if (busy.value === "test") return "正在检查连接…";
 	if (reloadRequired.value) return "重新载入扩展";
-	return connected.value ? "重新测试" : "保存并测试";
+	return connected.value ? "保存并重新检查" : "保存并检查连接";
+}
+
+function swapLanguages() {
+	if (busy.value || draft.sourceMode === "auto") return;
+	const previousSource = draft.sourceMode;
+	setSourceMode(draft.targetMode);
+	setTargetMode(previousSource);
 }
 
 function reloadOptions() { globalThis.location.reload(); }
 </script>
 
 <template>
-	<div class="shell" :class="{ 'shell-debug': view === 'debug' }">
+	<div class="shell">
 		<header class="topbar">
 			<button class="brand" type="button" aria-label="打开翻译配置" @click="show('setup')">
 				<span class="mark-wrap"><Mark /></span>
-				<span class="brand-copy">
-					<strong>一键双语</strong>
-					<small>web translate</small>
-				</span>
+				<strong>一键双语</strong>
 			</button>
-
 			<nav class="tabs" aria-label="设置页导航">
-				<button type="button" :aria-pressed="view === 'setup'" @click="show('setup')">配置</button>
+				<button type="button" :aria-pressed="view === 'setup'" @click="show('setup')">设置</button>
 				<button type="button" :aria-pressed="view === 'debug'" @click="show('debug')">
-					调试
-					<i v-if="draft.debugLogging" aria-label="已开启"></i>
+					调试<i v-if="draft.debugLogging" aria-label="已开启"></i>
 				</button>
 			</nav>
-
 			<code id="extension-version" class="version">{{ version }}</code>
 		</header>
 
@@ -101,132 +98,99 @@ function reloadOptions() { globalThis.location.reload(); }
 					<button class="text-button" type="button" @click="reloadOptions">重新加载</button>
 				</div>
 			</section>
-
-			<div v-else-if="!ready" class="boot" role="status" aria-live="polite">
-				<Mark />
+			<div v-else-if="!ready" class="boot" role="status" aria-live="polite" aria-busy="true">
+				<span class="loading-indicator" aria-hidden="true"></span>
 				<p>正在读取本地设置…</p>
 			</div>
 
 			<template v-else-if="view === 'setup'">
-				<section class="intro">
-					<div>
-						<p class="kicker">对照阅读，顺畅理解</p>
-						<h1>两种语言，同一段阅读。</h1>
-						<p>保留原文，逐段显示译文。也可以只选中一句，翻译、复制，或听英语发音。</p>
-					</div>
-					<div class="bilingual-sample" aria-hidden="true">
-						<span>Keep reading the page.</span>
-						<strong>继续阅读整个网页。</strong>
-					</div>
-				</section>
-
-				<form id="settings-form" class="setup" @submit.prevent="testProvider">
-					<div class="setup-head">
-						<div>
-							<p class="step">连接翻译服务</p>
-							<h2>一个 Key，一次点击。</h2>
-						</div>
-						<span v-if="connected" class="connected"><i aria-hidden="true"></i>连接可用</span>
-					</div>
-
-					<fieldset class="setup-fields" :disabled="Boolean(busy)">
-						<ProviderPicker v-model="draft.provider" :providers="providers" />
-
-						<ProviderFields
-							:key="selectedProvider.id"
-							v-model:api-key="draft[selectedProvider.id].apiKey"
-							v-model:base-url="draft.custom.baseUrl"
-							v-model:model="draft[selectedProvider.id].model"
-							v-model:region="draft.azure.region"
-							:models="catalogInfo.models[selectedProvider.id]"
-							:provider="selectedProvider"
-						/>
-					</fieldset>
-
-					<div class="submit-row">
-						<button id="test-provider" class="primary" type="submit" :disabled="Boolean(busy)">
-							{{ getSubmitLabel() }}
-						</button>
-						<output id="status" :data-error="String(status.error)" role="status" aria-live="polite">
-							{{ status.text }}
-						</output>
-					</div>
-
-					<p class="local-note">
-						<span aria-hidden="true"></span>
-						密钥仅存本机；正文只发送给 {{ selectedProvider.name }}。
-					</p>
-
-					<fieldset class="setup-fields" :disabled="Boolean(busy)">
-						<details id="behavior" class="fold">
-							<summary>
-								<strong>翻译方式</strong>
-								<span>{{ selectedSource.name }} → {{ selectedTarget.name }} · {{ draft.translateDynamicContent ? "持续翻译" : "单次扫描" }} · 并发 {{ draft.concurrency }}</span>
-							</summary>
-							<div class="fold-body behavior-grid">
-								<label class="field">
-									<span>输入语言</span>
-									<select id="source-mode" :value="draft.sourceMode" @change="setSourceMode($event.target.value)">
-										<option v-for="source in sources" :key="source.id" :value="source.id">
-											{{ source.name }}
-										</option>
-									</select>
-								</label>
-								<label class="field">
-									<span>输出语言</span>
-									<select id="target-mode" :value="draft.targetMode" @change="setTargetMode($event.target.value)">
-										<option v-for="target in targets" :key="target.id" :value="target.id">
-											{{ target.name }}
-										</option>
-									</select>
-								</label>
-								<label class="field">
-									<span>云端并发</span>
-									<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
-								</label>
+				<div class="settings-layout">
+					<form id="settings-form" class="settings-panel service-panel" @submit.prevent="testProvider">
+						<header class="section-heading">
+							<div><h1>翻译服务</h1><p>连接服务，选择翻译方向。</p></div>
+							<span v-if="connected" class="connected"><span aria-hidden="true">✓</span>连接可用</span>
+						</header>
+						<fieldset class="setup-fields" :disabled="Boolean(busy)">
+							<ProviderPicker v-model="draft.provider" :providers="providers" />
+							<ProviderFields
+								:key="selectedProvider.id"
+								v-model:api-key="draft[selectedProvider.id].apiKey"
+								v-model:base-url="draft.custom.baseUrl"
+								v-model:model="draft[selectedProvider.id].model"
+								v-model:region="draft.azure.region"
+								:models="catalogInfo.models[selectedProvider.id]"
+								:provider="selectedProvider"
+							/>
+							<section id="behavior" class="settings-section" aria-labelledby="direction-title">
+								<h2 id="direction-title">翻译方向</h2>
+								<div class="language-pair">
+									<label class="field">
+										<span>输入语言</span>
+										<select id="source-mode" :value="draft.sourceMode" @change="setSourceMode($event.target.value)">
+											<option v-for="source in sources" :key="source.id" :value="source.id">{{ source.name }}</option>
+										</select>
+									</label>
+									<button class="direction-swap" type="button" aria-label="交换输入与输出语言"
+										:disabled="draft.sourceMode === 'auto'" :title="draft.sourceMode === 'auto' ? '自动检测时无法交换' : '交换翻译方向'" @click="swapLanguages">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+									</button>
+									<label class="field">
+										<span>输出语言</span>
+										<select id="target-mode" :value="draft.targetMode" @change="setTargetMode($event.target.value)">
+											<option v-for="target in targets" :key="target.id" :value="target.id">{{ target.name }}</option>
+										</select>
+									</label>
+								</div>
+							</section>
+							<section class="settings-section" aria-labelledby="page-title">
+								<h2 id="page-title">页面处理</h2>
 								<label class="toggle-row">
-									<span><strong>增量翻译</strong><small>无限滚动、SPA 与懒加载</small></span>
+									<span><strong>增量翻译</strong><small>自动跟随滚动和页面新增内容</small></span>
 									<input id="translate-dynamic" v-model="draft.translateDynamicContent" type="checkbox" />
 									<i aria-hidden="true"></i>
 								</label>
+								<label class="field concurrency-field">
+									<span>并行请求 <small>1–4 个</small></span>
+									<input id="concurrency" v-model.number="draft.concurrency" type="number" min="1" max="4" step="1" />
+								</label>
+								<ContentFilters v-model="draft.contentFilters" />
+							</section>
+						</fieldset>
+						<footer class="panel-actions">
+							<p class="local-note">密钥仅存本机；正文只发送给 {{ selectedProvider.name }}。</p>
+							<button id="test-provider" class="primary" type="submit" :disabled="Boolean(busy)" :aria-busy="busy === 'test'" :formnovalidate="reloadRequired">{{ getSubmitLabel() }}</button>
+							<output id="status" class="action-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.scope === "service" ? status.text : "" }}</output>
+						</footer>
+					</form>
+
+					<div class="settings-stack">
+						<ReadingPreferences
+							v-model:reading="draft.reading"
+							v-model:speech="draft.speech"
+							:busy="busy"
+							:dirty="readingDirty"
+							:status="status"
+							:speech-preview-active="speechPreviewActive"
+							@save="saveReading"
+							@speak="previewSpeech"
+						/>
+						<section class="settings-panel frame-panel" aria-labelledby="frames-title">
+							<div class="frame-access">
+								<div><h2 id="frames-title">嵌入网页</h2><p>需要翻译其他网站嵌入的内容时，再授予访问权限。</p></div>
+								<button class="secondary" type="button" :disabled="Boolean(busy)" :aria-busy="busy === 'permission'" @click="grantFrames">{{ busy === "permission" ? "正在申请…" : "授权访问" }}</button>
 							</div>
-						</details>
-
-						<ContentFilters v-model="draft.contentFilters" />
-					</fieldset>
-
-					<ReadingPreferences
-						v-model:reading="draft.reading"
-						v-model:speech="draft.speech"
-						:busy="busy"
-						:status="status"
-						:speech-preview-active="speechPreviewActive"
-						@save="saveReading"
-						@speak="previewSpeech"
-						@grant-frames="grantFrames"
-					/>
-
-					<details class="fold">
-						<summary>
-							<strong>本月用量与缓存</strong>
-							<span>{{ usageRows.length ? `${usageRows.length} 个服务有记录` : "暂无云端调用" }}</span>
-						</summary>
-						<UsagePanel :rows="usageRows" @clear="clearCache" />
-					</details>
-				</form>
-
-				<footer id="privacy" class="privacy">
-					<Mark />
-					<p>
-						只在你启用翻译、划词或朗读的标签页读取内容。API Key 与语音令牌仅存本机，网页脚本无法读取。
-					</p>
-				</footer>
+							<output class="action-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.scope === "frames" ? status.text : "" }}</output>
+						</section>
+						<UsagePanel :rows="usageRows" :busy="busy" :status="status" @clear="clearCache" />
+					</div>
+				</div>
+				<footer id="privacy" class="privacy"><p>只在启用翻译、划词或朗读时读取网页。密钥与语音令牌仅存本机。</p></footer>
 			</template>
 
 			<DebugPanel
 				v-else
-					v-model:enabled="draft.debugLogging"
-					v-model:request-payload="draft.debugRequestPayload"
+				v-model:enabled="draft.debugLogging"
+				v-model:request-payload="draft.debugRequestPayload"
 				:busy="busy"
 				:connection="debugConnection"
 				:requests="debugRequests"
@@ -235,8 +199,8 @@ function reloadOptions() { globalThis.location.reload(); }
 				:retention="debugRetention"
 				:status="status"
 				@clear="clearDebug"
-					@save="saveDebug"
-					@save-request-payload="saveDebugRequestPayload"
+				@save="saveDebug"
+				@save-request-payload="saveDebugRequestPayload"
 				@test="testProvider"
 			/>
 		</main>

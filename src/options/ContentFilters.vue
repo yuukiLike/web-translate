@@ -48,12 +48,9 @@ function updateFilter(key, enabled) {
 </script>
 
 <template>
-	<details id="content-filters" class="fold">
-		<summary>
-			<strong>内容过滤</strong>
-			<span>保留代码与元数据边界，短链接可按需翻译</span>
-		</summary>
-		<div class="fold-body behavior-grid">
+	<fieldset id="content-filters" class="content-filters">
+		<legend>内容过滤</legend>
+		<div class="filter-list">
 			<label v-for="filter in FILTER_OPTIONS" :key="filter.key" class="toggle-row">
 				<span>
 					<strong>{{ filter.label }}</strong>
@@ -68,5 +65,5 @@ function updateFilter(key, enabled) {
 				<i aria-hidden="true"></i>
 			</label>
 		</div>
-	</details>
+	</fieldset>
 </template>

@@ -1,9 +1,6 @@
-.shell-debug {
-	width: min(calc(100% - 48px), 1120px);
-}
 .debug-page {
-	padding: 28px;
-	border-radius: 14px;
+	padding: 24px;
+	border-radius: 12px;
 }
 .debug-head {
 	display: grid;
@@ -12,13 +9,9 @@
 	align-items: center;
 	margin-bottom: 22px;
 }
-.debug-head .kicker {
-	margin-bottom: 8px;
-	font-size: 11px;
-}
 .debug-head h1 {
 	margin-bottom: 10px;
-	font-size: 28px;
+	font-size: 20px;
 	letter-spacing: -0.02em;
 }
 .debug-head p:last-child {
@@ -30,15 +23,15 @@
 .debug-test {
 	min-height: 40px;
 	padding: 9px 18px;
-	border: 1px solid var(--pine);
+	border: 1px solid var(--accent);
 	border-radius: 7px;
-	background: var(--pine);
+	background: var(--accent);
 	color: #fff;
 	font-size: 12px;
 	font-weight: 600;
 }
 .debug-test:hover:not(:disabled) {
-	background: var(--pine-dark);
+	background: var(--accent-hover);
 }
 .debug-capture-controls {
 	display: grid;
@@ -61,7 +54,7 @@
 .debug-status {
 	display: block;
 	margin-top: 12px;
-	color: var(--pine);
+	color: var(--accent-ink);
 	font-size: 12px;
 }
 .debug-status[data-error="true"] {
@@ -93,7 +86,7 @@
 	white-space: nowrap;
 }
 .debug-modes button[aria-pressed="true"] {
-	background: var(--pine);
+	background: var(--accent);
 	color: #fff;
 }
 .debug-modes button span {
@@ -145,7 +138,7 @@
 }
 .debug-toolbar-actions button:hover,
 .debug-toolbar-actions button[aria-pressed="true"] {
-	color: var(--pine);
+	color: var(--accent-ink);
 }
 .connection-state {
 	display: inline-flex;
@@ -162,7 +155,7 @@
 	content: "";
 }
 .connection-state[data-state="connected"]::before {
-	background: var(--leaf);
+	background: var(--accent);
 }
 .connection-state[data-state="error"] {
 	color: var(--danger);
@@ -171,7 +164,7 @@
 	background: var(--danger);
 }
 .debug-page :where(button, input, summary):focus-visible {
-	outline: 2px solid var(--pine);
+	outline: 2px solid var(--accent);
 	outline-offset: 3px;
 }
 .debug-scope-note {

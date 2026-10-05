@@ -18,7 +18,7 @@
 	overflow-wrap: anywhere;
 }
 .request-lineage code {
-	color: var(--pine);
+	color: var(--accent-ink);
 }
 .request-context {
 	margin-bottom: 16px;
@@ -78,12 +78,12 @@
 	font-size: 11px;
 }
 .capture-state[data-state="complete"] {
-	background: #e9efe3;
-	color: var(--pine);
+	background: var(--accent-soft);
+	color: var(--accent-ink);
 }
 .capture-state[data-state="partial"] {
-	background: #f4ecde;
-	color: #7b5b2b;
+	background: var(--warning-soft);
+	color: var(--warning);
 }
 .request-copy {
 	min-height: 34px;
@@ -91,7 +91,7 @@
 	border: 1px solid var(--line-strong);
 	border-radius: 6px;
 	background: var(--surface);
-	color: var(--pine);
+	color: var(--accent-ink);
 	font-size: 13px;
 }
 .request-copy:hover:not(:disabled) {
@@ -112,9 +112,9 @@
 	overflow-wrap: anywhere;
 }
 .capture-notice[data-partial="true"] {
-	border-color: #dac9a9;
-	background: #faf6ed;
-	color: #7b5b2b;
+	border-color: var(--warning-line);
+	background: var(--warning-soft);
+	color: var(--warning);
 }
 .capture-notice p {
 	margin: 0;
@@ -140,8 +140,8 @@
 	font-size: 13px;
 }
 .request-view-controls button[aria-pressed="true"] {
-	background: var(--pine);
-	color: var(--surface);
+	background: var(--accent);
+	color: var(--button-ink);
 }
 .request-view-controls small {
 	font-variant-numeric: tabular-nums;
@@ -165,7 +165,7 @@
 	background: var(--surface-soft);
 }
 .message-role {
-	color: var(--pine);
+	color: var(--accent-ink);
 	font-family: "SFMono-Regular", Consolas, monospace;
 	font-size: 12px;
 }
@@ -237,7 +237,7 @@
 .request-copy-state {
 	display: block;
 	margin-top: 8px;
-	color: var(--pine);
+	color: var(--accent-ink);
 	font-size: 12px;
 }
 .request-copy-state:empty {

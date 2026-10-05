@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { errorText } from "./formatters.js";
 import { saveReadingPreferences } from "./readingSetup.js";
 
@@ -6,23 +6,27 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 	let previewId = null;
 	let exiting = false;
 	const previewActive = ref(false);
-	let savedReading = JSON.stringify(draft.reading);
-	let savedSpeech = JSON.stringify(draft.speech);
+	const savedReading = ref(JSON.stringify(draft.reading));
+	const savedSpeech = ref(JSON.stringify(draft.speech));
+	const dirty = computed(() =>
+		JSON.stringify(draft.reading) !== savedReading.value || JSON.stringify(draft.speech) !== savedSpeech.value,
+	);
 
 	function accept(settings) {
-		savedReading = JSON.stringify(settings.reading);
-		savedSpeech = JSON.stringify(settings.speech);
+		savedReading.value = JSON.stringify(settings.reading);
+		savedSpeech.value = JSON.stringify(settings.speech);
 	}
 
 	function sync(settings) {
-		if (JSON.stringify(draft.reading) === savedReading) draft.reading = settings.reading;
-		if (JSON.stringify(draft.speech) === savedSpeech) draft.speech = settings.speech;
+		if (JSON.stringify(draft.reading) === savedReading.value) draft.reading = settings.reading;
+		if (JSON.stringify(draft.speech) === savedSpeech.value) draft.speech = settings.speech;
 		accept(settings);
 	}
 
 	async function save() {
 		if (busy.value) return false;
 		busy.value = "reading";
+		setStatus("正在保存阅读偏好…");
 		try {
 			if (previewId) await stopPreview();
 			const settings = await saveReadingPreferences({ permissions, sendMessage }, draft);
@@ -103,12 +107,13 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 	async function grantFrames() {
 		if (busy.value) return;
 		busy.value = "permission";
+		setStatus("正在申请嵌入内容访问权限…", false, "frames");
 		try {
 			if (!await permissions.request({ origins: ["https://*/*"] })) throw new Error("未授予嵌入内容的访问权限");
 			await sendMessage({ type: "REFRESH_READING_FRAMES" });
-			setStatus("已授权 HTTPS 嵌入内容，正在阅读的页面会补充处理可访问的框架");
+			setStatus("已授权 HTTPS 嵌入内容，正在阅读的页面会补充处理可访问的框架", false, "frames");
 		} catch (error) {
-			setStatus(errorText(error), true);
+			setStatus(errorText(error), true, "frames");
 		} finally {
 			busy.value = "";
 		}
@@ -121,5 +126,5 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 		stopOnExit();
 	});
 
-	return { save, previewSpeech, previewActive, grantFrames, accept, sync };
+	return { save, previewSpeech, previewActive, grantFrames, accept, sync, dirty };
 }

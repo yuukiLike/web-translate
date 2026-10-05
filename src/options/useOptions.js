@@ -27,7 +27,7 @@ export function useOptions() {
 	const ready = ref(false);
 	const fatal = ref(catalogInfo.error || getCoreError(core));
 	const version = ref(getManifestVersion(runtime));
-	const status = reactive({ text: "", error: false });
+	const status = reactive({ text: "", error: false, scope: "service" });
 	const busy = ref("");
 	const connected = ref(false);
 	const reloadRequired = ref(false);
@@ -47,8 +47,14 @@ export function useOptions() {
 	}
 
 	const draft = reactive(initialSettings);
-	const readingPreferences = useReadingPreferences({ busy, draft, permissions: chromeApi?.permissions, runtime, sendMessage, setStatus });
-	const debugSettings = useDebugSettings({ busy, draft, sendMessage, setStatus });
+	const readingPreferences = useReadingPreferences({
+		busy, draft, permissions: chromeApi?.permissions, runtime, sendMessage,
+		setStatus: (text, error = false, scope = "reading") => setStatus(text, error, scope),
+	});
+	const debugSettings = useDebugSettings({
+		busy, draft, sendMessage,
+		setStatus: (text, error = false) => setStatus(text, error, "debug"),
+	});
 	const debug = useDebug({
 		enabled: toRef(draft, "debugLogging"),
 		saved: debugSettings.savedLogging,
@@ -88,9 +94,10 @@ export function useOptions() {
 		},
 	);
 
-	function setStatus(text, error = false) {
+	function setStatus(text, error = false, scope = "service") {
 		status.text = text;
 		status.error = error;
+		status.scope = scope;
 	}
 
 	function currentLanguagePair() {
@@ -201,14 +208,14 @@ export function useOptions() {
 	async function clearCache() {
 		if (busy.value) return false;
 		busy.value = "cache";
-		setStatus("正在清理缓存…");
+		setStatus("正在清理缓存…", false, "usage");
 		try {
 			const response = await sendMessage({ type: "CLEAR_CACHE" });
 			const removed = typeof response.removed === "number" ? response.removed : 0;
-			setStatus(`已删除 ${removed} 个缓存条目`);
+			setStatus(`已删除 ${removed} 个缓存条目`, false, "usage");
 			return true;
 		} catch (error) {
-			setStatus(errorText(error), true);
+			setStatus(errorText(error), true, "usage");
 			return false;
 		} finally {
 			busy.value = "";
@@ -264,6 +271,7 @@ export function useOptions() {
 		testProvider,
 		clearCache,
 		saveReading: readingPreferences.save,
+		readingDirty: readingPreferences.dirty,
 		previewSpeech: readingPreferences.previewSpeech,
 		speechPreviewActive: readingPreferences.previewActive,
 		grantFrames: readingPreferences.grantFrames,

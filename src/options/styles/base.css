@@ -1,48 +1,61 @@
 :root {
-	color-scheme: light;
-	font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	color-scheme: light dark;
+	font-family: var(--sans);
 	font-synthesis: none;
-	--paper: #f3f5ed;
-	--surface: #fffefb;
-	--surface-soft: #f8f9f4;
-	--ink: #17231b;
-	--ink-soft: #58655d;
-	--pine: #244936;
-	--pine-dark: #183126;
-	--leaf: #4d7354;
-	--leaf-light: #91b56e;
-	--seed: #dce9aa;
-	--line: #d9dfd3;
-	--line-strong: #b9c5b6;
-	--danger: #a43f35;
-	--danger-soft: #faece8;
+	--sans:
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		"PingFang SC",
+		"Microsoft YaHei",
+		sans-serif;
+	--mono:
+		"SFMono-Regular",
+		Consolas,
+		"Liberation Mono",
+		monospace;
+	--paper: #f6f8fc;
+	--surface: #ffffff;
+	--surface-soft: #f8fafc;
+	--ink: #1e293b;
+	--ink-soft: #64748b;
+	--accent: #2563eb;
+	--accent-hover: #1d4ed8;
+	--accent-ink: #1d4ed8;
+	--accent-soft: #eff6ff;
+	--button-ink: #ffffff;
+	--focus-ring: #bfdbfe;
+	--line: #e2e8f0;
+	--line-strong: #cbd5e1;
+	--success: #15803d;
+	--danger: #b91c1c;
+	--danger-soft: #fef2f2;
+	--warning: #92400e;
+	--warning-soft: #fffbeb;
+	--warning-line: #fde68a;
 	background: var(--paper);
 	color: var(--ink);
 }
-
 * {
 	box-sizing: border-box;
 }
-
 html {
 	min-width: 320px;
 	scroll-behavior: smooth;
 }
-
 body {
 	min-width: 320px;
 	margin: 0;
 	background: var(--paper);
-	font-size: 16px;
+	font-size: 14px;
+	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
 }
-
 button,
 input,
 select {
 	font: inherit;
 }
-
 button,
 a,
 input,
@@ -50,27 +63,23 @@ select,
 summary {
 	-webkit-tap-highlight-color: transparent;
 }
-
 button,
 a,
 summary {
 	cursor: pointer;
 }
-
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-	outline: 3px solid rgba(77, 115, 84, 0.22);
+	outline: 2px solid var(--focus-ring);
 	outline-offset: 3px;
 }
-
 button:disabled {
 	cursor: not-allowed;
-	opacity: 0.52;
+	opacity: 0.55;
 }
-
 h1,
 h2,
 h3,
@@ -79,11 +88,35 @@ dl,
 dd {
 	margin-top: 0;
 }
-
-a {
-	color: var(--pine);
+h1,
+h2,
+h3 {
+	font-weight: 650;
+	line-height: 1.35;
 }
-
+a {
+	color: var(--accent-ink);
+}
 code {
-	font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+	font-family: var(--mono);
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--paper: #0f172a;
+		--surface: #162033;
+		--surface-soft: #1e293b;
+		--ink: #e2e8f0;
+		--ink-soft: #94a3b8;
+		--accent-ink: #93c5fd;
+		--accent-soft: #1e3354;
+		--focus-ring: #60a5fa;
+		--line: #334155;
+		--line-strong: #475569;
+		--success: #86efac;
+		--danger: #fca5a5;
+		--danger-soft: #3b2029;
+		--warning: #fcd34d;
+		--warning-soft: #332a18;
+		--warning-line: #66552c;
+	}
 }

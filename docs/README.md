@@ -13,7 +13,11 @@ npm run build:chrome
 
 加载目录是 `chrome-extension/`。源码修改后重新构建、重新加载扩展，再刷新网页。构建成功不代表已经通过实际网站验证。
 
-图标的蓝色方块和“中 / A”矢量笔画在 `scripts/export-icons.mjs` 定义。修改后运行 `npm run build:icons`，同时生成 SVG 和各尺寸 PNG；无需浏览器、系统字体或额外图像依赖。
+图标以蓝色圆角底和两张错位文本卡片表达原文与译文，几何定义集中在 `scripts/export-icons.mjs`。修改后运行 `npm run build:icons`，同时生成 SVG 和各尺寸 PNG；无需浏览器、系统字体或额外图像依赖。
+
+工具栏翻译中显示蓝底白色环形进度，按实际完成量切换本地 PNG；完成时恢复品牌图标并显示绿色勾，异常为感叹号。数量和百分比显示在悬停提示中，恢复原文或页面跳转时清除状态。进度图标的文件名由 `chrome-extension/background/action-icon-paths.js` 与构建脚本共用。
+
+设置页使用蓝白双栏布局，服务、方向、过滤、阅读与语音设置直接展示；窄屏按同一顺序排成单列。阅读样式即时预览，未保存修改有提示，操作反馈显示在对应区域。颜色集中在 `src/options/styles/base.css`，响应式规则最后加载，避免基础样式覆盖窄屏布局。
 
 ## 代码入口
 

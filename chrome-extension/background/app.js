@@ -50,7 +50,7 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 			await frameRuns.removeFrame(tabId, frameId);
 			if (frameId === 0) {
 				statusController.removeTab(tabId);
-				actionUi.removeTab(tabId);
+				await actionUi.updateTabStatus(tabId, { state: "off" });
 			}
 		},
 	});

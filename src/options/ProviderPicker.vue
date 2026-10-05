@@ -1,115 +1,27 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 
 defineOptions({ name: "ProviderPicker" });
 
 const selected = defineModel({ type: String, required: true });
 const props = defineProps({
-	providers: {
-		type: Array,
-		required: true,
-	},
+	providers: { type: Array, required: true },
 });
-
-const primaryProviders = computed(() => {
-	return props.providers.filter((provider) => provider.recommended).slice(0, 3);
-});
-const otherProviders = computed(() => {
-	const primaryIds = new Set(primaryProviders.value.map((provider) => provider.id));
-	return props.providers.filter((provider) => !primaryIds.has(provider.id));
-});
-const selectedOtherProvider = computed(() => {
-	return otherProviders.value.find((provider) => provider.id === selected.value) || null;
-});
-const expanded = ref(Boolean(selectedOtherProvider.value));
-const moreTitle = computed(() => {
-	if (expanded.value) {
-		return "收起更多服务";
-	}
-	return selectedOtherProvider.value?.name || "更多服务";
-});
-const moreCue = computed(() => {
-	if (expanded.value || !selectedOtherProvider.value) {
-		return "Anthropic、Azure、DeepL、自定义";
-	}
-	return `${selectedOtherProvider.value.cue} · 当前选择`;
-});
-
-watch(selectedOtherProvider, (provider) => {
-	if (provider) {
-		expanded.value = true;
-	}
-});
-
-function selectProvider(providerId) {
-	selected.value = providerId;
-}
+const currentProvider = computed(() => props.providers.find((provider) => provider.id === selected.value));
 </script>
 
 <template>
-	<fieldset id="provider" class="provider-picker">
-		<legend>服务</legend>
-		<div class="provider-grid">
-			<label v-for="provider in primaryProviders" :key="provider.id" class="provider-choice">
-				<input
-					:id="`provider-${provider.id}`"
-					:checked="selected === provider.id"
-					name="provider"
-					type="radio"
-					:value="provider.id"
-					@change="selectProvider(provider.id)"
-				/>
-				<span class="provider-card">
-					<span class="provider-card-head">
-						<strong>{{ provider.name }}</strong>
-						<span class="provider-tags">
-							<small v-if="provider.paid" class="provider-paid">付费 API</small>
-						</span>
-					</span>
-					<small>{{ provider.cue }}</small>
-				</span>
-			</label>
-
-			<button
-				id="provider-more"
-				class="provider-more"
-				type="button"
-				:aria-expanded="String(expanded)"
-				aria-controls="provider-more-options"
-				:data-current="String(Boolean(selectedOtherProvider) && !expanded)"
-				@click="expanded = !expanded"
-			>
-				<span class="provider-card-head">
-					<strong>{{ moreTitle }}</strong>
-					<span class="provider-tags">
-						<small v-if="!expanded && selectedOtherProvider?.paid" class="provider-paid">付费 API</small>
-						<i class="provider-more-arrow" aria-hidden="true"></i>
-					</span>
-				</span>
-				<small>{{ moreCue }}</small>
-			</button>
-		</div>
-
-		<div v-show="expanded" id="provider-more-options" class="provider-grid provider-grid-more">
-			<label v-for="provider in otherProviders" :key="provider.id" class="provider-choice">
-				<input
-					:id="`provider-${provider.id}`"
-					:checked="selected === provider.id"
-					name="provider"
-					type="radio"
-					:value="provider.id"
-					@change="selectProvider(provider.id)"
-				/>
-				<span class="provider-card">
-					<span class="provider-card-head">
-						<strong>{{ provider.name }}</strong>
-						<small v-if="provider.paid && (expanded || provider.id !== selected)" class="provider-paid">付费 API</small>
-					</span>
-					<small>{{ provider.cue }}</small>
-				</span>
-			</label>
-		</div>
-
-		<p class="provider-billing-note">标有“付费 API”的服务会按用量计费，实际费用以服务商账单为准。</p>
-	</fieldset>
+	<div class="provider-picker">
+		<label class="field" for="provider">
+			<span>服务</span>
+			<select id="provider" v-model="selected" :aria-describedby="currentProvider?.paid ? 'provider-billing-note' : undefined">
+				<option v-for="provider in providers" :key="provider.id" :value="provider.id">
+					{{ provider.name }}{{ provider.paid ? " · 付费 API" : "" }}
+				</option>
+			</select>
+		</label>
+		<p v-if="currentProvider?.paid" id="provider-billing-note" class="provider-billing-note">
+			API 按用量计费，实际费用以服务商账单为准。
+		</p>
+	</div>
 </template>
