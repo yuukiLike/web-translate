@@ -1,7 +1,7 @@
 import { TRANSLATION_NODE_SELECTOR } from "../constants.js";
 import { SITE_PRESENTATION } from "../site-profile.js";
 import { clearGeneratedPresentation } from "./generated-presentation.js";
-import { sourceSelector } from "./node-utils.js";
+import { containsComposed, queryAcrossRoots, sourceSelector } from "./node-utils.js";
 
 /** 统一清理过期元素状态，避免各类 Mutation 各自删一半状态。 */
 export class ElementInvalidator {
@@ -30,6 +30,7 @@ export class ElementInvalidator {
 		this.elementStore.deferredElements.delete(element);
 		const elementState = this.elementStore.getState(element);
 		const runId = this.getRunId();
+		delete element.dataset.btReadingLayout;
 		elementState?.loading?.requests.clear();
 		if (elementState) {
 			delete elementState.loading;
@@ -80,7 +81,7 @@ export class ElementInvalidator {
 		if (root.dataset?.btSource === runId) {
 			elements.add(root);
 		}
-		for (const source of root.querySelectorAll?.(sourceSelector(runId)) ?? []) {
+		for (const source of queryAcrossRoots(root, sourceSelector(runId))) {
 			elements.add(source);
 		}
 		return elements;
@@ -95,7 +96,7 @@ export class ElementInvalidator {
 		if (element?.matches?.(TRANSLATION_NODE_SELECTOR)) {
 			translations.add(element);
 		}
-		for (const translation of element?.querySelectorAll?.(TRANSLATION_NODE_SELECTOR) ?? []) {
+		for (const translation of queryAcrossRoots(element, TRANSLATION_NODE_SELECTOR)) {
 			translations.add(translation);
 		}
 
@@ -122,7 +123,7 @@ export class ElementInvalidator {
 			return;
 		}
 		for (const deferred of [...this.elementStore.deferredElements]) {
-			if (deferred === element || element.contains(deferred)) {
+			if (containsComposed(element, deferred)) {
 				this.elementStore.deferredElements.delete(deferred);
 			}
 		}
@@ -132,7 +133,7 @@ export class ElementInvalidator {
 		if (element.dataset?.btSource === runId) {
 			sources.push(element);
 		}
-		sources.push(...(element.querySelectorAll?.(sourceSelector(runId)) ?? []));
+		sources.push(...queryAcrossRoots(element, sourceSelector(runId)));
 		for (const source of sources) {
 			if (shouldInvalidate(source)) {
 				this.invalidate(source);

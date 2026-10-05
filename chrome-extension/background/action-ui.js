@@ -1,11 +1,13 @@
 import { ACTION_MENU_IDS } from "./constants.js";
 import { getErrorMessage, numberOrZero } from "./utilities.js";
 
-export function createActionUi({ chrome, extensionVersion, settingsStore }) {
+export function createActionUi({ chrome, extensionVersion, settingsStore, pageService }) {
 	const tabBadgeStates = new Map();
 
 	async function initialize(settings) {
 		await chrome.contextMenus.removeAll();
+		chrome.contextMenus.create({ id: "translate-selection", title: "双语翻译选中文字", contexts: ["selection"] });
+		chrome.contextMenus.create({ id: "speak-selection", title: "朗读选中的英语", contexts: ["selection"] });
 		chrome.contextMenus.create({
 			id: ACTION_MENU_IDS.debug,
 			title: getDebugMenuTitle(settings),
@@ -47,7 +49,17 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 		]);
 	}
 
-	async function handleMenuClick(info) {
+	async function handleMenuClick(info, tab) {
+		if (["translate-selection", "speak-selection"].includes(info.menuItemId)) {
+			const availability = getTabAvailability(tab);
+			if (!availability.available) return;
+			try {
+				await pageService.selection(tab, info.selectionText, info.frameId ?? 0, info.menuItemId === "speak-selection");
+			} catch (error) {
+				await setBadge(tab.id, "ERR", "#a33a32", getErrorMessage(error));
+			}
+			return;
+		}
 		if (info.menuItemId === ACTION_MENU_IDS.debug) {
 			const settings = await settingsStore.updateDebugLogging(info.checked === true);
 			await updateState(settings);
@@ -69,31 +81,14 @@ export function createActionUi({ chrome, extensionVersion, settingsStore }) {
 			return { status: "unavailable", error: availability.reason };
 		}
 		try {
-			const settings = await settingsStore.getSettings();
-			try {
-				settingsStore.assertProviderConfigured(settings);
-				await settingsStore.assertProviderPermission(settings);
-			} catch (error) {
-				const message = getErrorMessage(error);
+			return await pageService.toggle(tab);
+		} catch (error) {
+			const message = getErrorMessage(error);
+			if (error.requiresSettings) {
 				await setBadge(tab.id, "SET", "#9a6700", message);
 				await chrome.runtime.openOptionsPage();
 				return { status: "settings-required", error: message };
 			}
-			await chrome.scripting.insertCSS({
-				target: { tabId: tab.id },
-				files: ["content/content.css"],
-			});
-			await chrome.scripting.executeScript({
-				target: { tabId: tab.id },
-				files: [
-					"generated/provider-catalog.js",
-					"generated/core.js",
-					"generated/content-script.js",
-				],
-			});
-			return { status: "triggered" };
-		} catch (error) {
-			const message = getErrorMessage(error);
 			await setBadge(tab.id, "ERR", "#a33a32", message);
 			return { status: "error", error: message };
 		}

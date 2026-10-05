@@ -1,3 +1,5 @@
+import { saveReadingPreferences } from "./readingSetup.js";
+
 export function createProviderSetup({ core, permissions, sendMessage }) {
 	async function ensureCustomHostPermission(settings) {
 		if (settings.provider !== "custom") return;
@@ -19,6 +21,7 @@ export function createProviderSetup({ core, permissions, sendMessage }) {
 		const configurationError = core.getProviderConfigurationError(settings);
 		if (configurationError) throw new Error(configurationError);
 		await ensureCustomHostPermission(settings);
+		await saveReadingPreferences({ permissions, sendMessage }, settings);
 
 		// 语言有独立的写入入口；完整设置保存不得覆盖其他页面刚保存的方向。
 		await sendMessage({

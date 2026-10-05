@@ -12,17 +12,19 @@ export const GENERATED_ATTRIBUTES = new Set([
 	"data-bt-translation-lang",
 	"id",
 ]);
-export const EXCLUSION_ATTRIBUTES = new Set(["aria-hidden", "inert", "translate"]);
+export const EXCLUSION_ATTRIBUTES = new Set(["aria-hidden", "inert", "translate", "contenteditable"]);
 
 const OBSERVED_ATTRIBUTES = [
 	...GENERATED_ATTRIBUTES,
 	"aria-hidden",
 	"aria-label",
 	"class",
+	"contenteditable",
 	"data-hovercard-type",
 	"hidden",
 	"inert",
 	"lang",
+	"open",
 	"role",
 	"style",
 	"translate",

@@ -14,6 +14,7 @@ import { createProviderSetup } from "./providerSetup.js";
 import { useDebug } from "./useDebug.js";
 import { useDebugSettings } from "./useDebugSettings.js";
 import { createUsageRows } from "./usageData.js";
+import { useReadingPreferences } from "./useReadingPreferences.js";
 
 export function useOptions() {
 	const core = globalThis.BilingualTranslatorCore;
@@ -31,7 +32,7 @@ export function useOptions() {
 	const connected = ref(false);
 	const reloadRequired = ref(false);
 	const usage = ref({});
-	let languageRevision = 0;
+	let preferencesRevision = 0;
 	let initialSettings = createFallbackSettings(catalog);
 
 	if (!fatal.value) {
@@ -46,6 +47,7 @@ export function useOptions() {
 	}
 
 	const draft = reactive(initialSettings);
+	const readingPreferences = useReadingPreferences({ busy, draft, permissions: chromeApi?.permissions, runtime, sendMessage, setStatus });
 	const debugSettings = useDebugSettings({ busy, draft, sendMessage, setStatus });
 	const debug = useDebug({
 		enabled: toRef(draft, "debugLogging"),
@@ -117,6 +119,7 @@ export function useOptions() {
 	function acceptSavedSettings(value) {
 		const settings = core.normalizeSettings(value);
 		Object.assign(draft, settings);
+		readingPreferences.accept(settings);
 		debugSettings.accept(settings);
 		return settings;
 	}
@@ -139,14 +142,17 @@ export function useOptions() {
 			return;
 		}
 		try {
-			const revisionAtStart = languageRevision;
+			const revisionAtStart = preferencesRevision;
 			const response = await sendMessage({ type: "GET_OPTIONS_STATE" });
-			const latestLanguage = {
+			const latestPreferences = {
 				sourceMode: draft.sourceMode,
 				targetMode: draft.targetMode,
+				reading: draft.reading,
+				speech: draft.speech,
 			};
 			acceptSavedSettings(response.settings);
-			if (languageRevision !== revisionAtStart) Object.assign(draft, latestLanguage);
+			if (preferencesRevision !== revisionAtStart) Object.assign(draft, latestPreferences);
+			readingPreferences.accept(draft);
 			acceptUsage(response.usage);
 		} catch (error) {
 			setStatus(errorText(error), true);
@@ -208,10 +214,11 @@ export function useOptions() {
 			return;
 		}
 		const settings = core.normalizeSettings(changedSettings.newValue);
-		languageRevision += 1;
+		preferencesRevision += 1;
 		draft.sourceMode = settings.sourceMode;
 		draft.targetMode = settings.targetMode;
 		debugSettings.sync(settings);
+		readingPreferences.sync(settings);
 	}
 
 	onMounted(() => {
@@ -246,6 +253,10 @@ export function useOptions() {
 		saveDebugRequestPayload: debugSettings.saveRequestPayload,
 		testProvider,
 		clearCache,
+		saveReading: readingPreferences.save,
+		previewSpeech: readingPreferences.previewSpeech,
+		speechPreviewActive: readingPreferences.previewActive,
+		grantFrames: readingPreferences.grantFrames,
 		debug,
 	};
 }

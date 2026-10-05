@@ -1,8 +1,9 @@
 @import "./translation-controls.css";
 @import "./language-picker.css";
+@import "./reading-tools.css";
 
 :root {
-	color-scheme: light;
+	color-scheme: light dark;
 	--sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 	font-family: var(--sans);
 	--paper: #f4f2ec;
@@ -15,6 +16,23 @@
 	--line-strong: #b8c2b6;
 	--danger: #a0392d;
 	--serif: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--paper: #1b2420;
+		--surface: #242f29;
+		--ink: #e2e9df;
+		--ink-soft: #b0bbb0;
+		--pine: #b5d6bc;
+		--pine-dark: #c8e5ce;
+		--line: #3d4b41;
+		--line-strong: #667b68;
+		--danger: #ffa598;
+	}
+	.main-action { color: #1b2420; }
+	.main-action[aria-busy="true"] { color: #1b2420; }
+	.main-action:disabled { background: #344239; color: #a6b0a4; }
+	.main-action:active:not(:disabled) { background: var(--pine-dark); }
 }
 * {
 	box-sizing: border-box;

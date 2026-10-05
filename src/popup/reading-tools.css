@@ -1,0 +1,9 @@
+.reading-tools { margin-top: 14px; padding: 13px 0 3px; border-top: 1px solid var(--line); }
+.reading-tools-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.selection-action { min-height: 34px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+.selection-action[aria-pressed="true"] { border-color: var(--pine); color: var(--pine); }
+.selection-action:hover:not(:disabled) { border-color: var(--pine); }
+.selection-action:disabled { opacity: 0.5; cursor: default; }
+.style-control { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 11px; }
+.style-control select { appearance: auto; min-height: 34px; max-width: 118px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 11px; }
+.reading-tools p { margin: 10px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.6; }

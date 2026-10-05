@@ -13,7 +13,7 @@
 - **Identity:** An open book with a turning page, drawn in warm paper and sage on forest ink. The clear central gutter connects the two languages without placing tiny letters inside the mark.
 - **Mood:** A carefully typeset reading tool. Quiet materials, generous language typography, precise controls, and a clear reading order carry the character.
 - **Decoration:** The book silhouette belongs to the product identity. Actions use small directional strokes; they do not repeat the brand mark.
-- **Scope:** The popup, shared product mark, and translation inspector use this direction. The settings form retains its existing layout and utility colors; remaining botanical sample decorations are legacy settings details.
+- **Scope:** Popup, settings, selection panel, shared product mark, and translation inspector share this direction. Setup keeps its familiar single-column form; reading controls use the same paper, forest, and focus colors with a dark theme.
 
 ### Safe choices
 
@@ -95,6 +95,15 @@ Use pine for primary actions and focus, small state dots for readiness, and red 
 - **Popup:** A 360px surface with 22px side margins. Product identity and version sit beside a compact 46px-high translation action at the upper right, close to the toolbar entry point. This action is also the first keyboard-reachable control. The vertical input/output path, explanation, and live status follow in the reading surface; a separate service row and quiet utility footer complete the view.
 - **Popup controls:** The Chrome 140 minimum supports native customizable selects. Apply `appearance: base-select` to both the control and `::picker(select)` so the menu uses the same paper, ink, borders, selection, and focus language as the popup. Keep native labels, keyboard handling, values, and disabled semantics instead of maintaining a second JavaScript selection state. The vertical rail is decorative; do not add a swap control to it. Let long provider names, models, and error messages wrap.
 - **Popup states:** Unsupported pages keep language settings usable and show a neutral reason. Real failures retain red text. Busy actions retain contrast, lock language changes, and expose progress through both text and `aria-busy`.
+
+## Bilingual Reading and Selection
+
+- **Page translations:** Follow the source color and typography. Offer soft background, natural paragraphs, and a subtle underline; font scale and line height update without submitting the page again. Keep original links, inline structure, code blocks, equations, and editable controls intact.
+- **Compact layouts:** Translations in headings, lists, tables, controls, and horizontal flex rows remain in their source slot. Social text carriers keep the existing inline presentation. Open Shadow DOM uses the same reading rules.
+- **Selection:** Show one small launcher after a completed selection. Open an anchored, bounded panel only when invoked, with original text, translation, copy, English speech, retry, and close. Closed Shadow DOM isolates the controls from website styling; use plain text for all content.
+- **Keyboard and focus:** Keep native buttons and visible focus, announce translation status, close on Escape, and restore focus when the panel closes. Avoid repeated launchers for a dismissed selection.
+- **Speech:** Use installed English voices by default. Edge TTS is an explicit choice with a service address, access token, and optional permission. Expose stop during synthesis and playback, including the settings preview.
+- **Frames:** Give embedded documents independent translation runs while sharing the tab's concurrency budget. Additional HTTPS frame access is an explicit reading-setting action, applied only to tabs already enabled by the user.
 
 ## Translation Inspector
 

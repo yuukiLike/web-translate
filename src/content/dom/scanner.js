@@ -1,6 +1,7 @@
 import { SELECTORS } from "../constants.js";
 import { createSiteProfile } from "../site-profile.js";
-import { isOwnedNode, isTranslationExcluded } from "./node-utils.js";
+import { closestComposed, composedParent, containsComposed, isTranslationExcluded, textParent } from "./node-utils.js";
+import { readableNodes } from "./text-walker.js";
 
 /**
  * 把任意 DOM 根节点转换成“正文候选块”。
@@ -20,6 +21,12 @@ export class DomScanner {
 			return [];
 		}
 		const { drafts, assignedOwners } = this.#assignTextNodes(roots);
+		// 变更根可能只是段落中的一个 span；始终提交完整语义块。
+		const incomplete = [...drafts.keys()].filter((element) => !roots.some((root) => containsComposed(root, element)));
+		if (incomplete.length) {
+			const expanded = [...new Set([...roots, ...incomplete])];
+			return this.collect(expanded.filter((root) => !expanded.some((other) => other !== root && containsComposed(other, root))));
+		}
 		this.#markPartialDrafts(drafts, assignedOwners);
 		return this.#buildCandidates(drafts);
 	}
@@ -50,17 +57,17 @@ export class DomScanner {
 		if (siteContentUnit && !this.isExcluded(siteContentUnit)) {
 			return siteContentUnit;
 		}
-		const atomic = element.closest(SELECTORS.atomic);
+		const atomic = closestComposed(element, SELECTORS.atomic);
 		if (atomic && !this.isExcluded(atomic)) {
 			return atomic;
 		}
-		const leaf = element.closest(SELECTORS.leaf);
+		const leaf = closestComposed(element, SELECTORS.leaf);
 		if (leaf && !this.isExcluded(leaf)) {
 			return leaf;
 		}
 
 		let lastEligible = element;
-		for (let current = element; current; current = current.parentElement) {
+		for (let current = element; current; current = composedParent(current)) {
 			if (this.isExcluded(current)) {
 				return lastEligible;
 			}
@@ -83,6 +90,7 @@ export class DomScanner {
 	}
 
 	getPresentation(element) {
+		if (element.shadowRoot) return null;
 		return this.siteProfile.getPresentation(element);
 	}
 
@@ -90,20 +98,21 @@ export class DomScanner {
 		const drafts = new Map();
 		const assignedOwners = new WeakMap();
 		const parentCache = new WeakMap();
+		const visibilityCache = new WeakMap();
 		const styleCache = new WeakMap();
+		const visited = new WeakSet();
 		let traversalIndex = 0;
 
 		for (const root of roots) {
-			const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-				if (isOwnedNode(node)) {
-					continue;
-				}
+			for (const node of readableNodes(root)) {
+				if (visited.has(node)) continue;
+				visited.add(node);
 				traversalIndex += 1;
+				if (node.nodeType !== Node.TEXT_NODE) continue;
 				if (!(node.textContent ?? "")) {
 					continue;
 				}
-				const parent = node.parentElement;
+				const parent = textParent(node);
 				let candidate = parentCache.get(parent);
 				if (candidate === undefined) {
 					candidate = this.findContentUnit(parent, styleCache);
@@ -112,6 +121,14 @@ export class DomScanner {
 				if (!candidate) {
 					continue;
 				}
+				if (parent !== candidate) {
+					if (!visibilityCache.has(parent)) visibilityCache.set(parent, this.layout.isEligible(parent));
+					if (!visibilityCache.get(parent)) {
+						if (/[\p{L}\p{N}]/u.test(node.textContent)) this.elementStore.deferredElements.add(parent);
+						continue;
+					}
+					this.elementStore.deferredElements.delete(parent);
+				}
 				let draft = drafts.get(candidate);
 				if (!draft) {
 					draft = { element: candidate, nodes: [] };
@@ -119,6 +136,9 @@ export class DomScanner {
 				}
 				draft.nodes.push({
 					node,
+					text: preservesWhitespace(this.layout.getStyle(parent, styleCache))
+						? node.textContent
+						: node.textContent.replace(/\s+/gu, " "),
 					order: traversalIndex,
 					block: this.#findNearestBlockContainer(parent, candidate, styleCache),
 				});
@@ -135,7 +155,7 @@ export class DomScanner {
 				if (!/\S/u.test(entry.node.textContent ?? "")) {
 					continue;
 				}
-				for (let ancestor = entry.node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+				for (let ancestor = textParent(entry.node); ancestor; ancestor = composedParent(ancestor)) {
 					const ancestorDraft = drafts.get(ancestor);
 					if (ancestorDraft && assignedOwners.get(entry.node) !== ancestor) {
 						ancestorDraft.partial = true;
@@ -165,7 +185,7 @@ export class DomScanner {
 	}
 
 	#findNearestBlockContainer(element, candidate, styleCache) {
-		for (let current = element; current && candidate.contains(current); current = current.parentElement) {
+		for (let current = element; current && containsComposed(candidate, current); current = composedParent(current)) {
 			const display = this.layout.getStyle(current, styleCache).display;
 			if (!display.startsWith("inline") && display !== "contents") {
 				return current;
@@ -181,23 +201,26 @@ export class DomScanner {
 		let output = "";
 		let previous = null;
 		for (const entry of entries) {
-			const rawText = entry.node.textContent ?? "";
+			const rawText = entry.text ?? entry.node.textContent ?? "";
 			if (!rawText) {
 				continue;
 			}
 			if (
 				previous &&
-				!/\s$/u.test(output) &&
-				!/^\s/u.test(rawText) &&
+				!output.endsWith("\n") &&
 				(entry.order !== previous.order + 1 || entry.block !== previous.block)
 			) {
-				output += "\n";
+				output = output.replace(/[^\S\n]+$/u, "") + "\n";
 			}
 			output += rawText;
 			previous = entry;
 		}
 		return this.core.normalizeSourceText(output);
 	}
+}
+
+function preservesWhitespace(style) {
+	return String(style.whiteSpace).startsWith("pre") || style.whiteSpace === "break-spaces";
 }
 
 function containsOnlyMetadata({ element, nodes }, siteProfile) {
@@ -211,7 +234,7 @@ function containsOnlyMetadata({ element, nodes }, siteProfile) {
 }
 
 function isMetadataEntry(node, candidate, siteProfile) {
-	if (siteProfile.isMetadata(node.parentElement)) {
+	if (siteProfile.isMetadata(textParent(node))) {
 		return true;
 	}
 	if (node.parentElement?.closest(SELECTORS.metadata)) {
@@ -234,8 +257,8 @@ function getInteractiveKind(element) {
 function findPlacementAnchor(draft) {
 	const lastEntry = draft.nodes.findLast((entry) => /\S/u.test(entry.node.textContent ?? ""));
 	let anchor = lastEntry?.node ?? draft.element;
-	while (anchor.parentElement && anchor.parentElement !== draft.element) {
-		anchor = anchor.parentElement;
+	while (composedParent(anchor) && composedParent(anchor) !== draft.element) {
+		anchor = composedParent(anchor);
 	}
 	return anchor;
 }

@@ -3,6 +3,7 @@ import { SITE_PRESENTATION } from "../site-profile.js";
 import { isGeneratedPresentationIntact } from "../dom/generated-presentation.js";
 import { shouldSkipCandidate } from "./content-filter.js";
 import { getSegmentKey } from "./run-cache.js";
+import { composedParent } from "../dom/node-utils.js";
 
 /** 从正文候选块生成去重后的翻译段落。 */
 export class TranslationPlanner {
@@ -151,7 +152,7 @@ export class TranslationPlanner {
 			declaredElement !== document.documentElement &&
 			!declaredElement.getAttribute("lang")
 		) {
-			declaredElement = declaredElement.parentElement;
+			declaredElement = composedParent(declaredElement);
 		}
 		const declaredLanguage =
 			declaredElement === document.body || declaredElement === document.documentElement

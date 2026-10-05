@@ -1,4 +1,4 @@
-export const ACTIONS = Object.freeze({ reload: "reload", translate: "translate" });
+export const ACTIONS = Object.freeze({ reload: "reload", translate: "translate", restore: "restore" });
 const ACTION_COPY = Object.freeze({
 	[ACTIONS.reload]: Object.freeze({
 		accessibleBusy: "正在重新载入扩展",
@@ -8,9 +8,15 @@ const ACTION_COPY = Object.freeze({
 	}),
 	[ACTIONS.translate]: Object.freeze({
 		accessibleBusy: "正在翻译当前网页",
-		accessibleIdle: "翻译 / 恢复当前网页",
+		accessibleIdle: "翻译当前网页",
 		busy: "正在处理…",
-		idle: "翻译 / 恢复",
+		idle: "翻译网页",
+	}),
+	[ACTIONS.restore]: Object.freeze({
+		accessibleBusy: "正在恢复原文",
+		accessibleIdle: "恢复原网页",
+		busy: "正在恢复…",
+		idle: "恢复原文",
 	}),
 });
 
@@ -51,6 +57,8 @@ export function createPopupView(document) {
 		target: getRequiredElement(document, "#target-language"),
 		toggle: getRequiredElement(document, "#toggle-translation"),
 		version: getRequiredElement(document, "#extension-version"),
+		selection: getRequiredElement(document, "#toggle-selection"),
+		readingStyle: getRequiredElement(document, "#reading-style"),
 	};
 
 	function showStatus(message, error = false, tone = "neutral") {
@@ -71,6 +79,7 @@ export function createPopupView(document) {
 		elements.model.textContent = state.model || "无需选择模型";
 		elements.debugState.textContent = state.debugLogging ? "记录中" : "已关闭";
 		elements.debugState.dataset.enabled = String(Boolean(state.debugLogging));
+		elements.readingStyle.value = state.reading?.style ?? "soft";
 	}
 
 	function showLoadFailure(reason, errorMessage) {
@@ -97,6 +106,10 @@ export function createPopupView(document) {
 			"aria-label",
 			actionBusy ? copy.accessibleBusy : copy.accessibleIdle,
 		);
+		elements.selection.disabled = anyBusy || !controls.available || controls.action === ACTIONS.reload;
+		elements.selection.setAttribute("aria-pressed", String(Boolean(controls.selectionActive)));
+		elements.selection.textContent = controls.selectionActive ? "关闭划词" : "启用划词";
+		elements.readingStyle.disabled = anyBusy || !controls.languageEnabled;
 	}
 
 	function showAvailability(state) {
@@ -105,7 +118,7 @@ export function createPopupView(document) {
 		} else if (!state.configured) {
 			showStatus("翻译服务尚未配置，可先打开设置");
 		} else {
-			showStatus("准备就绪。再次执行可恢复原网页。", false, "ready");
+			showStatus(state.active ? "双语阅读已开启，随时可恢复原文。" : "准备就绪，保留原文并逐段显示译文。", false, "ready");
 		}
 	}
 
@@ -113,12 +126,14 @@ export function createPopupView(document) {
 		showStatus(ACTION_COPY[action].accessibleBusy);
 	}
 
-	function bindActions({ changeSource, changeTarget, toggle, openSettings, openDebug }) {
+	function bindActions({ changeSource, changeTarget, changeStyle, toggleSelection, toggle, openSettings, openDebug }) {
 		elements.source.addEventListener("change", () => changeSource(elements.source.value));
 		elements.target.addEventListener("change", () => changeTarget(elements.target.value));
 		elements.toggle.addEventListener("click", () => void toggle());
 		elements.settings.addEventListener("click", () => void openSettings());
 		elements.debug.addEventListener("click", () => void openDebug());
+		elements.readingStyle.addEventListener("change", () => void changeStyle(elements.readingStyle.value));
+		elements.selection.addEventListener("click", () => void toggleSelection());
 	}
 
 	return {

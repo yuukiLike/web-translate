@@ -72,11 +72,11 @@
 	cursor: pointer;
 }
 .language-field option:checked {
-	background: #edf1e8;
+	background: color-mix(in srgb, var(--pine) 8%, var(--surface));
 	color: var(--pine-dark);
 }
 .language-field option:hover:not(:checked) {
-	background: #f5f5f0;
+	background: color-mix(in srgb, var(--pine) 4%, var(--surface));
 }
 /* Hover stays quiet; only keyboard focus receives an outline. */
 .language-field option:focus-visible {

@@ -1,8 +1,8 @@
 {
 	"manifest_version": 3,
 	"name": "一键双语翻译",
-	"version": "0.4.0",
-	"description": "一键将当前网页转换为中英双语对照，使用经校验的固定模型目录和显式云服务。",
+	"version": "0.5.0",
+	"description": "自然的双语网页阅读，支持动态页面、划词翻译与英语朗读。",
 	"minimum_chrome_version": "140",
 	"icons": {
 		"16": "assets/icons/icon-16.png",
@@ -10,7 +10,7 @@
 		"48": "assets/icons/icon-48.png",
 		"128": "assets/icons/icon-128.png"
 	},
-	"permissions": ["activeTab", "contextMenus", "scripting", "storage"],
+	"permissions": ["activeTab", "contextMenus", "scripting", "storage", "webNavigation", "tts", "offscreen"],
 	"host_permissions": [
 		"https://api-free.deepl.com/*",
 		"https://api.deepl.com/*",
@@ -20,7 +20,7 @@
 		"https://generativelanguage.googleapis.com/*",
 		"https://api.anthropic.com/*"
 	],
-	"optional_host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "https://*/*"],
+	"optional_host_permissions": ["http://*/*", "https://*/*"],
 	"background": {
 		"service_worker": "background/service-worker.js",
 		"type": "module"
@@ -40,6 +40,14 @@
 				"mac": "MacCtrl+Shift+B"
 			},
 			"description": "打开翻译面板"
+		},
+		"toggle-page": {
+			"suggested_key": { "default": "Alt+Shift+D", "mac": "MacCtrl+Shift+D" },
+			"description": "翻译或恢复当前网页"
+		},
+		"translate-selection": {
+			"suggested_key": { "default": "Alt+Shift+S", "mac": "MacCtrl+Shift+S" },
+			"description": "翻译选中文字"
 		}
 	},
 	"options_ui": {

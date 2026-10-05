@@ -1,4 +1,5 @@
 import { TIMING } from "../constants.js";
+import { containsComposed } from "./node-utils.js";
 
 /** 恢复已发现但暂不可布局的正文；滚动只检查待恢复集合，不重扫整页。 */
 export class DeferredContentMonitor {
@@ -79,5 +80,5 @@ export class DeferredContentMonitor {
 }
 
 function isRelated(target, element) {
-	return target === element || target.contains(element) || element.contains(target);
+	return containsComposed(target, element) || containsComposed(element, target);
 }

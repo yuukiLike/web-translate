@@ -50,6 +50,8 @@ export function createSettingsStore({
 				...settings,
 				sourceMode: current.sourceMode,
 				targetMode: current.targetMode,
+				reading: current.reading,
+				speech: current.speech,
 			});
 		});
 	}
@@ -81,6 +83,14 @@ export function createSettingsStore({
 			},
 			{ notifyDebug: false },
 		);
+	}
+
+	function updateReadingPreferences(reading, speech) {
+		return updateSettings((settings) => core.normalizeSettings({
+			...settings,
+			reading: { ...settings.reading, ...reading },
+			speech: speech ? { ...settings.speech, ...speech } : settings.speech,
+		}), { notifyDebug: false });
 	}
 
 	function updateSettings(createUpdatedSettings, { notifyDebug = true } = {}) {
@@ -155,5 +165,6 @@ export function createSettingsStore({
 		updateDebugLogging,
 		updateDebugRequestPayload,
 		updateLanguagePair,
+		updateReadingPreferences,
 	};
 }

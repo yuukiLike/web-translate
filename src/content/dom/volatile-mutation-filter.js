@@ -113,14 +113,14 @@ export class VolatileMutationFilter {
 	#filterTextChange(mutation, context) {
 		if (
 			isOwnedNode(mutation.target) ||
-			this.scanner.isExcluded(mutation.target.parentElement) ||
+			this.scanner.isExcluded(mutation.target.parentElement ?? mutation.target.getRootNode()?.host) ||
 			hasSameTextValue(mutation)
 		) {
 			return;
 		}
 		const contentUnit =
 			this.elementStore.getTextOwner(mutation.target) ??
-			this.scanner.findContentUnit(mutation.target.parentElement);
+			this.scanner.findContentUnit(mutation.target.parentElement ?? mutation.target.getRootNode()?.host);
 		if (!contentUnit) {
 			return;
 		}

@@ -1,4 +1,4 @@
-import { isOwnedNode } from "./dom/node-utils.js";
+import { containsComposed, isOwnedNode } from "./dom/node-utils.js";
 
 /** 合并嵌套 DOM 根节点，避免同一轮扫描重复遍历。 */
 export class RootQueue {
@@ -13,7 +13,9 @@ export class RootQueue {
 	}
 
 	add(root) {
-		const element = root?.nodeType === Node.ELEMENT_NODE ? root : root?.parentElement;
+		const element = [Node.ELEMENT_NODE, Node.DOCUMENT_FRAGMENT_NODE].includes(root?.nodeType)
+			? root
+			: root?.parentElement ?? root?.getRootNode?.().host;
 		if (!element?.isConnected || isOwnedNode(element)) {
 			return;
 		}
@@ -23,10 +25,10 @@ export class RootQueue {
 				this.#roots.delete(queued);
 				continue;
 			}
-			if (queued === element || queued.contains(element)) {
+			if (containsComposed(queued, element)) {
 				return;
 			}
-			if (element.contains(queued)) {
+			if (containsComposed(element, queued)) {
 				this.#roots.delete(queued);
 			}
 		}
@@ -40,7 +42,7 @@ export class RootQueue {
 			(root, index) =>
 				!roots.some(
 					(other, otherIndex) =>
-						otherIndex !== index && other !== root && other.contains?.(root),
+						otherIndex !== index && other !== root && containsComposed(other, root),
 				),
 		);
 	}

@@ -15,5 +15,8 @@ chrome.contextMenus.onClicked.addListener(app.onContextMenuClicked);
 chrome.runtime.onMessage.addListener(app.onMessage);
 chrome.runtime.onConnect.addListener(app.onConnect);
 chrome.tabs.onRemoved.addListener(app.onTabRemoved);
+chrome.webNavigation.onCommitted.addListener(app.onNavigation);
+chrome.webNavigation.onCompleted.addListener(app.onFrameReady);
+chrome.commands.onCommand.addListener(app.onCommand);
 
 void app.start().catch(() => {});

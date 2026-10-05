@@ -1,6 +1,6 @@
 import { TIMING } from "./constants.js";
 
-/** 页面右上角状态提示；仅负责 DOM，不发送运行时消息。 */
+/** 页面角落状态提示；仅负责 DOM，不发送运行时消息。 */
 export class StatusView {
 	#node = null;
 	#timer = null;

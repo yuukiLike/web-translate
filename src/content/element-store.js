@@ -1,3 +1,5 @@
+import { composedParent, textParent } from "./dom/node-utils.js";
+
 /** 单次翻译运行的元素索引。所有 WeakMap 都随运行结束一起释放。 */
 export class ElementStore {
 	#states = new WeakMap();
@@ -60,8 +62,8 @@ export class ElementStore {
 	}
 
 	findTrackedAncestor(node) {
-		let element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-		for (; element; element = element.parentElement) {
+		let element = node.nodeType === Node.ELEMENT_NODE ? node : textParent(node);
+		for (; element; element = composedParent(element)) {
 			if (this.#states.has(element)) {
 				return element;
 			}

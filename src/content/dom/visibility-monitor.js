@@ -1,6 +1,6 @@
 import { TIMING } from "../constants.js";
 import { SITE_PRESENTATION } from "../site-profile.js";
-import { sourceSelector } from "./node-utils.js";
+import { containsComposed, queryAcrossRoots, sourceSelector } from "./node-utils.js";
 
 /** 延迟处理 class/style 引起的布局与可见性变化。 */
 export class VisibilityMonitor {
@@ -69,10 +69,10 @@ export class VisibilityMonitor {
 
 	#addTarget(targets, element) {
 		for (const queued of targets) {
-			if (queued === element || queued.contains(element)) {
+			if (containsComposed(queued, element)) {
 				return false;
 			}
-			if (element.contains(queued)) {
+			if (containsComposed(element, queued)) {
 				targets.delete(queued);
 			}
 		}
@@ -154,7 +154,7 @@ export class VisibilityMonitor {
 			if (element.dataset?.btSource === this.runId) {
 				trackedElements.add(element);
 			}
-			for (const source of element.querySelectorAll?.(sourceSelector(this.runId)) ?? []) {
+			for (const source of queryAcrossRoots(element, sourceSelector(this.runId))) {
 				trackedElements.add(source);
 			}
 			if (trackedAncestor) {
@@ -182,7 +182,7 @@ export class VisibilityMonitor {
 
 	#removeCoveredTargets(blockingTarget) {
 		for (const target of this.#targets) {
-			if (blockingTarget === target || blockingTarget.contains(target)) {
+			if (containsComposed(blockingTarget, target)) {
 				this.#targets.delete(target);
 			}
 		}
@@ -190,7 +190,7 @@ export class VisibilityMonitor {
 
 	#isCoveredByBlockingTarget(element) {
 		for (const target of this.#blockingTargets) {
-			if (target === element || target.contains(element)) {
+			if (containsComposed(target, element)) {
 				return true;
 			}
 		}
@@ -212,7 +212,7 @@ export class VisibilityMonitor {
 		for (const element of this.#knownLayoutChanges) {
 			const related = targets.some(
 				(target) =>
-					target === element || target.contains(element) || element.contains(target),
+						containsComposed(target, element) || containsComposed(element, target),
 			);
 			if (related) {
 				layoutRoots.add(element);
@@ -227,7 +227,7 @@ export class VisibilityMonitor {
 		for (const element of layoutRoots) {
 			const hasTrackedDescendant = Boolean(
 				element.dataset?.btSource === this.runId ||
-					element.querySelector?.(sourceSelector(this.runId)),
+					queryAcrossRoots(element, sourceSelector(this.runId)).next().value,
 			);
 			const scanRoot = hasTrackedDescendant
 				? element

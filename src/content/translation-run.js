@@ -5,6 +5,7 @@ import { StatusReporter } from "./status-reporter.js";
 import { ContentVolatilityTracker } from "./volatile-content-tracker.js";
 import { RunTranslationCache } from "./translation/run-cache.js";
 import { LayoutInspector } from "./dom/layout.js";
+import { PageRoots } from "./dom/page-roots.js";
 import { cleanupGeneratedPresentations } from "./dom/generated-presentation.js";
 import { DomScanner } from "./dom/scanner.js";
 import { ElementInvalidator } from "./dom/invalidation.js";
@@ -37,6 +38,10 @@ export class TranslationRun {
 			runtime,
 			isCurrent: () => this.active,
 			hasPendingWork: () => this.#hasPendingWork(),
+			onRetry: () => {
+				if (!this.planner) return this.runtime.openOptions();
+				return this.runTranslationPass();
+			},
 		});
 	}
 
@@ -44,13 +49,22 @@ export class TranslationRun {
 		if (!this.active) {
 			return;
 		}
+		if (!document.body) {
+			this.active = false;
+			this.statusView.show("此文档没有可翻译的网页正文");
+			await Promise.allSettled([
+				this.runtime.cancelRun(this.runId),
+				this.runtime.reportStatus(this.runId, "off"),
+			]);
+			return;
+		}
 		this.settings = settings;
 		this.#createServices();
-		this.rootQueue.add(document.body);
 		this.deferredContent.start();
 		if (settings.translateDynamicContent) {
 			this.mutationMonitor.start();
 		}
+		this.pageRoots.start(settings.translateDynamicContent);
 		await this.runTranslationPass();
 	}
 
@@ -62,7 +76,8 @@ export class TranslationRun {
 		this.deferredContent?.stop();
 		this.mutationMonitor?.stop();
 		this.cloudTranslator?.clearLoading();
-		removeRunArtifacts(this.runId);
+		for (const root of this.pageRoots?.roots ?? [document]) removeRunArtifacts(root, this.runId);
+		this.pageRoots?.stop();
 		this.rootQueue.clear();
 		this.elementStore?.deferredElements.clear();
 		this.runCache.clear();
@@ -136,6 +151,7 @@ export class TranslationRun {
 			invalidator: this.invalidator,
 			rootQueue: this.rootQueue,
 			onNeedsRescan: () => this.mutationMonitor?.scheduleScan(),
+			reading: this.settings.reading,
 		});
 		this.planner = new TranslationPlanner({
 			core: this.core,
@@ -148,6 +164,18 @@ export class TranslationRun {
 			runId: this.runId,
 		});
 		this.#createMonitors();
+		this.pageRoots = new PageRoots({
+			onRoot: (root) => {
+				this.rootQueue.add(root);
+				this.mutationMonitor.observeRoot(root);
+			},
+			onRemoved: (root) => {
+				this.mutationMonitor.removeRoot(root);
+				this.invalidator.discardTrackedSubtree(root, false);
+				if (root.host) this.invalidator.discard(root.host);
+			},
+			onActivity: (root) => this.mutationMonitor.scheduleScan(root),
+		});
 		this.cloudTranslator = new CloudTranslator({
 			core: this.core,
 			settings: this.settings,
@@ -211,17 +239,20 @@ export class TranslationRun {
 	}
 }
 
-function removeRunArtifacts(runId) {
-	cleanupGeneratedPresentations(document, runId);
+function removeRunArtifacts(root, runId) {
+	cleanupGeneratedPresentations(root, runId);
 	const escapedRunId = CSS.escape(runId);
-	for (const node of document.querySelectorAll(`[data-bt-run="${escapedRunId}"]`)) {
+	for (const node of root.querySelectorAll(`[data-bt-run="${escapedRunId}"]`)) {
 		node.remove();
 	}
 	const sourceSelector = [
 		`[data-bt-source="${escapedRunId}"]`,
 		`[data-bt-loading="${escapedRunId}"]`,
 	].join(", ");
-	for (const element of document.querySelectorAll(sourceSelector)) {
+	const sources = [...root.querySelectorAll(sourceSelector)];
+	if (root.matches?.(sourceSelector)) sources.push(root);
+	for (const element of sources) {
+		delete element.dataset.btReadingLayout;
 		delete element.dataset.btLoading;
 		delete element.dataset.btSource;
 	}

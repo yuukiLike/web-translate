@@ -1,5 +1,6 @@
 import { getSafeErrorCode } from "./request-errors.js";
 import { numberOrUndefined, numberOrZero, sumSegmentCharacters } from "./utilities.js";
+import { createTranslationScheduler } from "./translation-scheduler.js";
 
 export function createBatchTranslator({
 	core,
@@ -10,6 +11,7 @@ export function createBatchTranslator({
 	settingsStore,
 	debug,
 }) {
+	const scheduler = createTranslationScheduler();
 	async function translate(
 		snapshot,
 		request,
@@ -131,13 +133,13 @@ export function createBatchTranslator({
 		const { settings, request, tabId, batchId, batchIndex, queueDepth, incognito } = context;
 		let providerResult;
 		try {
-			providerResult = await providerService.translate(
-				settings,
-				request.sourceLanguage,
-				request.targetLanguage,
-				missingSegments,
+			providerResult = await scheduler.run(
+				tabId,
+				Math.min(settings.concurrency, core.getProviderMaximumConcurrency(settings)),
+				() => providerService.translate(settings, request.sourceLanguage, request.targetLanguage,
+					missingSegments, signal, { tabId, runId: request.runId, batchId, batchIndex, queueDepth, incognito }),
 				signal,
-				{ tabId, runId: request.runId, batchId, batchIndex, queueDepth, incognito },
+				request.runId.startsWith("selection-") ? 0 : 1,
 			);
 			assertNotAborted(signal);
 			if (providerResult.translations.length !== missingSegments.length) {

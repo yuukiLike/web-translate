@@ -10,19 +10,62 @@ const READABLE_PLAIN_TEXT_TYPES = new Set([
 export function isTranslationExcluded(element) {
 	if (
 		isSemanticallyHidden(element) ||
-		element?.closest?.(SELECTORS.excluded) ||
+		closestComposed(element, SELECTORS.excluded) ||
 		hasLocalTranslateOptOut(element)
 	) {
 		return true;
 	}
-	const codeLikeAncestor = element?.closest?.(SELECTORS.codeLike);
-	return Boolean(codeLikeAncestor && !isReadablePlainTextRoot(codeLikeAncestor));
+	const codeLikeAncestor = closestComposed(element, SELECTORS.codeLike);
+	if (!codeLikeAncestor || isReadablePlainTextRoot(codeLikeAncestor)) return false;
+	// 行内代码是句子的一部分，保留它的语义；整块程序仍然跳过。
+	return Boolean(closestComposed(codeLikeAncestor, "pre") || !closestComposed(codeLikeAncestor,
+		`${SELECTORS.leaf}, ${SELECTORS.structural}`,
+	));
+}
+
+export function composedParent(element) {
+	return element?.parentElement ?? element?.getRootNode?.().host ?? null;
+}
+
+export function closestComposed(element, selector) {
+	for (let current = element; current; current = current.getRootNode?.().host ?? null) {
+		const match = current.closest?.(selector);
+		if (match) return match;
+	}
+	return null;
+}
+
+export function textParent(node) {
+	return node.parentElement ?? node.getRootNode?.().host ?? null;
+}
+
+export function containsComposed(root, node) {
+	for (let current = node; current; current = current.getRootNode?.().host ?? null) {
+		if (root === current || root?.contains(current)) return true;
+	}
+	return false;
+}
+
+/** 查询与清理和扫描共用开放根边界，不能只处理宿主的 light DOM。 */
+export function* openRoots(root) {
+	if (!root) return;
+	yield root;
+	if (root.shadowRoot) yield* openRoots(root.shadowRoot);
+	const documentRef = root.ownerDocument ?? root;
+	const walker = documentRef.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+	for (let element = walker.nextNode(); element; element = walker.nextNode()) {
+		if (element.shadowRoot) yield* openRoots(element.shadowRoot);
+	}
+}
+
+export function* queryAcrossRoots(root, selector) {
+	for (const domRoot of openRoots(root)) yield* domRoot.querySelectorAll(selector);
 }
 
 /** 页面外壳的 translate=no 不应清空整页候选；正文中的局部声明仍需遵守。 */
 function hasLocalTranslateOptOut(element) {
-	const contentRoot = element?.closest?.(SELECTORS.root) ?? null;
-	for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+	const contentRoot = closestComposed(element, SELECTORS.root);
+	for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
 		if (!ancestor.hasAttribute?.("translate")) {
 			continue;
 		}
@@ -50,12 +93,12 @@ function isPageTranslateOptOut(boundary, contentRoot) {
 		contentRoot &&
 			contentRoot !== boundary &&
 			boundary.parentElement === ownerDocument?.body &&
-			boundary.contains(contentRoot),
+			containsComposed(boundary, contentRoot),
 	);
 }
 
 function isSemanticallyHidden(element) {
-	for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+	for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
 		if (ancestor.hasAttribute?.("inert")) {
 			return true;
 		}
@@ -66,18 +109,19 @@ function isSemanticallyHidden(element) {
 	return false;
 }
 
-function isReadablePlainTextRoot(element) {
+export function isReadablePlainTextRoot(element) {
+	const documentRef = element.ownerDocument;
 	const rootPre = element.matches("pre") ? element : element.closest("pre");
 	return Boolean(
-		rootPre?.parentElement === document.body &&
-		READABLE_PLAIN_TEXT_TYPES.has(String(document.contentType).toLowerCase()),
+		rootPre?.parentElement === documentRef.body &&
+		READABLE_PLAIN_TEXT_TYPES.has(String(documentRef.contentType).toLowerCase()),
 	);
 }
 
 export function isOwnedNode(node) {
-	const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+	const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement ?? node?.host ?? node?.getRootNode?.().host;
 	return Boolean(
-		element?.matches?.(OWNED_NODE_SELECTOR) || element?.closest?.(OWNED_NODE_SELECTOR),
+		element && closestComposed(element, OWNED_NODE_SELECTOR),
 	);
 }
 
@@ -86,12 +130,14 @@ export function forEachTextNode(node, callback) {
 		callback(node);
 		return;
 	}
-	if (node.nodeType !== Node.ELEMENT_NODE) {
+	if (![Node.ELEMENT_NODE, Node.DOCUMENT_FRAGMENT_NODE].includes(node.nodeType)) {
 		return;
 	}
-	const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-	for (let textNode = walker.nextNode(); textNode; textNode = walker.nextNode()) {
-		callback(textNode);
+	const walker = node.ownerDocument.createTreeWalker(node, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+	if (node.shadowRoot) forEachTextNode(node.shadowRoot, callback);
+	for (let child = walker.nextNode(); child; child = walker.nextNode()) {
+		if (child.nodeType === Node.TEXT_NODE) callback(child);
+		if (child.shadowRoot) forEachTextNode(child.shadowRoot, callback);
 	}
 }
 

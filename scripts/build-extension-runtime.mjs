@@ -56,6 +56,7 @@ async function bundleRuntime({ entryPoint, outputName, banner = generatedNotice 
 		entryPoints: [entryPoint],
 		format: "iife",
 		legalComments: "eof",
+		loader: { ".css": "text" },
 		logLevel: "warning",
 		metafile: true,
 		minify: true,

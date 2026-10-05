@@ -51,8 +51,10 @@ export function getLanguagePair(
 		};
 	}
 	const declaredLanguage = normalizeLanguageTag(documentLanguage);
-	const sourceLanguage =
-		declaredLanguage === "auto" ? (cjkRatio(sampleText) >= 0.12 ? "zh" : "en") : declaredLanguage;
+	const ratio = cjkRatio(sampleText);
+	const hasLatin = /[A-Za-z]/u.test(sampleText);
+	// 页面和片段的 lang 经常继承错；可识别的正文优先于宿主声明。
+	const sourceLanguage = ratio >= 0.35 ? "zh" : hasLatin ? "en" : declaredLanguage === "auto" ? "en" : declaredLanguage;
 	return {
 		sourceLanguage,
 		targetLanguage: normalizedTargetMode,
@@ -61,7 +63,7 @@ export function getLanguagePair(
 
 export function shouldTranslateText(value, targetLanguage) {
 	const text = normalizeText(value);
-	if (text.length < 2 || text.length > 30_000) {
+	if (text.length < 2) {
 		return false;
 	}
 	if (
@@ -84,6 +86,7 @@ function isNumericDisplayText(text) {
 }
 
 export function splitText(value, maximumCharacters = 3_500) {
+	maximumCharacters = clampInteger(maximumCharacters, 3_500, 2, 30_000);
 	const text = normalizeSourceText(value);
 	if (!text) {
 		return [];
@@ -102,6 +105,9 @@ export function splitText(value, maximumCharacters = 3_500) {
 			cut = window.lastIndexOf(" ");
 		}
 		cut = cut < maximumCharacters * 0.4 ? maximumCharacters : cut + 1;
+		cut = Math.min(cut, maximumCharacters);
+		// UTF-16 分片不能把 emoji 或扩展汉字切成两个孤立代理项。
+		if (/[\uD800-\uDBFF]/u.test(remaining[cut - 1]) && /[\uDC00-\uDFFF]/u.test(remaining[cut])) cut -= 1;
 		parts.push(remaining.slice(0, cut).trim());
 		remaining = remaining.slice(cut).trim();
 	}

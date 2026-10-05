@@ -7,6 +7,7 @@ import Mark from "./Mark.vue";
 import ProviderFields from "./ProviderFields.vue";
 import ProviderPicker from "./ProviderPicker.vue";
 import UsagePanel from "./UsagePanel.vue";
+import ReadingPreferences from "./ReadingPreferences.vue";
 import { useOptions } from "./useOptions.js";
 
 defineOptions({ name: "OptionsApp" });
@@ -34,6 +35,10 @@ const {
 	status,
 	targets,
 	testProvider,
+	saveReading,
+	previewSpeech,
+	speechPreviewActive,
+	grantFrames,
 	usageRows,
 	version,
 } = useOptions();
@@ -102,9 +107,9 @@ function getSubmitLabel() {
 			<template v-else-if="view === 'setup'">
 				<section class="intro">
 					<div>
-						<p class="kicker">一次配置，以后只点图标</p>
-						<h1>让译文自然长在原文下面。</h1>
-						<p>粘贴 API Key，扩展会翻译整页，并继续处理下滑时出现的新内容。</p>
+						<p class="kicker">对照阅读，顺畅理解</p>
+						<h1>两种语言，同一段阅读。</h1>
+						<p>保留原文，逐段显示译文。也可以只选中一句，翻译、复制，或听英语发音。</p>
 					</div>
 					<div class="bilingual-sample" aria-hidden="true">
 						<span>Keep reading the page.</span>
@@ -183,6 +188,17 @@ function getSubmitLabel() {
 
 					<ContentFilters v-model="draft.contentFilters" />
 
+					<ReadingPreferences
+						v-model:reading="draft.reading"
+						v-model:speech="draft.speech"
+						:busy="busy"
+						:status="status"
+						:speech-preview-active="speechPreviewActive"
+						@save="saveReading"
+						@speak="previewSpeech"
+						@grant-frames="grantFrames"
+					/>
+
 					<details class="fold catalog-fold">
 						<summary>
 							<strong>模型目录</strong>
@@ -215,7 +231,7 @@ function getSubmitLabel() {
 				<footer id="privacy" class="privacy">
 					<Mark />
 					<p>
-						扩展只在点击图标后读取当前标签页。API Key 存于 <code>chrome.storage.local</code>，网页脚本无法读取。
+						只在你启用翻译、划词或朗读的标签页读取内容。API Key 与语音令牌仅存本机，网页脚本无法读取。
 					</p>
 				</footer>
 			</template>

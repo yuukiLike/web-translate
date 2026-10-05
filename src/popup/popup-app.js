@@ -6,7 +6,7 @@ import {
 import { ACTIONS, createPopupView, formatLanguagePair } from "./popup-view.js";
 import { sendRuntimeMessage as sendMessage } from "./runtime-message.js";
 
-const POPUP_PROTOCOL_VERSION = 2;
+const POPUP_PROTOCOL_VERSION = 3;
 const DEFAULT_LANGUAGE_PAIR = Object.freeze({ sourceMode: "auto", targetLanguage: "zh" });
 
 class PopupProtocolMismatchError extends Error {}
@@ -45,8 +45,10 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		available: false,
 		busy: "",
 		languageEnabled: false,
+		selectionActive: false,
 	};
 	let savedLanguagePair = DEFAULT_LANGUAGE_PAIR;
+	let savedStyle = "soft";
 
 	function setControls(nextControls) {
 		controls = { ...controls, ...nextControls };
@@ -71,13 +73,15 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 		try {
 			const state = await sendMessage(chrome, { type: "GET_POPUP_STATE" });
 			savedLanguagePair = readLanguagePair(state);
+			savedStyle = state.reading?.style ?? "soft";
 			view.renderSummary(state);
 			renderLanguagePair(savedLanguagePair);
 			setControls({
-				action: ACTIONS.translate,
+				action: state.active ? ACTIONS.restore : ACTIONS.translate,
 				available: Boolean(state.canTranslate),
 				busy: "",
 				languageEnabled: true,
+				selectionActive: state.selectionActive === true,
 			});
 			view.showAvailability(state);
 		} catch (error) {
@@ -109,6 +113,35 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 				showLoadFailure(error);
 				return;
 			}
+			showStatus(getErrorMessage(error), true);
+		} finally {
+			setControls({ busy: "" });
+		}
+	}
+
+	async function changeStyle(style) {
+		if (controls.busy) return;
+		setControls({ busy: "reading" });
+		try {
+			const response = await sendMessage(chrome, { type: "SET_READING_PREFERENCES", reading: { style } });
+			savedStyle = response.settings.reading.style;
+			showStatus("译文样式已更新。", false, "ready");
+		} catch (error) {
+			document.querySelector("#reading-style").value = savedStyle;
+			showStatus(getErrorMessage(error), true);
+		} finally {
+			setControls({ busy: "" });
+		}
+	}
+
+	async function toggleSelection() {
+		if (controls.busy || !controls.available) return;
+		setControls({ busy: "reading" });
+		try {
+			const response = await sendMessage(chrome, { type: "TOGGLE_SELECTION" });
+			setControls({ selectionActive: response.selectionActive === true });
+			showStatus(response.selectionActive ? "划词已开启，选择文字后点击快捷按钮。" : "划词已关闭，仍可通过右键菜单翻译。", false, "ready");
+		} catch (error) {
 			showStatus(getErrorMessage(error), true);
 		} finally {
 			setControls({ busy: "" });
@@ -178,6 +211,8 @@ export function createPopupApp({ chrome, document, closePopup = () => {} }) {
 			void saveLanguagePair(changeTargetLanguage(savedLanguagePair, targetLanguage));
 		},
 		toggle: toggleTranslation,
+		changeStyle,
+		toggleSelection,
 		openSettings,
 		openDebug,
 	});

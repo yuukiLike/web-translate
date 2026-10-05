@@ -1,7 +1,7 @@
 import { createRunMessageHandlers } from "./run-message-handlers.js";
 import { createContentTraceHandler } from "./content-trace-handler.js";
 
-const POPUP_PROTOCOL_VERSION = 2;
+const POPUP_PROTOCOL_VERSION = 3;
 
 export function createMessageRouter({
 	chrome,
@@ -19,6 +19,10 @@ export function createMessageRouter({
 	statusController,
 	batchTranslator,
 	providerService,
+	pageService,
+	frameRuns,
+	selectionService,
+	speechService,
 }) {
 	const recordContentTrace = createContentTraceHandler({ settingsStore, runStore, validators, debug });
 	const runMessages = createRunMessageHandlers({
@@ -33,6 +37,7 @@ export function createMessageRouter({
 		runStore,
 		statusController,
 		batchTranslator,
+		frameRuns,
 	});
 
 	async function handleMessage(message, sender) {
@@ -47,6 +52,36 @@ export function createMessageRouter({
 				return await setLanguagePair(message, sender);
 			case "TOGGLE_ACTIVE_TAB":
 				return await toggleActiveTab(sender);
+			case "TOGGLE_SELECTION": {
+				settingsStore.assertExtensionPage(sender);
+				const tab = await getActiveTab();
+				const availability = actionUi.getTabAvailability(tab);
+				if (!availability.available) throw new Error(availability.reason);
+				return await pageService.toggleSelection(tab);
+			}
+			case "SET_READING_PREFERENCES": {
+				settingsStore.assertExtensionPage(sender);
+				if (!core.isRecord(message.reading) || (message.speech && !core.isRecord(message.speech))) {
+					throw new Error("阅读偏好格式无效");
+				}
+				const settings = await settingsStore.updateReadingPreferences(message.reading, message.speech);
+				await pageService.updatePreferences(settings);
+				return { settings };
+			}
+			case "REFRESH_READING_FRAMES":
+				settingsStore.assertExtensionPage(sender);
+				await pageService.refreshFrames(await settingsStore.getSettings());
+				return {};
+			case "TRANSLATE_SELECTION":
+				return await selectionService.translate(message, sender);
+			case "CANCEL_SELECTION":
+				return selectionService.cancel(message, sender);
+			case "SPEAK_TEXT":
+				return await speechService.speak(message, sender);
+			case "STOP_SPEECH":
+				return await speechService.stop(message, sender);
+			case "SPEECH_EVENT":
+				return await speechService.offscreenEvent(message, sender);
 			case "START_RUN":
 				return await runMessages.startRun(message, sender);
 			case "CONTENT_TRACE":
@@ -86,6 +121,7 @@ export function createMessageRouter({
 		settingsStore.assertExtensionPage(sender);
 		const [settings, tab] = await Promise.all([settingsStore.getSettings(), getActiveTab()]);
 		const availability = actionUi.getTabAvailability(tab);
+		const page = availability.available ? await pageService.getState(tab.id) : {};
 		return {
 			popupProtocolVersion: POPUP_PROTOCOL_VERSION,
 			version: extensionVersion,
@@ -99,6 +135,9 @@ export function createMessageRouter({
 			configured: !core.getProviderConfigurationError(settings),
 			canTranslate: availability.available,
 			unavailableReason: availability.reason,
+			active: page.active === true,
+			selectionActive: page.selectionActive === true,
+			reading: settings.reading,
 		};
 	}
 

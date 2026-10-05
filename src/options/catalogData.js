@@ -1,6 +1,7 @@
 import { MODEL_PROVIDER_IDS } from "../core/constants.js";
 import { isRecord, safeString } from "../core/value-utils.js";
 import { formatNumber } from "./formatters.js";
+import { createDefaultReadingSettings, createDefaultSpeechSettings } from "../core/reading-settings.js";
 
 function formatDecimal(value) {
 	if (!Number.isFinite(value)) {
@@ -150,8 +151,10 @@ export function createFallbackSettings(catalog) {
 		contentFilters: {
 			skipTechnicalIdentifiers: true,
 			skipSocialMetadata: true,
-			skipShortLinks: true,
+			skipShortLinks: false,
 		},
+		reading: createDefaultReadingSettings(),
+		speech: createDefaultSpeechSettings(),
 		debugLogging: false,
 		debugRequestPayload: false,
 		azure: { apiKey: "", region: "" },

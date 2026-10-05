@@ -3,12 +3,13 @@ import { findSiteProfileMutationRoot } from "../site-profile.js";
 import { GeneratedMutationReconciler } from "./generated-mutation-reconciler.js";
 import { transferGeneratedReplacements } from "./generated-replacement-transfer.js";
 import { MutationScanQueue } from "./mutation-scan-queue.js";
-import { forEachTextNode, isOwnedNode } from "./node-utils.js";
+import { forEachTextNode, isOwnedNode, textParent } from "./node-utils.js";
 import { VolatileMutationFilter } from "./volatile-mutation-filter.js";
 
 /** 把 MutationObserver 事件归一化为“失效元素 + 待扫描根节点”。 */
 export class MutationMonitor {
 	#observer = null;
+	#roots = new Set();
 
 	constructor({
 		runId,
@@ -61,31 +62,15 @@ export class MutationMonitor {
 
 	start() {
 		this.#observer?.disconnect();
-		this.#observer = new MutationObserver((mutations) => {
-			if (!this.isCurrent()) {
-				return;
-			}
-			const { accepted, volatileRoots } = this.volatileFilter.filter(mutations);
-			for (const root of volatileRoots) {
-				this.scanQueue.add(root);
-			}
-			let relevant = transferGeneratedReplacements({
-				mutations: accepted,
-				elementStore: this.elementStore,
-				progress: this.progress,
-				scanner: this.scanner,
-				runId: this.runId,
-				rootQueue: this.scanQueue,
-			}) || volatileRoots.size > 0;
-			for (const mutation of accepted) {
-				relevant = this.#handleMutation(mutation) || relevant;
-			}
-			if (relevant) {
-				this.onActivity();
-				this.scheduleScan();
-			}
-		});
-		this.#observer.observe(document.body, {
+		this.#roots.clear();
+		this.#observer = new MutationObserver((mutations) => this.#processMutations(mutations));
+		this.observeRoot(document.body);
+	}
+
+	observeRoot(root) {
+		if (!this.#observer || this.#roots.has(root)) return;
+		this.#roots.add(root);
+		this.#observer.observe(root, {
 			attributes: true,
 			attributeOldValue: window.location.hostname === "github.com",
 			attributeFilter: getObservedAttributes(window.location.hostname),
@@ -96,13 +81,28 @@ export class MutationMonitor {
 		});
 	}
 
-	scheduleScan() {
+	removeRoot(root) {
+		if (!this.#observer || !this.#roots.has(root)) return;
+		const pending = this.#observer.takeRecords();
+		this.#observer.disconnect();
+		const remaining = [...this.#roots].filter((item) => item !== root && item.isConnected);
+		this.#roots.clear();
+		for (const item of remaining) this.observeRoot(item);
+		if (pending.length) this.#processMutations(pending);
+	}
+
+	scheduleScan(root = null) {
+		if (root) {
+			this.scanQueue.add(root);
+			this.onActivity();
+		}
 		this.scanQueue.schedule();
 	}
 
 	stop() {
 		this.#observer?.disconnect();
 		this.#observer = null;
+		this.#roots.clear();
 		this.scanQueue.stop();
 		this.visibilityMonitor.stop();
 		for (const source of [...this.elementStore.generatedSources]) {
@@ -110,6 +110,25 @@ export class MutationMonitor {
 		}
 		this.generatedReconciler.clear();
 		this.volatileFilter.clear();
+	}
+
+	#processMutations(mutations) {
+		if (!this.isCurrent()) return;
+		const { accepted, volatileRoots } = this.volatileFilter.filter(mutations);
+		for (const root of volatileRoots) this.scanQueue.add(root);
+		let relevant = transferGeneratedReplacements({
+			mutations: accepted,
+			elementStore: this.elementStore,
+			progress: this.progress,
+			scanner: this.scanner,
+			runId: this.runId,
+			rootQueue: this.scanQueue,
+		}) || volatileRoots.size > 0;
+		for (const mutation of accepted) relevant = this.#handleMutation(mutation) || relevant;
+		if (relevant) {
+			this.onActivity();
+			this.scheduleScan();
+		}
 	}
 
 	#handleMutation(mutation) {
@@ -178,7 +197,7 @@ export class MutationMonitor {
 	#handleTextMutation(mutation) {
 		if (
 			isOwnedNode(mutation.target) ||
-			this.scanner.isExcluded(mutation.target.parentElement)
+			this.scanner.isExcluded(textParent(mutation.target))
 		) {
 			return false;
 		}
@@ -210,6 +229,15 @@ export class MutationMonitor {
 		if (siteMutationRoot) {
 			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
 			this.scanQueue.add(siteMutationRoot);
+		}
+		if ([...addedNodes, ...removedNodes].some(changesTextBoundary)) {
+			const target = mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.host;
+			const source = this.elementStore.findTrackedAncestor(mutation.target) ?? this.scanner.findContentUnit(target);
+			if (source) {
+				if (!this.generatedReconciler.queue(source)) affectedElements.add(source);
+				this.scanQueue.add(source);
+				shouldScan = true;
+			}
 		}
 		shouldScan = this.#handleRemovedNodes(removedNodes, affectedElements) || shouldScan;
 		shouldScan = this.#collectAddedCandidates(addedNodes, affectedElements) || shouldScan;
@@ -258,7 +286,7 @@ export class MutationMonitor {
 		for (const node of nodes) {
 			let hasCandidate = false;
 			forEachTextNode(node, (textNode) => {
-				const candidate = this.scanner.findContentUnit(textNode.parentElement, styleCache);
+				const candidate = this.scanner.findContentUnit(textParent(textNode), styleCache);
 				hasCandidate ||= Boolean(candidate);
 				if (
 					candidate &&
@@ -275,4 +303,10 @@ export class MutationMonitor {
 		}
 		return shouldScan;
 	}
+}
+
+function changesTextBoundary(node) {
+	if (node.nodeType !== Node.ELEMENT_NODE || isOwnedNode(node)) return false;
+	if (node.matches("br, slot")) return true;
+	return [...node.querySelectorAll("br, slot")].some((boundary) => !isOwnedNode(boundary));
 }

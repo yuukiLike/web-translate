@@ -18,12 +18,12 @@
 					id="toggle-translation"
 					class="main-action"
 					type="button"
-					aria-label="翻译 / 恢复当前网页"
+					aria-label="翻译当前网页"
 					aria-describedby="popup-status"
 					aria-busy="false"
 					disabled
 				>
-					<strong id="toggle-label">翻译 / 恢复</strong>
+					<strong id="toggle-label">翻译网页</strong>
 					<svg class="action-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
 				</button>
 			</header>
@@ -53,6 +53,21 @@
 				</fieldset>
 				<p id="language-note" class="language-note">自动检测输入；已是简体中文的内容会跳过</p>
 				<output id="popup-status" class="status" role="status" aria-live="polite" aria-atomic="true">正在连接扩展后台…</output>
+			</section>
+
+			<section class="reading-tools" aria-label="阅读工具">
+				<div class="reading-tools-row">
+					<button id="toggle-selection" class="selection-action" type="button" aria-pressed="false" disabled>启用划词</button>
+					<label class="style-control" for="reading-style">
+						<span>译文</span>
+						<select id="reading-style" disabled>
+							<option value="soft">柔和底色</option>
+							<option value="plain">自然段落</option>
+							<option value="underline">细线标记</option>
+						</select>
+					</label>
+				</div>
+				<p>选择一句文字，查看双语译文，或听英语发音。</p>
 			</section>
 
 			<button id="open-settings" class="provider-action" type="button">

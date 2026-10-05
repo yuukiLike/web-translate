@@ -81,6 +81,12 @@ export class CloudTranslator {
 				}
 			}
 			if (failed) {
+				const waiting = new Set(queue.flatMap((segment) => segment.targets.map(({ record }) => record)));
+				for (const record of waiting) {
+					if (!this.#isCurrentRecord(record)) continue;
+					this.invalidator.invalidate(record.element);
+					this.rootQueue.add(record.element);
+				}
 				throw failed.reason;
 			}
 			await this.reportProgress();
@@ -113,19 +119,21 @@ export class CloudTranslator {
 	#enqueueSegments(queue, segments) {
 		void this.contentTrace.recordPlan(segments);
 		const aliases = [];
+		const queuedByKey = new Map(queue.map((segment) => [getSegmentKey(segment), segment]));
 		for (const segment of segments) {
 			if (this.runCache.has(segment)) {
 				this.#applyTranslation(segment, this.runCache.get(segment));
 				continue;
 			}
 			const key = getSegmentKey(segment);
-			const queued = queue.find((item) => getSegmentKey(item) === key);
+			const queued = queuedByKey.get(key);
 			if (queued) {
 				aliases.push({ segmentId: segment.id, canonicalSegmentId: queued.id });
 				queued.priority = Math.min(queued.priority, segment.priority);
 				queued.targets.push(...segment.targets);
 			} else {
 				queue.push(segment);
+				queuedByKey.set(key, segment);
 			}
 		}
 		void this.contentTrace.recordAliases(aliases);
@@ -138,11 +146,20 @@ export class CloudTranslator {
 			if (!this.isCurrent()) {
 				return;
 			}
+			const byId = new Map(batch.items.map((item) => [item.id, item]));
+			if (!Array.isArray(response.results) || response.results.length !== byId.size) {
+				throw new Error("翻译服务返回的段落不完整");
+			}
+			const seen = new Set();
+			// 先核对整批结果，避免缺失或重复 ID 留下永远无法完成的段落。
 			for (const result of response.results) {
-				const segment = batch.items.find((item) => item.id === result.id);
-				if (!segment || typeof result.text !== "string") {
+				if (!byId.has(result?.id) || seen.has(result.id) || typeof result.text !== "string" || !result.text.trim()) {
 					throw new Error("翻译服务返回了未知段落");
 				}
+				seen.add(result.id);
+			}
+			for (const result of response.results) {
+				const segment = byId.get(result.id);
 				this.runCache.set(segment, result.text);
 				this.#applyTranslation(segment, result.text);
 			}

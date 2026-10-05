@@ -6,6 +6,12 @@ import {
 	TARGET_MODES,
 } from "./constants.js";
 import { clampInteger, isRecord, safeString } from "./value-utils.js";
+import {
+	createDefaultReadingSettings,
+	createDefaultSpeechSettings,
+	normalizeReadingSettings,
+	normalizeSpeechSettings,
+} from "./reading-settings.js";
 
 function isLocalHttpHost(hostname) {
 	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
@@ -48,7 +54,7 @@ export function createSettingsApi(catalog, providerDefinitions) {
 		return {
 			skipTechnicalIdentifiers: true,
 			skipSocialMetadata: true,
-			skipShortLinks: true,
+			skipShortLinks: false,
 		};
 	}
 
@@ -60,6 +66,8 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			translateDynamicContent: true,
 			concurrency: 2,
 			contentFilters: createDefaultContentFilters(),
+			reading: createDefaultReadingSettings(),
+			speech: createDefaultSpeechSettings(),
 			debugLogging: false,
 			debugRequestPayload: false,
 			azure: { apiKey: "", region: "" },
@@ -154,6 +162,8 @@ export function createSettingsApi(catalog, providerDefinitions) {
 					? settings.translateDynamicContent
 					: defaults.translateDynamicContent,
 			concurrency: clampInteger(settings.concurrency, defaults.concurrency, 1, 4),
+			reading: normalizeReadingSettings(settings.reading),
+			speech: normalizeSpeechSettings(settings.speech),
 			contentFilters: normalizeContentFilters(
 				settings.contentFilters,
 				defaults.contentFilters,
@@ -231,6 +241,12 @@ export function createSettingsApi(catalog, providerDefinitions) {
 			targetMode: normalized.targetMode,
 			translateDynamicContent: normalized.translateDynamicContent,
 			concurrency: normalized.concurrency,
+			reading: { ...normalized.reading },
+			speech: {
+				engine: normalized.speech.engine,
+				voice: normalized.speech.voice,
+				rate: normalized.speech.rate,
+			},
 			contentFilters: {
 				...normalized.contentFilters,
 				// 已注入页面的旧版 controller 仍读取此字段；固定 false 可避免它继续跳过按钮。

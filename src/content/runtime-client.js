@@ -1,6 +1,7 @@
 /** Chrome runtime 消息的唯一出口，统一校验后台响应。 */
 export class RuntimeClient {
 	async send(message) {
+		if (!chrome.runtime?.id) throw new Error("扩展已更新，请刷新当前网页");
 		const response = await chrome.runtime.sendMessage(message);
 		if (!response?.ok) {
 			throw new Error(response?.error || "扩展后台无响应");

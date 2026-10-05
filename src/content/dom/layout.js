@@ -1,5 +1,6 @@
 import { PRIORITY } from "../constants.js";
 import { isTranslationExcluded } from "./node-utils.js";
+import { readableNodes } from "./text-walker.js";
 
 /** 与布局有关的浏览器读取集中在此，避免扫描和监听器各自实现一套。 */
 export class LayoutInspector {
@@ -39,12 +40,27 @@ export class LayoutInspector {
 		if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
 			return false;
 		}
-		const rectangle = element.getBoundingClientRect();
+		const rectangle = this.getRectangle(element);
 		return rectangle.width > 1 && rectangle.height > 1;
 	}
 
-	getPriority(element) {
+	getRectangle(element) {
 		const rectangle = element.getBoundingClientRect();
+		if (rectangle.width > 0 && rectangle.height > 0) return rectangle;
+		// display:contents 没有元素盒，但其文本仍然可见。
+		if (getComputedStyle(element).display !== "contents") return rectangle;
+		for (const node of readableNodes(element)) {
+			if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) continue;
+			const range = element.ownerDocument.createRange();
+			range.selectNodeContents(node);
+			const textRectangle = range.getBoundingClientRect();
+			if (textRectangle.width > 0 && textRectangle.height > 0) return textRectangle;
+		}
+		return rectangle;
+	}
+
+	getPriority(element) {
+		const rectangle = this.getRectangle(element);
 		const viewportHeight = Math.max(window.innerHeight, 1);
 		if (rectangle.bottom >= -viewportHeight * 0.5 && rectangle.top <= viewportHeight * 1.5) {
 			return Math.max(0, rectangle.top + viewportHeight * 0.5);

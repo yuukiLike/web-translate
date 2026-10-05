@@ -13,18 +13,20 @@ export function createRunMessageHandlers({
 	runStore,
 	statusController,
 	batchTranslator,
+	frameRuns,
 }) {
 	async function startRun(message, sender) {
 		const tabId = getSenderTabId(sender);
+		const scope = frameRuns.scope(sender);
 		const runId = validators.validateRunId(message.runId);
-		const startToken = runStore.beginStart(tabId, runId);
+		const startToken = runStore.beginStart(scope, runId);
 		try {
-			statusController.invalidatePending(tabId);
+			if ((sender.frameId ?? 0) === 0) statusController.invalidatePending(tabId);
 			const settings = await settingsStore.getSettings();
 			settingsStore.assertProviderConfigured(settings);
 			await settingsStore.assertProviderPermission(settings);
 			await runStore.saveSnapshot(
-				tabId,
+				scope,
 				runId,
 				{
 					settings,
@@ -33,8 +35,8 @@ export function createRunMessageHandlers({
 				},
 				startToken,
 			);
-			runStore.confirmStart(tabId, runId, startToken);
-			statusController.startRun(tabId, runId);
+			runStore.confirmStart(scope, runId, startToken);
+			if ((sender.frameId ?? 0) === 0) statusController.startRun(tabId, runId);
 			debug.record({
 				component: "background",
 				eventType: "run.started",
@@ -55,7 +57,7 @@ export function createRunMessageHandlers({
 			return {
 				settings: {
 					...core.publicSettings(settings),
-					captureContentTrace: canCaptureContent(settings, sender.tab.incognito === true),
+					captureContentTrace: (sender.frameId ?? 0) === 0 && canCaptureContent(settings, sender.tab.incognito === true),
 				},
 			};
 		} finally {
@@ -65,12 +67,13 @@ export function createRunMessageHandlers({
 
 	async function translateBatch(message, sender) {
 		const tabId = getSenderTabId(sender);
+		const scope = frameRuns.scope(sender);
 		const request = validators.validateTranslationRequest(message);
-		const snapshot = await runStore.getSnapshot(tabId, request.runId);
-		const controller = runStore.registerController(tabId, request.runId);
+		const snapshot = await runStore.getSnapshot(scope, request.runId);
+		const controller = runStore.registerController(scope, request.runId);
 		let batchState = {};
 		try {
-			batchState = { ...runStore.nextBatch(tabId, request.runId), batchId: createIdentifier() };
+			batchState = { ...runStore.nextBatch(scope, request.runId), batchId: createIdentifier() };
 			return await batchTranslator.translate(
 				snapshot,
 				request,
@@ -84,27 +87,29 @@ export function createRunMessageHandlers({
 			batchTranslator.recordFailure(snapshot, request, tabId, batchState, error);
 			throw error;
 		} finally {
-			runStore.unregisterController(tabId, request.runId, controller);
+			runStore.unregisterController(scope, request.runId, controller);
 		}
 	}
 
 	async function cancelRun(message, sender) {
 		const tabId = getSenderTabId(sender);
+		const scope = frameRuns.scope(sender);
 		const runId = validators.validateRunId(message.runId);
-		statusController.requestCancel(tabId, runId);
-		const result = await runStore.cancel(tabId, runId);
-		await statusController.cancelRun(tabId, runId, { force: result.cancelled });
+		if ((sender.frameId ?? 0) === 0) statusController.requestCancel(tabId, runId);
+		const result = await runStore.cancel(scope, runId);
+		if ((sender.frameId ?? 0) === 0) await statusController.cancelRun(tabId, runId, { force: result.cancelled });
 		return {};
 	}
 
 	async function updateStatus(message, sender) {
 		const tabId = getSenderTabId(sender);
 		const runId = validators.validateRunId(message.runId);
+		if ((sender.frameId ?? 0) !== 0) return {};
 		return await statusController.handleStatus(tabId, runId, message);
 	}
 
 	function getSenderTabId(sender) {
-		if (!sender.tab?.id) {
+		if (!Number.isInteger(sender.tab?.id)) {
 			throw new Error("此请求必须来自网页");
 		}
 		return sender.tab.id;
@@ -112,7 +117,7 @@ export function createRunMessageHandlers({
 
 	function getCacheScope(sender) {
 		try {
-			const url = new URL(sender.tab?.url ?? sender.url);
+			const url = new URL(sender.url ?? sender.tab?.url);
 			return url.origin === "null" ? `${url.protocol}//local-file` : url.origin;
 		} catch {
 			return "unknown-origin";

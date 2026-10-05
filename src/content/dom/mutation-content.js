@@ -3,6 +3,7 @@ import {
 	getContentRootKey,
 	normalizeText,
 	isOwnedNode,
+	textParent,
 } from "./node-utils.js";
 
 export function getMutationElement(mutation) {
@@ -113,8 +114,8 @@ export function collectContentRoots(nodes, { elementStore, tracker, scanner }) {
 			}
 			const contentRoot =
 				elementStore.getTextOwner(textNode) ??
-				tracker.findVolatileContentRoot(textNode.parentElement) ??
-				scanner.findContentUnit(textNode.parentElement);
+				tracker.findVolatileContentRoot(textParent(textNode)) ??
+				scanner.findContentUnit(textParent(textNode));
 			if (contentRoot) {
 				roots.add(contentRoot);
 				const rootParts = textByRoot.get(contentRoot) ?? [];

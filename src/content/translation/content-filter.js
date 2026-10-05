@@ -20,12 +20,9 @@ export function shouldSkipCandidate(candidate, contentFilters = {}) {
 	if (!text) {
 		return false;
 	}
-	if (isIgnoredTranslationTerm(text)) {
-		return true;
-	}
 	if (
 		isFilterEnabled(contentFilters, "skipTechnicalIdentifiers") &&
-		isTechnicalIdentifier(text)
+		(isTechnicalIdentifier(text) || isIgnoredTranslationTerm(text))
 	) {
 		return true;
 	}

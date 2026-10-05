@@ -51,7 +51,7 @@ function updateFilter(key, enabled) {
 	<details id="content-filters" class="fold">
 		<summary>
 			<strong>内容过滤</strong>
-			<span>纯数字、计数、常用技术词与界面标签始终跳过</span>
+			<span>保留代码与元数据边界，短链接可按需翻译</span>
 		</summary>
 		<div class="fold-body behavior-grid">
 			<label v-for="filter in FILTER_OPTIONS" :key="filter.key" class="toggle-row">

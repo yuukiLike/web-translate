@@ -4,13 +4,14 @@ import { TIMING } from "./constants.js";
 export class StatusReporter {
 	#completionRequestActive = false;
 
-	constructor({ runId, progress, view, runtime, isCurrent, hasPendingWork }) {
+	constructor({ runId, progress, view, runtime, isCurrent, hasPendingWork, onRetry }) {
 		this.runId = runId;
 		this.progress = progress;
 		this.view = view;
 		this.runtime = runtime;
 		this.isCurrent = isCurrent;
 		this.hasPendingWork = hasPendingWork;
+		this.onRetry = onRetry;
 	}
 
 	async reportProgress() {
@@ -73,11 +74,14 @@ export class StatusReporter {
 		const message =
 			typeof error?.message === "string" && error.message ? error.message : "未知翻译错误";
 		this.view.show(message, {
-			label: error?.requiresSettings ? "选择云服务" : "打开设置",
-			onClick: () => void this.runtime.openOptions(),
+			label: error?.requiresSettings || !this.onRetry ? "打开设置" : "重试",
+			onClick: () => {
+				if (error?.requiresSettings || !this.onRetry) void this.runtime.openOptions().catch(() => {});
+				else void this.onRetry().catch((retryError) => this.handleError(retryError));
+			},
 		});
 		this.progress.statusVisible = false;
-		void this.runtime.reportStatus(this.runId, "error", { error: message });
+		void this.runtime.reportStatus(this.runId, "error", { error: message }).catch(() => {});
 	}
 
 	#isSameSettledSnapshot(completed, total) {

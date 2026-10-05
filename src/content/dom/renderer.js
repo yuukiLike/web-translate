@@ -3,10 +3,12 @@ import {
 	SITE_PRESENTATION,
 } from "../site-profile.js";
 import { createGeneratedTranslation } from "./generated-presentation.js";
+import { normalizeReadingSettings } from "../../core/reading-settings.js";
+import { isOwnedNode } from "./node-utils.js";
 
 /** 负责创建翻译节点、继承源样式并选择插入位置。 */
 export class TranslationRenderer {
-	constructor({ core, scanner, layout, elementStore, progress, invalidator, rootQueue, onNeedsRescan }) {
+	constructor({ core, scanner, layout, elementStore, progress, invalidator, rootQueue, onNeedsRescan, reading }) {
 		this.core = core;
 		this.scanner = scanner;
 		this.layout = layout;
@@ -15,6 +17,7 @@ export class TranslationRenderer {
 		this.invalidator = invalidator;
 		this.rootQueue = rootQueue;
 		this.onNeedsRescan = onNeedsRescan;
+		this.reading = normalizeReadingSettings(reading);
 	}
 
 	renderIfReady(record, runId) {
@@ -74,6 +77,7 @@ export class TranslationRenderer {
 			this.elementStore.generatedSources.add(record.element);
 		}
 		if (translation) {
+			this.copySourcePresentation(record.element, translation);
 			this.elementStore.rememberTranslationSource(translation, record.element);
 		}
 		this.progress.complete(record.element, record.progressKey);
@@ -81,15 +85,22 @@ export class TranslationRenderer {
 
 	copySourcePresentation(source, translation) {
 		const sourceStyle = getComputedStyle(source);
+		if (Number.parseInt(sourceStyle.webkitLineClamp, 10) > 0 ||
+			(sourceStyle.whiteSpace === "nowrap" && translation.parentElement === source)) {
+			source.dataset.btReadingLayout = "expand";
+		}
+		translation.dataset.btStyle = this.reading.style;
+		translation.setAttribute("translate", "no");
+		translation.dir = "auto";
 		this.layout.remember(source, sourceStyle);
 		const fontSize = Number.parseFloat(sourceStyle.fontSize);
 		const fontScale = source.matches("h1, h2, h3, h4, h5, h6") ? 0.76 : 1;
 		if (Number.isFinite(fontSize)) {
-			translation.style.setProperty("--bt-source-font-size", `${fontSize * fontScale}px`);
+			translation.style.setProperty("--bt-source-font-size", `${fontSize * fontScale * this.reading.fontScale}px`);
 		}
 		translation.style.setProperty(
 			"--bt-translation-line-height",
-			getTranslationLineHeight(sourceStyle.lineHeight, fontScale),
+			String(this.reading.lineHeight),
 		);
 		const marginBottom = getTransferableMarginBottom(sourceStyle);
 		translation.style.setProperty("--bt-source-margin-bottom", `${marginBottom}px`);
@@ -97,10 +108,7 @@ export class TranslationRenderer {
 		if (fontWeight) {
 			translation.style.setProperty("--bt-translation-font-weight", fontWeight);
 		}
-		if (
-			source.matches("button, [role='button']") &&
-			isHorizontalFlex(sourceStyle)
-		) {
+		if (isHorizontalFlex(sourceStyle)) {
 			translation.dataset.btControlLayout = "row-flex";
 		}
 		for (const [property, value] of [
@@ -110,6 +118,16 @@ export class TranslationRenderer {
 		]) {
 			if (value) {
 				translation.style.setProperty(property, value);
+			}
+		}
+	}
+
+	updateReading(reading, roots) {
+		this.reading = normalizeReadingSettings(reading);
+		for (const root of roots) {
+			for (const translation of root.querySelectorAll(".bt-translation[data-bt-owned='true']")) {
+				const source = this.elementStore.getTranslationSource(translation);
+				if (source?.isConnected) this.copySourcePresentation(source, translation);
 			}
 		}
 	}
@@ -126,7 +144,7 @@ function createFlowTranslation({
 	partial,
 }) {
 	const translation = document.createElement("span");
-	translation.className = "bt-translation";
+	translation.className = "bt-translation notranslate";
 	translation.dataset.btOwned = "true";
 	translation.dataset.btRun = runId;
 	translation.lang = normalizeTargetLanguage(targetLanguage);
@@ -136,7 +154,6 @@ function createFlowTranslation({
 	} else {
 		translation.textContent = text;
 	}
-	renderer.copySourcePresentation(source, translation);
 	if (source.parentElement) {
 		renderer.layout.remember(source.parentElement, getComputedStyle(source.parentElement));
 	}
@@ -154,13 +171,6 @@ function normalizeTargetLanguage(language) {
 
 function isRedundantTranslation(core, sourceText, translationText) {
 	return core.normalizeSourceText(sourceText) === core.normalizeSourceText(translationText);
-}
-
-function getTranslationLineHeight(value, fontScale) {
-	const numericLineHeight = Number.parseFloat(value);
-	return Number.isFinite(numericLineHeight)
-		? `${numericLineHeight * fontScale}px`
-		: "normal";
 }
 
 function getTransferableMarginBottom(style) {
@@ -194,6 +204,10 @@ function placeTranslation(
 	translation,
 	{ partial, placementAnchor, presentation },
 ) {
+	if (placementAnchor?.parentNode?.host === source) {
+		placementAnchor.parentNode.insertBefore(translation, placementAnchor.nextSibling);
+		return;
+	}
 	if (partial && placementAnchor !== source && placementAnchor.parentElement) {
 		if (placementAnchor.nodeType === Node.ELEMENT_NODE) {
 			placementAnchor.insertAdjacentElement("afterend", translation);
@@ -210,6 +224,11 @@ function placeTranslation(
 		return;
 	}
 	if (source.matches("li, td, th, caption, summary, dt, dd, button, [role='button']")) {
+		source.append(translation);
+		return;
+	}
+	const sourceDisplay = getComputedStyle(source).display;
+	if (sourceDisplay.startsWith("inline") || sourceDisplay === "contents") {
 		source.append(translation);
 		return;
 	}
@@ -230,6 +249,7 @@ function findTranslationLinkAnchor(source) {
 	let sharedAnchor = null;
 	const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (isOwnedNode(node)) continue;
 		if (!/[\p{L}\p{N}]/u.test(node.textContent ?? "")) {
 			continue;
 		}

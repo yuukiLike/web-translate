@@ -14,6 +14,10 @@ import { getErrorMessage } from "./utilities.js";
 import { createMessageValidators } from "./validation.js";
 import { createModelTranslator } from "./providers/model-translator.js";
 import { createRestTranslators } from "./providers/rest-translators.js";
+import { createFrameRuns } from "./frame-runs.js";
+import { createPageService } from "./page-service.js";
+import { createSelectionService } from "./selection-service.js";
+import { createSpeechService } from "./speech-service.js";
 
 export function createBackgroundApp({ chrome, core, providerCatalog, providerRuntime }) {
 	const extensionVersion = chrome.runtime.getManifest().version;
@@ -35,10 +39,26 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 	const cacheStore = createCacheStore({ chrome, core });
 	const usageStore = createUsageStore({ chrome, core });
 	const runStore = createRunStore({ chrome, core });
+	const validators = createMessageValidators(core);
+	const frameRuns = createFrameRuns({ chrome, runStore });
+	const speechService = createSpeechService({ chrome, settingsStore, validators });
+	const pageService = createPageService({
+		chrome, core, settingsStore,
+		onNavigation: async (tabId, frameId) => {
+			selectionService.removeTab(tabId, frameId === 0 ? null : frameId);
+			await speechService.removeTab(tabId, frameId === 0 ? null : frameId);
+			await frameRuns.removeFrame(tabId, frameId);
+			if (frameId === 0) {
+				statusController.removeTab(tabId);
+				actionUi.removeTab(tabId);
+			}
+		},
+	});
 	const actionUi = createActionUi({
 		chrome,
 		extensionVersion,
 		settingsStore,
+		pageService,
 	});
 	const statusController = createStatusController({
 		getCurrentRunId: runStore.getCurrentRunId,
@@ -70,13 +90,14 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		settingsStore,
 		debug,
 	});
+	const selectionService = createSelectionService({ core, validators, settingsStore, cacheStore, batchTranslator });
 	const messageRouter = createMessageRouter({
 		chrome,
 		core,
 		providerCatalog,
 		extensionVersion,
 		ready: startup.promise,
-		validators: createMessageValidators(core),
+		validators,
 		settingsStore,
 		actionUi,
 		debug,
@@ -86,6 +107,10 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		statusController,
 		batchTranslator,
 		providerService,
+		pageService,
+		frameRuns,
+		selectionService,
+		speechService,
 	});
 
 	async function start() {
@@ -115,11 +140,12 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 			.catch(() => {});
 	}
 
-	function onContextMenuClicked(info) {
-		void startup.promise.then(() => actionUi.handleMenuClick(info)).catch(() => {});
+	function onContextMenuClicked(info, tab) {
+		void startup.promise.then(() => actionUi.handleMenuClick(info, tab)).catch(() => {});
 	}
 
 	function onMessage(message, sender, sendResponse) {
+		if (["speech-offscreen", "speech-ui"].includes(message?.target)) return false;
 		messageRouter.handleMessage(message, sender).then(
 			(result) => sendResponse({ ok: true, ...result }),
 			(error) => sendResponse({ ok: false, error: getErrorMessage(error) }),
@@ -134,7 +160,24 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 	function onTabRemoved(tabId) {
 		statusController.removeTab(tabId);
 		actionUi.removeTab(tabId);
-		void runStore.removeTab(tabId).catch(() => {});
+		selectionService.removeTab(tabId);
+		void Promise.allSettled([frameRuns.removeTab(tabId), pageService.removeTab(tabId), speechService.removeTab(tabId)]);
+	}
+
+	function onNavigation(details) {
+		void startup.promise.then(() => pageService.handleNavigation(details)).catch(() => {});
+	}
+
+	function onFrameReady(details) {
+		void startup.promise.then(() => pageService.handleFrameReady(details)).catch(() => {});
+	}
+
+	function onCommand(command) {
+		void startup.promise.then(async () => {
+			const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+			if (command === "toggle-page") await actionUi.toggleTranslation(tab);
+			else if (command === "translate-selection") await actionUi.handleMenuClick({ menuItemId: "translate-selection" }, tab);
+		}).catch(() => {});
 	}
 
 	return {
@@ -143,6 +186,9 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		onInstalled,
 		onMessage,
 		onTabRemoved,
+		onNavigation,
+		onFrameReady,
+		onCommand,
 		start,
 	};
 }
