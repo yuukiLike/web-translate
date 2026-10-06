@@ -52,6 +52,7 @@ export function placeFlowTranslation(source, translation, candidate, presentatio
 }
 
 function isCompactLabel(source, candidate) {
+	if (candidate.inlineLinks.length) return false;
 	if (!candidate.textAnchor?.parentNode || candidate.text.length > 120 || candidate.text.includes("\n")) return false;
 	const region = closestComposed(source, COMPACT_REGIONS);
 	const header = closestComposed(source, "header, [role='banner']");

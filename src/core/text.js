@@ -1,5 +1,6 @@
 import { SOURCE_MODES, TARGET_MODES } from "./constants.js";
 import { clampInteger, safeString } from "./value-utils.js";
+import { preserveInlineLinkMarkerBoundary } from "./inline-link-markers.js";
 
 export function normalizeSourceText(value) {
 	return String(value)
@@ -106,6 +107,7 @@ export function splitText(value, maximumCharacters = 3_500) {
 		}
 		cut = cut < maximumCharacters * 0.4 ? maximumCharacters : cut + 1;
 		cut = Math.min(cut, maximumCharacters);
+		cut = preserveInlineLinkMarkerBoundary(remaining, cut);
 		// UTF-16 分片不能把 emoji 或扩展汉字切成两个孤立代理项。
 		if (/[\uD800-\uDBFF]/u.test(remaining[cut - 1]) && /[\uDC00-\uDFFF]/u.test(remaining[cut])) cut -= 1;
 		parts.push(remaining.slice(0, cut).trim());

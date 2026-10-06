@@ -36,6 +36,13 @@
 .bt-translation[data-bt-owned="true"]:lang(zh) {
 	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif !important;
 }
+.bt-translation[data-bt-owned="true"] a.bt-translation-link {
+	display: inline !important;
+	font: inherit !important;
+	color: var(--bt-link-color, LinkText) !important;
+	text-decoration-line: var(--bt-link-decoration, underline) !important;
+	cursor: pointer !important;
+}
 .bt-translation[data-bt-owned="true"][data-bt-style="soft"] {
 	padding: 0.32em 0.65em !important;
 	border-inline-start: 2px solid color-mix(in srgb, currentColor 22%, transparent) !important;

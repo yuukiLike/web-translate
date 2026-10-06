@@ -1,4 +1,5 @@
 import { isRecord, safeString } from "./value-utils.js";
+import { haveSameInlineLinkMarkers } from "./inline-link-markers.js";
 
 function invalidModelResponse(message) {
 	const error = new Error(message);
@@ -6,7 +7,7 @@ function invalidModelResponse(message) {
 	return error;
 }
 
-export function parseModelTranslations(content, expectedIds) {
+export function parseModelTranslations(content, expectedIds, expectedTexts = []) {
 	const raw = safeString(content, "", 1_000_000)
 		.replace(/^```(?:json)?\s*/iu, "")
 		.replace(/\s*```$/u, "");
@@ -39,5 +40,11 @@ export function parseModelTranslations(content, expectedIds) {
 	if (translations.size !== expectedIds.length || expectedIds.some((id) => !translations.has(id))) {
 		throw invalidModelResponse("模型返回的译文 ID 与原文不一致");
 	}
-	return expectedIds.map((id) => translations.get(id));
+	return expectedIds.map((id, index) => {
+		const text = translations.get(id);
+		if (expectedTexts[index] !== undefined && !haveSameInlineLinkMarkers(expectedTexts[index], text)) {
+			throw invalidModelResponse("模型返回的行内链接标记与原文不一致");
+		}
+		return text;
+	});
 }

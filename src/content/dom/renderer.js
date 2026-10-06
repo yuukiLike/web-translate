@@ -3,6 +3,8 @@ import { createGeneratedTranslation } from "./generated-presentation.js";
 import { normalizeReadingSettings } from "../../core/reading-settings.js";
 import { placeFlowTranslation } from "./flow-placement.js";
 import { textParent } from "./node-utils.js";
+import { appendTranslationContent } from "./inline-links.js";
+import { stripInlineLinkMarkers } from "../../core/inline-link-markers.js";
 
 /** 负责创建翻译节点、继承源样式并选择插入位置。 */
 export class TranslationRenderer {
@@ -36,7 +38,7 @@ export class TranslationRenderer {
 		}
 
 		const candidate = this.scanner.currentCandidate(record.element);
-		if (!candidate || this.core.hashText(candidate.text) !== record.originalHash) {
+		if (!candidate || this.core.hashText(candidate.translationText) !== record.originalHash) {
 			this.invalidator.invalidate(record.element);
 			this.rootQueue.add(record.element);
 			this.onNeedsRescan(runId);
@@ -44,14 +46,15 @@ export class TranslationRenderer {
 		}
 
 		const translationText = record.translations.join("\n").trim();
+		const plainText = candidate.inlineLinks.length ? stripInlineLinkMarkers(translationText) : translationText;
 		const presentation = this.scanner.getPresentation(record.element);
 		let translation = null;
-		if (!isRedundantTranslation(this.core, candidate.text, translationText)) {
+		if (!isRedundantTranslation(this.core, candidate.text, plainText)) {
 			translation = presentation === SITE_PRESENTATION.generated
 				? createGeneratedTranslation({
 						anchor: candidate.presentationAnchor,
 						source: record.element,
-						text: translationText,
+						text: plainText,
 						language: normalizeTargetLanguage(record.targetLanguage),
 						runId,
 					})
@@ -150,10 +153,9 @@ function createFlowTranslation({
 	translation.lang = normalizeTargetLanguage(targetLanguage);
 	if (presentation === SITE_PRESENTATION.lineStartInline) {
 		translation.dataset.btLayout = SITE_PRESENTATION.lineStartInline;
-		translation.append(document.createElement("br"), text);
-	} else {
-		translation.textContent = text;
+		translation.append(document.createElement("br"));
 	}
+	appendTranslationContent(translation, text, candidate.inlineLinks);
 	if (source.parentElement) {
 		renderer.layout.remember(source.parentElement, getComputedStyle(source.parentElement));
 	}

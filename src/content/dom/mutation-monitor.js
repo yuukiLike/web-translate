@@ -1,4 +1,4 @@
-import { EXCLUSION_ATTRIBUTES, GENERATED_ATTRIBUTES, getObservedAttributes } from "./mutation-attributes.js";
+import { getObservedAttributes, handleAttributeMutation } from "./mutation-attributes.js";
 import { findSiteProfileMutationRoot } from "../site-profile.js";
 import { GeneratedMutationReconciler } from "./generated-mutation-reconciler.js";
 import { transferGeneratedReplacements } from "./generated-replacement-transfer.js";
@@ -73,7 +73,7 @@ export class MutationMonitor {
 		this.#observer.observe(root, {
 			attributes: true,
 			attributeOldValue: window.location.hostname === "github.com",
-			attributeFilter: getObservedAttributes(window.location.hostname),
+			attributeFilter: getObservedAttributes(),
 			characterData: true,
 			characterDataOldValue: true,
 			childList: true,
@@ -138,60 +138,12 @@ export class MutationMonitor {
 			return trackedResult;
 		}
 		if (mutation.type === "attributes") {
-			return this.#handleAttributeMutation(mutation);
+			return handleAttributeMutation(this, mutation);
 		}
 		if (mutation.type === "characterData") {
 			return this.#handleTextMutation(mutation);
 		}
 		return this.#handleChildListMutation(mutation);
-	}
-
-	#handleAttributeMutation(mutation) {
-		if (isOwnedNode(mutation.target)) {
-			return false;
-		}
-		if (GENERATED_ATTRIBUTES.has(mutation.attributeName)) {
-			this.generatedReconciler.restoreAttributes(mutation.target);
-			return false;
-		}
-		const siteMutationRoot = findSiteProfileMutationRoot(mutation);
-		if (mutation.attributeName === "class" || mutation.attributeName === "style") {
-			this.visibilityMonitor.queue(mutation.target);
-			this.visibilityMonitor.schedule();
-			if (!siteMutationRoot) {
-				return false;
-			}
-		}
-		if (siteMutationRoot) {
-			const trackedSource = this.elementStore.findTrackedAncestor(siteMutationRoot);
-			this.invalidator.invalidateTrackedSubtree(siteMutationRoot, true);
-			this.scanQueue.add(trackedSource ?? siteMutationRoot);
-			return true;
-		}
-		if (mutation.attributeName === "href") {
-			return false;
-		}
-		const trackedSource = this.elementStore.findTrackedAncestor(mutation.target);
-		const scanRoot =
-			trackedSource ?? this.scanner.findContentUnit(mutation.target) ?? mutation.target;
-		if (EXCLUSION_ATTRIBUTES.has(mutation.attributeName)) {
-			if (this.scanner.isExcluded(mutation.target)) {
-				this.invalidator.discardTrackedSubtree(mutation.target, true);
-			} else {
-				this.invalidator.invalidateTrackedSubtree(mutation.target, true);
-			}
-			this.scanQueue.add(scanRoot);
-			return true;
-		}
-		if (mutation.attributeName === "hidden" || mutation.attributeName === "role") {
-			this.invalidator.invalidateTrackedSubtree(
-				mutation.target,
-				true,
-				(source) => !this.generatedReconciler.queue(source),
-			);
-		}
-		this.scanQueue.add(scanRoot);
-		return true;
 	}
 
 	#handleTextMutation(mutation) {

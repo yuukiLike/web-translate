@@ -138,7 +138,7 @@ export class GeneratedMutationReconciler {
 		const candidate = this.scanner.currentCandidate(source);
 		return Boolean(
 			candidate &&
-				this.scanner.core.hashText(candidate.text) === state.originalHash &&
+				this.scanner.core.hashText(candidate.translationText) === state.originalHash &&
 				restoreGeneratedPresentation(
 					source,
 					translation,

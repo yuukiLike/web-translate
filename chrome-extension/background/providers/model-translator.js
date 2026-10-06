@@ -105,6 +105,7 @@ export function createModelTranslator({ core, providerRuntime, debug, debugMetad
 			translations = core.parseModelTranslations(
 				result.text,
 				context.segments.map((segment) => segment.id),
+				context.segments.map((segment) => segment.text),
 			);
 		} catch (error) {
 			if (error?.code !== "MODEL_RESPONSE_INVALID") {

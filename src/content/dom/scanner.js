@@ -1,7 +1,8 @@
 import { SELECTORS } from "../constants.js";
-import { createSiteProfile } from "../site-profile.js";
+import { createSiteProfile, SITE_PRESENTATION } from "../site-profile.js";
 import { closestComposed, composedParent, containsComposed, isTranslationExcluded, textParent } from "./node-utils.js";
 import { readableNodes } from "./text-walker.js";
+import { serializeSourceText } from "./inline-links.js";
 
 /**
  * 把任意 DOM 根节点转换成“正文候选块”。
@@ -37,7 +38,7 @@ export class DomScanner {
 
 	matchesCurrentCandidate(element, originalHash) {
 		const candidate = this.currentCandidate(element);
-		return Boolean(candidate && this.core.hashText(candidate.text) === originalHash);
+		return Boolean(candidate && this.core.hashText(candidate.translationText) === originalHash);
 	}
 
 	isExcluded(element) {
@@ -61,9 +62,9 @@ export class DomScanner {
 		if (atomic && !this.isExcluded(atomic)) {
 			return atomic;
 		}
-		const leaf = closestComposed(element, SELECTORS.leaf);
-		if (leaf && !this.isExcluded(leaf)) {
-			return leaf;
+		const semanticBlock = closestComposed(element, `${SELECTORS.leaf}, li`);
+		if (semanticBlock && !this.isExcluded(semanticBlock)) {
+			return semanticBlock;
 		}
 
 		let lastEligible = element;
@@ -170,26 +171,32 @@ export class DomScanner {
 
 	#buildCandidates(drafts) {
 		return [...drafts.values()]
-			.map((draft) => ({
-				element: draft.element,
-				partial: Boolean(draft.partial),
-				textAnchor: draft.nodes.findLast((entry) => /\S/u.test(entry.node.textContent ?? ""))?.node,
-				controlAnchor: findControlAnchor(draft),
-				placementAnchor: findPlacementAnchor(draft),
-				presentationAnchor: findPresentationAnchor(draft),
-				text: this.#serializeAssignedText(draft.nodes),
-				traits: {
-					interactiveKind: getInteractiveKind(draft.element),
-					metadataOnly: containsOnlyMetadata(draft, this.siteProfile),
-				},
-			}))
+			.map((draft) => {
+				const controlAnchor = findControlAnchor(draft);
+				// 仅由一个链接构成的列表项仍应用链接过滤。
+				const interactive = draft.element.matches("li") ? controlAnchor ?? draft.element : draft.element;
+				return {
+					element: draft.element,
+					partial: Boolean(draft.partial),
+					textAnchor: draft.nodes.findLast((entry) => /\S/u.test(entry.node.textContent ?? ""))?.node,
+					controlAnchor,
+					placementAnchor: findPlacementAnchor(draft),
+					presentationAnchor: findPresentationAnchor(draft),
+					...serializeSourceText(this.core, draft.nodes, draft.element,
+						this.getPresentation(draft.element) !== SITE_PRESENTATION.generated),
+					traits: {
+						interactiveKind: getInteractiveKind(interactive),
+						metadataOnly: containsOnlyMetadata(draft, this.siteProfile),
+					},
+				};
+			})
 			.filter((candidate) => /[\p{L}\p{N}]/u.test(candidate.text));
 	}
 
 	#findNearestBlockContainer(element, candidate, styleCache) {
 		for (let current = element; current && containsComposed(candidate, current); current = composedParent(current)) {
 			const display = this.layout.getStyle(current, styleCache).display;
-			if (!display.startsWith("inline") && display !== "contents") {
+			if (display && !display.startsWith("inline") && display !== "contents") {
 				return current;
 			}
 			if (current === candidate) {
@@ -197,27 +204,6 @@ export class DomScanner {
 			}
 		}
 		return candidate;
-	}
-
-	#serializeAssignedText(entries) {
-		let output = "";
-		let previous = null;
-		for (const entry of entries) {
-			const rawText = entry.text ?? entry.node.textContent ?? "";
-			if (!rawText) {
-				continue;
-			}
-			if (
-				previous &&
-				!output.endsWith("\n") &&
-				(entry.order !== previous.order + 1 || entry.block !== previous.block)
-			) {
-				output = output.replace(/[^\S\n]+$/u, "") + "\n";
-			}
-			output += rawText;
-			previous = entry;
-		}
-		return this.core.normalizeSourceText(output);
 	}
 }
 

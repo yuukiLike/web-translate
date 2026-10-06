@@ -61,7 +61,7 @@ export class TranslationPlanner {
 	#createRecord(candidate) {
 		const { element, text } = candidate;
 		const languagePair = this.#getLanguagePair(element, text);
-		const originalHash = this.core.hashText(text);
+		const originalHash = this.core.hashText(candidate.translationText);
 		const existingState = this.elementStore.getState(element);
 		if (
 			existingState?.originalHash === originalHash &&
@@ -86,7 +86,7 @@ export class TranslationPlanner {
 		}
 
 		this.elementStore.deferredElements.delete(element);
-		const parts = this.core.splitText(text, SOURCE_PART_CHARACTER_LIMIT);
+		const parts = this.core.splitText(candidate.translationText, SOURCE_PART_CHARACTER_LIMIT);
 		if (parts.length === 0) {
 			return null;
 		}

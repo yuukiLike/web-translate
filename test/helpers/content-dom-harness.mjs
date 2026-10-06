@@ -52,6 +52,8 @@ export function createContentHarness({
 	document.body.append(root);
 	window.chrome = {
 		runtime: {
+			id: "test-extension",
+			onMessage: { addListener() {} },
 			async sendMessage(message) {
 				messages.push(structuredClone(message));
 				if (message.type === "START_RUN") {
@@ -116,6 +118,8 @@ export function createContentHarness({
 		window.eval(catalogSource);
 		window.eval(coreSource);
 		window.eval(contentSource);
+		// 当前脚本只安装控制器；测试启动需要显式执行页面开关。
+		void window.__bilingualWebTranslatorController.toggle();
 	}
 
 	return {
@@ -127,10 +131,12 @@ export function createContentHarness({
 		translationRequests,
 		window,
 		dispose() {
+			window.dispatchEvent(new window.Event("pagehide"));
 			window.close();
 		},
 		injectAgain() {
 			window.eval(contentSource);
+			void window.__bilingualWebTranslatorController.toggle();
 		},
 		requestCount(text) {
 			return translationRequests.reduce(

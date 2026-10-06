@@ -45,12 +45,13 @@ test("GitHub feed 保持卡片布局和标题链接语义", async () => {
 		assert.deepEqual(allRequestedTexts(harness).toSorted(), [
 			`${TITLE} ${ISSUE_NUMBER}`,
 			card.bodyHeading.textContent,
-			card.inlineBody.textContent,
+			card.inlineBody.textContent.replace("complete recovery guide", "[[BT_LINK_0]]complete recovery guide[[/BT_LINK_0]]"),
 			card.bodyText.textContent,
 		].toSorted());
 		const inlineTranslation = harness.getTranslation(card.inlineBody);
 		assert.equal(inlineTranslation.parentElement === card.inlineLink, false);
 		assert.equal(inlineTranslation.previousElementSibling === card.inlineBody, true);
+		assert.equal(inlineTranslation.querySelector("a")?.href, card.inlineLink.href);
 	} finally {
 		harness.dispose();
 	}
@@ -161,7 +162,7 @@ test("GitHub feed 规则覆盖动态内容并隔离主机名", async () => {
 				card.titleLink.removeAttribute("href");
 				await new Promise((resolve) => setTimeout(resolve, 230));
 				assert.equal(harness.getTranslation(card.title), linkedTranslation);
-				assert.equal(linkedTranslation.parentElement, card.titleLink);
+				assert.equal(linkedTranslation.parentElement === card.titleLink, true, "标题译文应保持在原链接内");
 			}
 		} finally {
 			harness.dispose();

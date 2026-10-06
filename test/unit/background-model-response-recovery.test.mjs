@@ -63,6 +63,27 @@ test("模型响应契约错误通过重新翻译恢复", async () => {
 	}
 });
 
+// 验证 JSON 合法但链接标记丢失时也缩批恢复，坏结果不进入已验证响应。
+test("模型丢失链接标记后缩批恢复完整译文", async () => {
+	let requestCount = 0;
+	const { translator, debugEvents } = createTranslator(async (request) => {
+		requestCount += 1;
+		const result = successfulResult(request);
+		if (requestCount === 1) result.text = result.text.replaceAll(/\[\[\/?BT_LINK_\d+\]\]/gu, "");
+		return result;
+	});
+	const linkedSegments = [
+		{ id: "first", text: "See [[BT_LINK_0]]#1772[[/BT_LINK_0]] for the fix." },
+		segments[1],
+	];
+	const result = await translate(translator, linkedSegments);
+	assert.equal(requestCount, 3);
+	assert.deepEqual(result.translations, linkedSegments.map(({ text }) => `译文：${text}`));
+	assert.deepEqual(debugEvents.filter(({ eventType }) => eventType.startsWith("model.response.")).map(({ eventType }) => eventType), [
+		"model.response.invalid", "model.response.validated", "model.response.validated",
+	]);
+});
+
 // 验证单个长段落的格式错误也可以拆文本恢复，返回结果仍对应原始段落而非子段 ID。
 test("单段 JSON 格式错误通过拆文本恢复一个译文", async () => {
 	const requests = [];
