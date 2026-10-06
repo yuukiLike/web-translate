@@ -30,8 +30,8 @@ test("Hacker News 标题译文允许来源站点同行延续", async () => {
 		assert.equal(translation.childNodes.length, 2);
 		assert.equal(translation.childNodes[1].nodeType, harness.window.Node.TEXT_NODE);
 		assert.equal(translation.textContent, `译文：${sourceText}`);
-		assert.equal(translation.previousElementSibling, story.storyLink);
-		assert.equal(translation.nextElementSibling, story.siteBit);
+		assert.equal(translation.previousElementSibling === story.storyLink, true, "HN 译文应紧跟原标题链接");
+		assert.equal(translation.nextElementSibling === story.siteBit, true, "HN 来源站点应紧跟译文");
 		assert.equal(story.siteBit.textContent.trim(), "(github.com/jmarshall23)");
 		assert.equal(harness.requestCount("github.com/jmarshall23"), 0);
 		assert.equal(hasMetadataRequest(harness.translationRequests), false);
@@ -49,7 +49,7 @@ test("Hacker News 标题译文允许来源站点同行延续", async () => {
 		);
 		const dynamicTranslation = harness.getTranslation(dynamicStory.storyLink);
 		assert.equal(dynamicTranslation.dataset.btLayout, "line-start-inline");
-		assert.equal(dynamicTranslation.nextElementSibling, dynamicStory.siteBit);
+		assert.equal(dynamicTranslation.nextElementSibling === dynamicStory.siteBit, true, "动态 HN 来源站点应紧跟译文");
 		assert.equal(harness.requestCount(dynamicText), 1);
 
 		harness.injectAgain();
@@ -57,8 +57,8 @@ test("Hacker News 标题译文允许来源站点同行延续", async () => {
 			() => harness.messages.some(({ type }) => type === "CANCEL_RUN"),
 			"停止运行没有清理 HN 专属译文布局",
 		);
-		assert.equal(harness.getTranslation(story.storyLink), null);
-		assert.equal(story.storyLink.nextElementSibling, story.siteBit);
+		assert.equal(harness.getTranslation(story.storyLink) === null, true, "停止后应清理 HN 译文");
+		assert.equal(story.storyLink.nextElementSibling === story.siteBit, true, "停止后应恢复原标题与来源站点的位置");
 	} finally {
 		harness.dispose();
 	}
