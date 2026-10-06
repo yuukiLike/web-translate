@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="420" viewBox="0 0 1100 420" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">一键双语翻译 · 双语阅读示意</title>
+  <desc id="description">左侧介绍整页翻译、划词翻译与英语朗读；右侧展示英语原文与下方的中文译文，说明逐段对照的阅读方式。这是一张功能示意图。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1100" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EFF6FF" />
+      <stop offset="1" stop-color="#DBEAFE" />
+    </linearGradient>
+    <clipPath id="canvas">
+      <rect width="1100" height="420" rx="24" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#canvas)">
+    <rect width="1100" height="420" fill="url(#background)" />
+    <circle cx="1050" cy="35" r="220" fill="#BFDBFE" fill-opacity="0.45" />
+    <circle cx="380" cy="430" r="140" fill="#FFFFFF" fill-opacity="0.45" />
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="56" y="76" fill="#2563EB" font-size="12" font-weight="700" letter-spacing="2">BILINGUAL READING</text>
+    <text x="54" y="144" fill="#0F172A" font-size="42" font-weight="700">
+      <tspan x="54">原文与译文，</tspan>
+      <tspan x="54" dy="60">一起读。</tspan>
+    </text>
+    <text x="56" y="248" fill="#475569" font-size="16">中英互译 · 保留原文 · 随时恢复</text>
+
+    <rect x="56" y="290" width="108" height="36" rx="18" fill="#2563EB" />
+    <text x="110" y="313" fill="#FFFFFF" font-size="14" font-weight="600" text-anchor="middle">整页翻译</text>
+    <rect x="174" y="290" width="108" height="36" rx="18" fill="#FFFFFF" />
+    <text x="228" y="313" fill="#1D4ED8" font-size="14" font-weight="600" text-anchor="middle">划词翻译</text>
+    <rect x="292" y="290" width="108" height="36" rx="18" fill="#FFFFFF" />
+    <text x="346" y="313" fill="#1D4ED8" font-size="14" font-weight="600" text-anchor="middle">英语朗读</text>
+
+    <rect x="462" y="46" width="582" height="344" rx="18" fill="#1E40AF" fill-opacity="0.08" />
+    <rect x="462" y="38" width="582" height="344" rx="18" fill="#FFFFFF" />
+    <text x="488" y="73" fill="#64748B" font-size="12" font-weight="600">English → 简体中文</text>
+    <text x="1018" y="73" fill="#2563EB" font-size="12" font-weight="600" text-anchor="end">逐段对照</text>
+
+    <text x="488" y="112" fill="#1E293B" font-size="19">Keep the original text in view.</text>
+    <text x="488" y="141" fill="#1E293B" font-size="19">Read the translation, one paragraph at a time.</text>
+    <rect x="488" y="162" width="530" height="82" rx="10" fill="#EFF6FF" />
+    <rect x="488" y="174" width="3" height="58" rx="1.5" fill="#60A5FA" />
+    <text x="506" y="194" fill="#1D4ED8" font-size="19">让原文留在眼前。</text>
+    <text x="506" y="223" fill="#1D4ED8" font-size="19">逐段阅读译文，理解每一句话。</text>
+
+    <text x="488" y="284" fill="#1E293B" font-size="19">A small step toward understanding.</text>
+    <rect x="488" y="304" width="530" height="52" rx="10" fill="#EFF6FF" />
+    <rect x="488" y="315" width="3" height="30" rx="1.5" fill="#60A5FA" />
+    <text x="506" y="337" fill="#1D4ED8" font-size="19">理解世界，从读懂一句话开始。</text>
+
+    <text x="56" y="378" fill="#64748B" font-size="12">阅读效果示意</text>
+  </g>
+</svg>
