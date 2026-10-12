@@ -116,6 +116,48 @@ test("GitHub 站点策略隔离 contribution calendar 与活动正文", () => {
 	}
 });
 
+// 验证提交卡片按组件前缀隔离元信息与控件，不依赖哈希后缀或误伤标题和普通列表。
+test("GitHub 站点策略隔离 commit row 元信息与阅读内容", () => {
+	const window = new Window();
+	try {
+		const { document } = window;
+		document.body.innerHTML = `
+			<ul>
+				<li data-testid="commit-row-item">
+					<div data-listview-item-title-container="true"><h4><a>Commit title</a></h4></div>
+					<div class="Description-module__container__changed">
+						<div class="CommitAttribution-module__CommitAttributionContainer__changed"><a>Author</a><relative-time>last week</relative-time></div>
+						<p>Commit description stays readable.</p>
+					</div>
+					<div class="MetadataContainer-module__container__changed"><a>f61db25</a><button>Copy commit hash</button></div>
+					<button data-testid="commit-row-show-description-button"><span>Show description</span></button>
+				</li>
+				<li><div class="CommitAttribution-module__CommitAttributionContainer__changed">A regular attribution note.</div></li>
+			</ul>
+		`;
+		const row = document.querySelector("[data-testid='commit-row-item']");
+		const github = createSiteProfile({ hostname: "github.com" });
+		const chromeRoots = row.querySelectorAll([
+			"[class*='CommitAttribution-module__']",
+			"[class*='MetadataContainer-module__']",
+			"[data-testid='commit-row-show-description-button']",
+		].join(", "));
+		const chromeElements = [...chromeRoots].flatMap((region) => [region, ...region.querySelectorAll("*")]);
+		for (const element of chromeElements) {
+			assert.equal(github.isExcluded(element), true, "提交卡片的元信息应排除翻译");
+			for (const hostname of ["example.com", "gist.github.com", "github.com.evil.test"]) {
+				assert.equal(createSiteProfile({ hostname }).isExcluded(element), false);
+			}
+		}
+		for (const selector of ["h4", "h4 a", "p", "[class*='Description-module__']", "li:last-child div"]) {
+			assert.equal(github.isExcluded(document.querySelector(selector)), false,
+				"标题、说明与普通列表不能因提交规则被排除");
+		}
+	} finally {
+		window.close();
+	}
+});
+
 // 验证 href hydration 只能在精确 GitHub 主机上触发站点重扫。
 test("GitHub href mutation 使用精确主机边界", () => {
 	const window = new Window();

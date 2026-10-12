@@ -48,6 +48,12 @@ const GITHUB_FEED_CHROME = [
 	`${GITHUB_FEED_ITEM} [aria-label^='pull request details ']`,
 	`${GITHUB_FEED_ITEM} .js-feed-item-disinterest-dialog`,
 ].join(", ");
+// 提交卡片的元信息共享 li 网格，不能把合并后的译文作为额外网格项插入。
+const GITHUB_COMMIT_CHROME = [
+	"[class*='CommitAttribution-module__']",
+	"[class*='MetadataContainer-module__']",
+	"[data-testid='commit-row-show-description-button']",
+].map((selector) => `[data-testid='commit-row-item'] ${selector}`).join(", ");
 const GITHUB_FEED_BOUNDARY_CLASSES = new Set([
 	"feed-item-heading-menu-button",
 	"js-feed-item-component",
@@ -58,7 +64,8 @@ const GITHUB_PROFILE = Object.freeze({
 	findContentUnit: () => null,
 	getPresentation: () => null,
 	isExcluded(element) {
-		return isGitHubContributionGraph(element) || isGitHubFeedChrome(element);
+		return isGitHubContributionGraph(element) || isGitHubFeedChrome(element) ||
+			Boolean(element.closest(GITHUB_COMMIT_CHROME));
 	},
 	isMetadata: () => false,
 });

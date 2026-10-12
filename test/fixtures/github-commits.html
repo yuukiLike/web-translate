@@ -1,0 +1,54 @@
+<!-- Reduced from https://github.com/objective-see/LuLu/commits/master/ on 2026-10-12.
+     Native grid areas and component boundaries retained; relative-time represents hydration. -->
+<style>
+	.ListItem-module__listItem__wBJcm {
+		display: grid;
+		grid-template-columns: min-content min-content minmax(30%, 1fr) minmax(0, max-content) min-content;
+		grid-template-areas: "selection status primary actions" "selection status metadata actions" "selection status main-content actions";
+	}
+	.Title-module__container__ZzhV_ { grid-area: primary; display: block; }
+	.CommitRow-module__ListItemTitle_0__cUhJS { display: inline; }
+	.MainContent-module__container__uXXH2 { grid-area: main-content; }
+	.MetadataContainer-module__container__YDbLz { grid-area: metadata; display: flex; }
+	.CommitAttribution-module__CommitAttributionContainer__I_rfs { display: flex; flex-flow: wrap; }
+</style>
+<h3 data-testid="commit-group-title">Commits on Oct 4, 2026</h3>
+<ul data-listview-component="items-list">
+	<li class="ListItem-module__listItem__wBJcm CommitRow-module__ListItem_0__u0LMo" data-testid="commit-row-item" data-commit-link="/objective-see/LuLu/commit/f61db25c9c7f6bdc062baf51ea10da3a99998169">
+		<div class="Title-module__container__ZzhV_ CommitRow-module__ListItemTitle_0__cUhJS" data-listview-item-title-container="true">
+			<h4 class="Title-module__heading__tHuYV CommitRow-module__ListItemTitle_0__cUhJS">
+				<a class="Title-module__anchor__dBbYy Title-module__inline__YFTZT" href="/objective-see/LuLu/commit/f61db25c9c7f6bdc062baf51ea10da3a99998169"><span>move to Applications alert++</span></a>
+			</h4>
+			<span class="Title-module__trailingBadgesContainer__INeSa"></span>
+		</div>
+		<div class="px-1"></div>
+		<div class="MainContent-module__container__uXXH2">
+			<div class="MainContent-module__inner__C80co">
+				<div class="Description-module__container__hpqJz">
+					<div class="CommitAttribution-module__CommitAttributionContainer__I_rfs">
+						<div data-testid="author-avatar" class="AuthorAvatar-module__AuthorAvatarContainer__n0MVc">
+							<a href="/objective-see" data-testid="avatar-icon-link"><img alt="objective-see" width="16" height="16"></a>
+							<a class="AuthorAvatar-module__authorHoverableLink__MHTT8" href="/objective-see/LuLu/commits?author=objective-see">objective-see</a>
+						</div>
+						<span class="pl-1">committed</span>
+						<relative-time datetime="2026-10-04T08:38:22Z">last week</relative-time>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="MetadataContainer-module__container__YDbLz">
+			<div class="Metadata-module__metadata__ocr9n Metadata-module__primary__XCEO2">
+				<div class="d-flex">
+					<a data-component="Button" href="/objective-see/LuLu/commit/f61db25c9c7f6bdc062baf51ea10da3a99998169"><span data-component="buttonContent"><span data-component="text">f61db25</span></span></a>
+					<span role="tooltip" aria-hidden="true">View commit details</span>
+					<div>
+						<button data-component="IconButton" type="button" aria-labelledby="copy-commit-sha"></button>
+						<span data-component="Tooltip" aria-hidden="true" id="copy-commit-sha">Copy full SHA for f61db25</span>
+					</div>
+				</div>
+				<a aria-labelledby="browse-repo-f61db25" href="/objective-see/LuLu/tree/f61db25c9c7f6bdc062baf51ea10da3a99998169" data-testid="commit-row-browse-repo"></a>
+				<span aria-hidden="true" id="browse-repo-f61db25">Browse repository at this point</span>
+			</div>
+		</div>
+	</li>
+</ul>
