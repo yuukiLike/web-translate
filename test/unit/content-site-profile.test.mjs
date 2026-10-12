@@ -158,6 +158,39 @@ test("GitHub 站点策略隔离 commit row 元信息与阅读内容", () => {
 	}
 });
 
+// 验证提交说明容器及其行内内容属于独立正文，标题、元信息和其他主机不应用该边界。
+test("GitHub 展开提交说明以独立容器作为正文", () => {
+	const window = new Window();
+	try {
+		const { document } = window;
+		document.body.innerHTML = `
+			<ul><li data-testid="commit-row-item">
+				<h4><a>Commit title</a></h4>
+				<div class="Description-module__container__changed">
+					<div class="extended-commit-description-container"><span>Read </span><a href="/notes">the notes</a><code>WABT</code></div>
+				</div>
+				<div class="CommitAttribution-module__CommitAttributionContainer__changed">Author</div>
+			</li></ul>
+			<div class="extended-commit-description-container" id="outside">An ordinary description.</div>
+		`;
+		const body = document.querySelector("li .extended-commit-description-container");
+		const github = createSiteProfile({ hostname: "github.com" });
+		for (const element of [body, ...body.querySelectorAll("*")]) {
+			assert.equal(github.findContentUnit(element) === body, true, "说明的行内内容应归属独立正文容器");
+			assert.equal(github.isExcluded(element), false);
+			for (const hostname of ["example.com", "gist.github.com", "github.com.evil.test"]) {
+				assert.equal(createSiteProfile({ hostname }).findContentUnit(element) === null, true);
+			}
+		}
+		for (const selector of ["h4", "h4 a", "[class*='CommitAttribution-module__']", "#outside"]) {
+			assert.equal(github.findContentUnit(document.querySelector(selector)) === null, true,
+				"展开说明边界不能扩散到标题、元信息或普通内容");
+		}
+	} finally {
+		window.close();
+	}
+});
+
 // 验证 href hydration 只能在精确 GitHub 主机上触发站点重扫。
 test("GitHub href mutation 使用精确主机边界", () => {
 	const window = new Window();

@@ -54,6 +54,7 @@ const GITHUB_COMMIT_CHROME = [
 	"[class*='MetadataContainer-module__']",
 	"[data-testid='commit-row-show-description-button']",
 ].map((selector) => `[data-testid='commit-row-item'] ${selector}`).join(", ");
+const GITHUB_COMMIT_DESCRIPTION = "[data-testid='commit-row-item'] .extended-commit-description-container";
 const GITHUB_FEED_BOUNDARY_CLASSES = new Set([
 	"feed-item-heading-menu-button",
 	"js-feed-item-component",
@@ -61,7 +62,10 @@ const GITHUB_FEED_BOUNDARY_CLASSES = new Set([
 ]);
 
 const GITHUB_PROFILE = Object.freeze({
-	findContentUnit: () => null,
+	findContentUnit(element) {
+		// 展开说明由普通 HTML 容器承载，必须先于通用 li 聚合规则确定正文边界。
+		return element.closest(GITHUB_COMMIT_DESCRIPTION);
+	},
 	getPresentation: () => null,
 	isExcluded(element) {
 		return isGitHubContributionGraph(element) || isGitHubFeedChrome(element) ||

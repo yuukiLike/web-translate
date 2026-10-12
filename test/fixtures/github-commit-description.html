@@ -1,0 +1,44 @@
+<!-- Reduced from https://github.com/yuukiLike/rea/commits/main/ on 2026-10-13.
+     Expanded Description -> .extended-commit-description-container structure follows
+     GitHub's CommitRow component; the template represents its conditional body. -->
+<style>
+	.ListItem-module__listItem__wBJcm {
+		display: grid;
+		grid-template-columns: min-content min-content minmax(30%, 1fr) minmax(0, max-content) min-content;
+		grid-template-areas: "selection status primary actions" "selection status metadata actions" "selection status main-content actions";
+	}
+	.Title-module__container__ZzhV_ { grid-area: primary; }
+	.CommitRow-module__ListItemTitle_0__cUhJS { display: inline; }
+	.MainContent-module__container__uXXH2 { grid-area: main-content; }
+	.MetadataContainer-module__container__YDbLz { grid-area: metadata; display: flex; }
+	.CommitAttribution-module__CommitAttributionContainer__I_rfs { display: flex; flex-flow: wrap; }
+	.ws-pre-wrap { white-space: pre-wrap; }
+</style>
+<ul data-listview-component="items-list">
+	<li class="ListItem-module__listItem__wBJcm CommitRow-module__ListItem_0__u0LMo" data-testid="commit-row-item" data-commit-link="/yuukiLike/rea/commit/b777e5d4d8a7b60edad7d5c0eaa56408a4b3f610">
+		<div class="Title-module__container__ZzhV_ CommitRow-module__ListItemTitle_0__cUhJS" data-listview-item-title-container="true">
+			<h4 class="Title-module__heading__tHuYV CommitRow-module__ListItemTitle_0__cUhJS"><a href="/yuukiLike/rea/commit/b777e5d4d8a7b60edad7d5c0eaa56408a4b3f610">fix(wasm): preserve debug module names in WABT output (</a><a class="issue-link js-issue-link" href="https://github.com/morluto/rea/pull/1967">morluto#1967</a><a href="/yuukiLike/rea/commit/b777e5d4d8a7b60edad7d5c0eaa56408a4b3f610">)</a></h4>
+			<button data-testid="commit-row-show-description-button" aria-expanded="false" aria-pressed="false" aria-label="Show description"></button>
+		</div>
+		<div class="px-1"></div>
+		<div class="MainContent-module__container__uXXH2">
+			<div class="MainContent-module__inner__C80co">
+				<div class="Description-module__container__hpqJz">
+					<div class="CommitAttribution-module__CommitAttributionContainer__I_rfs"><span>Aliciawque</span> authored and <span>morluto</span> committed <relative-time>18 hours ago</relative-time></div>
+				</div>
+			</div>
+		</div>
+		<div class="MetadataContainer-module__container__YDbLz"><a href="/yuukiLike/rea/commit/b777e5d4d8a7b60edad7d5c0eaa56408a4b3f610">b777e5d</a><button aria-label="Copy full SHA"></button></div>
+	</li>
+</ul>
+<template id="expanded-commit-description">
+	<div class="Description-module__container__hpqJz">
+		<div class="ws-pre-wrap extended-commit-description-container pb-2 text-mono wb-break-word">* fix(wasm): preserve debug module names in WABT output
+
+* fix(native): accept otool dylib-use options
+
+Preserve modern dylib options while requiring one encoding metadata row and retaining duplicate and multiline-output checks. Share field parsing between preservation and validation.
+
+Verify delayed dylibs through real macOS CLI/MCP workflows and refresh the high-address golden with the provider's -h -l capture. Validated 85 focused native tests, npm run check, and verify:macos-bundle on macOS arm64.</div>
+	</div>
+</template>
