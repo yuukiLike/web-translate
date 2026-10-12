@@ -44,6 +44,11 @@ export class TranslationRenderer {
 			this.onNeedsRescan(runId);
 			return;
 		}
+		// 请求排队后用户可能已经滚过该行；命中缓存和网络返回都必须在写 DOM 前复查。
+		if (!this.layout.isInTranslationRange(record.element)) {
+			this.invalidator.defer(record.element);
+			return;
+		}
 
 		const translationText = record.translations.join("\n").trim();
 		const plainText = candidate.inlineLinks.length ? stripInlineLinkMarkers(translationText) : translationText;

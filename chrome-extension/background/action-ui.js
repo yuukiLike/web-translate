@@ -162,8 +162,13 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 					title: `正在翻译${progress}`, iconPaths: getActionIconPaths(step),
 				};
 			}
-			case "done":
-				return { text: "✓", color: "#dcfce7", textColor: "#15803d", title: "当前网页已完成双语翻译" };
+			case "done": {
+				const deferred = message.deferred === true;
+				return {
+					text: deferred ? "…" : "✓", color: "#dcfce7", textColor: "#15803d",
+					title: deferred ? "翻译已开启，滚动后继续" : "当前网页已完成双语翻译",
+				};
+			}
 			case "error":
 				return {
 					text: "!",

@@ -16,6 +16,12 @@ export class ElementInvalidator {
 		this.#clearElement(element, false);
 	}
 
+	defer(element) {
+		// 不把等待回滚的正文算成正在翻译；恢复时重新核对原文并复用运行缓存。
+		this.invalidate(element);
+		this.elementStore.deferredElements.add(element);
+	}
+
 	discard(element) {
 		this.#clearElement(element, true);
 	}

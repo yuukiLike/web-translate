@@ -91,6 +91,7 @@ const X_PAGE_CHROME = [
 	"[role='menu']",
 	"[role='tooltip']",
 	"[data-testid='User-Name']",
+	"[data-testid='UserCell']",
 	"[data-testid='tweet'] [role='group']",
 	"[data-testid='tweet-text-show-more-link']",
 ].join(", ");
@@ -98,6 +99,11 @@ const X_PAGE_CHROME = [
 const X_PROFILE = Object.freeze({
 	findContentUnit(element) {
 		return element.closest(SELECTORS.atomic);
+	},
+	getTranslationViewportTarget(element) {
+		// X 按整行测量虚拟列表；行首已越过顶部时，行内任何正文都不能再增高。
+		return element.closest("[data-testid='cellInnerDiv']") ??
+			element.closest("[data-testid='tweet']") ?? element;
 	},
 	getPresentation() {
 		return SITE_PRESENTATION.generated;

@@ -1,11 +1,13 @@
 import { PRIORITY } from "../constants.js";
-import { isTranslationExcluded } from "./node-utils.js";
+import { createSiteProfile } from "../site-profile.js";
+import { composedParent, isTranslationExcluded } from "./node-utils.js";
 import { readableNodes } from "./text-walker.js";
 
 /** 与布局有关的浏览器读取集中在此，避免扫描和监听器各自实现一套。 */
 export class LayoutInspector {
 	constructor(elementStore) {
 		this.elementStore = elementStore;
+		this.siteProfile = createSiteProfile();
 	}
 
 	getStyle(element, cache = null) {
@@ -62,6 +64,18 @@ export class LayoutInspector {
 		return rectangle;
 	}
 
+	isInTranslationRange(element) {
+		const target = this.siteProfile.getTranslationViewportTarget?.(element);
+		if (!target) return true;
+		const rectangle = this.getRectangle(target);
+		const viewport = getScrollViewport(element);
+		const height = viewport.bottom - viewport.top;
+		// 只预取下方半屏。部分越过顶部的整行也延后，避免展开正文推移阅读位置。
+		return rectangle.width > 1 && rectangle.height > 1 && height > 0 &&
+			rectangle.top >= viewport.top && rectangle.top <= viewport.bottom + height * 0.5 &&
+			rectangle.right > viewport.left && rectangle.left < viewport.right;
+	}
+
 	getPriority(element) {
 		const rectangle = this.getRectangle(element);
 		const viewportHeight = Math.max(window.innerHeight, 1);
@@ -73,6 +87,24 @@ export class LayoutInspector {
 		}
 		return PRIORITY.aboveViewport + Math.abs(rectangle.bottom);
 	}
+}
+
+function getScrollViewport(element) {
+	const viewport = { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth };
+	for (let parent = composedParent(element); parent && parent !== document.body; parent = composedParent(parent)) {
+		const style = getComputedStyle(parent);
+		if (!/^(auto|scroll)$/u.test(style.overflowY) || parent.clientHeight <= 0 ||
+			parent.scrollHeight <= parent.clientHeight) continue;
+		// Pro 列和弹层可能独立滚动，不能只用窗口顶部判断上方内容。
+		const rectangle = parent.getBoundingClientRect();
+		const top = rectangle.top + parent.clientTop;
+		const left = rectangle.left + parent.clientLeft;
+		viewport.top = Math.max(viewport.top, top);
+		viewport.bottom = Math.min(viewport.bottom, top + parent.clientHeight);
+		viewport.left = Math.max(viewport.left, left);
+		viewport.right = Math.min(viewport.right, left + parent.clientWidth);
+	}
+	return viewport;
 }
 
 function getLayoutSignature(style) {

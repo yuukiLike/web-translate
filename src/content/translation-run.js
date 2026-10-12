@@ -39,6 +39,7 @@ export class TranslationRun {
 			runtime,
 			isCurrent: () => this.active,
 			hasPendingWork: () => this.#hasPendingWork(),
+			hasDeferredContent: () => (this.elementStore?.deferredElements.size ?? 0) > 0,
 			onRetry: () => {
 				if (!this.planner) return this.runtime.openOptions();
 				this.#failed = false;

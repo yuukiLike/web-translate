@@ -3,14 +3,16 @@ import { TIMING } from "./constants.js";
 /** 协调页面提示与扩展图标状态，所有状态消息都携带 runId。 */
 export class StatusReporter {
 	#completionRequestActive = false;
+	#lastReportedDeferred = false;
 
-	constructor({ runId, progress, view, runtime, isCurrent, hasPendingWork, onRetry }) {
+	constructor({ runId, progress, view, runtime, isCurrent, hasPendingWork, hasDeferredContent = () => false, onRetry }) {
 		this.runId = runId;
 		this.progress = progress;
 		this.view = view;
 		this.runtime = runtime;
 		this.isCurrent = isCurrent;
 		this.hasPendingWork = hasPendingWork;
+		this.hasDeferredContent = hasDeferredContent;
 		this.onRetry = onRetry;
 	}
 
@@ -29,33 +31,38 @@ export class StatusReporter {
 	async reportCompletion() {
 		const completed = this.progress.completed;
 		const total = this.progress.total;
-		if (this.progress.isUnchangedSinceLastReport()) {
+		const deferred = this.hasDeferredContent();
+		if (this.progress.isUnchangedSinceLastReport() && deferred === this.#lastReportedDeferred) {
 			return;
 		}
 
 		await delay(TIMING.completionSettle);
-		if (!this.#isSameSettledSnapshot(completed, total)) {
+		if (!this.#isSameSettledSnapshot(completed, total, deferred)) {
 			return;
 		}
 		this.#completionRequestActive = true;
 		try {
-			await this.runtime.reportStatus(this.runId, total === 0 ? "off" : "done");
+			await this.runtime.reportStatus(this.runId, total === 0 && !deferred ? "off" : "done", { deferred });
 		} finally {
 			this.#completionRequestActive = false;
 		}
-		if (!this.#isSameSettledSnapshot(completed, total)) {
+		if (!this.#isSameSettledSnapshot(completed, total, deferred)) {
 			return;
 		}
 
 		this.progress.markReported();
-		if (total === 0) {
+		this.#lastReportedDeferred = deferred;
+		if (total === 0 && !deferred) {
 			this.view.show("当前页面没有需要翻译的外语正文", {
 				label: "调整语言设置",
 				onClick: () => void this.runtime.openOptions(),
 			});
 			return;
 		}
-		this.view.show(`已覆盖 ${completed} 个文本块`, null, "done");
+		const message = total === 0
+			? "滚动到正文后继续翻译"
+			: `已覆盖 ${completed} 个文本块${deferred ? "，滚动后继续" : ""}`;
+		this.view.show(message, null, "done");
 		this.view.hideAfterCompletion();
 	}
 
@@ -84,12 +91,13 @@ export class StatusReporter {
 		void this.runtime.reportStatus(this.runId, "error", { error: message }).catch(() => {});
 	}
 
-	#isSameSettledSnapshot(completed, total) {
+	#isSameSettledSnapshot(completed, total, deferred) {
 		return (
 			this.isCurrent() &&
 			!this.hasPendingWork() &&
 			this.progress.completed === completed &&
-			this.progress.total === total
+			this.progress.total === total &&
+			this.hasDeferredContent() === deferred
 		);
 	}
 }

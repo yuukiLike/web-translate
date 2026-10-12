@@ -80,7 +80,7 @@ export class TranslationPlanner {
 			this.elementStore.setState(element, createSkippedState(originalHash, revision, languagePair));
 			return null;
 		}
-		if (!this.layout.isEligible(element)) {
+		if (!this.layout.isEligible(element) || !this.layout.isInTranslationRange(element)) {
 			this.elementStore.deferredElements.add(element);
 			return null;
 		}

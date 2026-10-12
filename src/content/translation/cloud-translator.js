@@ -96,7 +96,12 @@ export class CloudTranslator {
 	#discardStaleTargets(queue) {
 		for (let index = queue.length - 1; index >= 0; index -= 1) {
 			const segment = queue[index];
-			segment.targets = segment.targets.filter(({ record }) => this.#isCurrentRecord(record));
+			segment.targets = segment.targets.filter(({ record }) => {
+				if (!this.#isCurrentRecord(record)) return false;
+				if (this.layout.isInTranslationRange(record.element)) return true;
+				this.invalidator.defer(record.element);
+				return false;
+			});
 			if (segment.targets.length === 0) {
 				queue.splice(index, 1);
 			}

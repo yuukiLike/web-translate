@@ -24,6 +24,7 @@ test("X 站点策略使用精确应用主机边界", () => {
 			createSiteProfile({ hostname }).getPresentation(),
 			SITE_PRESENTATION.generated,
 		);
+		assert.equal(typeof createSiteProfile({ hostname }).getTranslationViewportTarget, "function");
 	}
 	for (const hostname of [
 		"help.x.com",
@@ -34,6 +35,32 @@ test("X 站点策略使用精确应用主机边界", () => {
 		"example.com",
 	]) {
 		assert.equal(createSiteProfile({ hostname }).getPresentation(), null);
+		assert.equal(createSiteProfile({ hostname }).getTranslationViewportTarget, undefined);
+	}
+});
+
+// 验证视口保护以完整虚拟行为边界，推荐账号控件不再被双语文本撑开。
+test("X 保护整行帖子并排除紧凑账号卡片", () => {
+	const window = new Window();
+	try {
+		window.document.body.innerHTML = `
+			<div data-testid="cellInnerDiv"><article data-testid="tweet">
+				<div data-testid="tweetText">A post with a quoted paragraph.</div>
+			</article></div>
+			<div data-testid="UserCell"><a>Suggested person</a><button>Follow</button></div>
+			<div data-testid="UserDescription">A profile biography should still be translated.</div>
+		`;
+		const profile = createSiteProfile({ hostname: "x.com" });
+		const source = window.document.querySelector("[data-testid='tweetText']");
+		const row = window.document.querySelector("[data-testid='cellInnerDiv']");
+		assert.equal(profile.getTranslationViewportTarget(source) === row, true, "应检查整行而非正文子块");
+		for (const element of window.document.querySelectorAll("[data-testid='UserCell'], [data-testid='UserCell'] *")) {
+			assert.equal(profile.isExcluded(element), true);
+			assert.equal(createSiteProfile({ hostname: "example.com" }).isExcluded(element), false);
+		}
+		assert.equal(profile.isExcluded(window.document.querySelector("[data-testid='UserDescription']")), false);
+	} finally {
+		window.close();
 	}
 });
 

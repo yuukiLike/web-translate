@@ -1,7 +1,7 @@
 import { TIMING } from "../constants.js";
 import { containsComposed } from "./node-utils.js";
 
-/** 恢复已发现但暂不可布局的正文；滚动只检查待恢复集合，不重扫整页。 */
+/** 恢复暂不可布局或离开翻译范围的正文；滚动只检查待恢复集合。 */
 export class DeferredContentMonitor {
 	#timer = null;
 
@@ -30,7 +30,7 @@ export class DeferredContentMonitor {
 
 	hasRestoredElement(target) {
 		for (const element of this.elementStore.deferredElements) {
-			if (isRelated(target, element) && this.layout.isEligible(element)) {
+			if (isRelated(target, element) && this.#canRestore(element)) {
 				return true;
 			}
 		}
@@ -47,7 +47,7 @@ export class DeferredContentMonitor {
 			if (targets.length > 0 && !targets.some((target) => isRelated(target, element))) {
 				continue;
 			}
-			if (!this.layout.isEligible(element)) {
+			if (!this.#canRestore(element)) {
 				continue;
 			}
 			this.elementStore.deferredElements.delete(element);
@@ -55,6 +55,10 @@ export class DeferredContentMonitor {
 			restored = true;
 		}
 		return restored;
+	}
+
+	#canRestore(element) {
+		return this.layout.isEligible(element) && this.layout.isInTranslationRange(element);
 	}
 
 	#schedule = () => {
