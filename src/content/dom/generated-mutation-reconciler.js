@@ -123,6 +123,10 @@ export class GeneratedMutationReconciler {
 		if (state.presentation !== SITE_PRESENTATION.generated || !source.isConnected) {
 			return false;
 		}
+		// 扩展自己的样式写入和已恢复的同批记录，不应再次触发 DOM 修复。
+		if (isGeneratedPresentationIntact(source, translation, this.runId)) {
+			return false;
+		}
 		if (
 			restoreGeneratedPresentation(source, translation, this.runId) ||
 			this.#restoreAtCurrentAnchor(source, state, translation)

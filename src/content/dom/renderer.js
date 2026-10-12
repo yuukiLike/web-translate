@@ -88,9 +88,12 @@ export class TranslationRenderer {
 		const compact = translation.dataset.btLayout === "compact-inline";
 		const labelParent = compact ? textParent(translation) : null;
 		const textStyle = labelParent ? getComputedStyle(labelParent) : sourceStyle;
-		if (!compact && (Number.parseInt(sourceStyle.webkitLineClamp, 10) > 0 ||
-			(sourceStyle.whiteSpace === "nowrap" && translation.parentElement === source))) {
-			source.dataset.btReadingLayout = "expand";
+		if (!compact) {
+			const clamped = Number.parseInt(sourceStyle.webkitLineClamp, 10) > 0;
+			const needsWrapping = sourceStyle.whiteSpace === "nowrap" && (clamped || translation.parentElement === source);
+			if (needsWrapping || clamped) {
+				source.dataset.btReadingLayout = needsWrapping ? "wrap" : "expand";
+			}
 		}
 		translation.dataset.btStyle = this.reading.style;
 		translation.setAttribute("translate", "no");

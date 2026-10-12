@@ -66,6 +66,16 @@ export class DomScanner {
 		if (semanticBlock && !this.isExcluded(semanticBlock)) {
 			return semanticBlock;
 		}
+		// X 的 hover 装饰层不能把已翻译正文拆成新块；真实语义边界仍按页面声明处理。
+		const trackedSource = this.elementStore.findTrackedAncestor(element);
+		if (this.elementStore.getState(trackedSource)?.presentation === SITE_PRESENTATION.generated &&
+			!this.isExcluded(trackedSource)) {
+			const boundary = closestComposed(element,
+				`${SELECTORS.interactive}, ${SELECTORS.structural}, ${SELECTORS.language}`);
+			if (!boundary || boundary === trackedSource || !containsComposed(trackedSource, boundary)) {
+				return trackedSource;
+			}
+		}
 
 		let lastEligible = element;
 		for (let current = element; current; current = composedParent(current)) {

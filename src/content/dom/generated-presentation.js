@@ -59,13 +59,17 @@ export function restoreGeneratedPresentation(source, translation, runId, anchor 
 		target.append(translation);
 	}
 	presentation.anchor = target;
-	source.dataset.btSource = runId;
-	source.dataset.btGeneratedOwned = "true";
-	source.dataset.btPresentation = SITE_PRESENTATION.generated;
-	source.dataset.btPresentationRun = runId;
-	source.dataset.btTranslation = presentation.text;
-	source.dataset.btTranslationLang = presentation.language;
-	source.dataset.btDescriptionId = presentation.id;
+	for (const [name, value] of Object.entries({
+		btSource: runId,
+		btGeneratedOwned: "true",
+		btPresentation: SITE_PRESENTATION.generated,
+		btPresentationRun: runId,
+		btTranslation: presentation.text,
+		btTranslationLang: presentation.language,
+		btDescriptionId: presentation.id,
+	})) {
+		if (source.dataset[name] !== value) source.dataset[name] = value;
+	}
 	return true;
 }
 
@@ -162,15 +166,17 @@ function getTrackedPresentation(translation, runId) {
 }
 
 function resolvePresentationAnchor(source, presentation, requestedAnchor) {
-	if (!presentation) {
-		return null;
+	if (!presentation) return null;
+	const current = presentation.anchor;
+	// 宿主在原 carrier 内包一层 hover 元素时，保留原挂载点，避免跟着临时层来回搬动。
+	if (isValidPresentationAnchor(source, current) &&
+		(!requestedAnchor || current.contains(requestedAnchor))) {
+		return current;
 	}
 	if (isValidPresentationAnchor(source, requestedAnchor)) {
 		return requestedAnchor;
 	}
-	return isValidPresentationAnchor(source, presentation.anchor)
-		? presentation.anchor
-		: null;
+	return isValidPresentationAnchor(source, current) ? current : null;
 }
 
 function isValidPresentationAnchor(source, anchor) {

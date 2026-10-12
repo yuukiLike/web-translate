@@ -96,12 +96,14 @@
 :has(> .bt-translation[data-bt-owned="true"][data-bt-layout="compact-inline"]) { white-space: nowrap !important; }
 [data-bt-source]:has(> .bt-translation[data-bt-control-layout="row-flex"]) { flex-wrap: wrap !important; }
 .bt-translation[data-bt-owned="true"][data-bt-control-layout="row-flex"] { flex-basis: 100% !important; }
-[data-bt-reading-layout="expand"] {
+[data-bt-reading-layout="expand"],
+[data-bt-reading-layout="wrap"] {
 	height: auto !important;
 	max-height: none !important;
-	white-space: normal !important;
 	-webkit-line-clamp: unset !important;
 }
+/* 展开折叠正文保留原有换行；只为 nowrap 标签启用自动换行。 */
+[data-bt-reading-layout="wrap"] { white-space: normal !important; }
 .bt-translation[data-bt-owned="true"]::before,
 .bt-translation[data-bt-owned="true"]::after,
 .bt-translation-label-text[data-bt-owned="true"]::before,
