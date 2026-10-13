@@ -39,6 +39,7 @@ export const DEBUG_REQUEST_START_EVENTS = new Set([
 ]);
 
 export const DEBUG_REQUEST_END_EVENTS = new Set([
+	"model.request.completed",
 	"model.response.validated",
 	"sdk.request-end",
 	"request.completed",
@@ -46,6 +47,7 @@ export const DEBUG_REQUEST_END_EVENTS = new Set([
 ]);
 
 export const DEBUG_REQUEST_ERROR_EVENTS = new Set([
+	"model.request.failed",
 	"sdk.request-error",
 	"request.failed",
 	"request-error",

@@ -4,6 +4,8 @@ import test from "node:test";
 import {
 	createMessageViews,
 	createRequestCapture,
+	createResponseCapture,
+	createResponseMessageViews,
 	formatDebugJson,
 	parseMessageContent,
 	requestParameters,
@@ -20,6 +22,25 @@ test("请求正文缺失时不按模型或语言元数据补写内容", () => {
 			requestPayload,
 		});
 		assert.deepEqual(capture, { payload: null, truncated: false, omittedFields: [], status: "missing" });
+	}
+});
+
+test("响应视图只从捕获正文解析 translations，缺失和非法结果保持真实状态", () => {
+	assert.equal(createResponseCapture({ responseId: "metadata-only" }).status, "missing");
+	const translations = [{ id: "second", text: "第二段\n下一行" }, { id: "first", text: "<script>bad()</script>" }];
+	const payload = { choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ translations }) }, finish_reason: "stop" }] };
+	const capture = createResponseCapture({ responsePayload: payload });
+	assert.equal(capture.status, "complete");
+	const [message] = createResponseMessageViews(capture.payload);
+	assert.deepEqual(message.translations, translations);
+	assert.equal(message.content, payload.choices[0].message.content);
+	const partial = createResponseCapture({ responsePayload: payload, responsePayloadTruncated: true, responsePayloadOmittedFields: ["choices.message.reasoning_content", "private-field"] });
+	assert.equal(partial.status, "partial");
+	assert.deepEqual(partial.omittedFields, ["choices.message.reasoning_content", "other_field"]);
+	for (const text of ['{"translations":[', '{"translations":[{"id":"x","text":3}]}']) {
+		const [invalid] = createResponseMessageViews({ choices: [{ message: { content: text } }] });
+		assert.equal(invalid.content, text);
+		assert.equal(invalid.translations, null);
 	}
 });
 

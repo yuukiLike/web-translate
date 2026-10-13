@@ -42,6 +42,7 @@ export function createModelClient({ core, providerRuntime, debug }) {
 				});
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.completed",
+					...(request.captureRequestBody ? { responseBody: result.responseBody } : {}),
 					requestId,
 					modelRequestId: requestId,
 					attempt: attemptNumber,
@@ -54,6 +55,7 @@ export function createModelClient({ core, providerRuntime, debug }) {
 				const retryable = isRetryableError(error);
 				debug.recordRequest(requestDebug, {
 					eventType: "model.request.failed",
+					...(request.captureRequestBody ? { responseBody: error?.responseBody } : {}),
 					requestId,
 					modelRequestId: requestId,
 					attempt: attemptNumber,

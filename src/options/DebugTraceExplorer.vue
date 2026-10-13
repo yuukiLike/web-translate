@@ -23,8 +23,8 @@ const entirelyCached = computed(() => node.value?.segments.length && node.value.
 	segment.route === "本次页面缓存" || segment.route === "持久缓存",
 ));
 const empty = computed(() => {
-	if (!props.logging) return "先开启“记录事件”和“原文与请求内容”，再翻译一个网页。";
-	if (!props.captureEnabled) return "开启“原文与请求内容”后，下一次 DeepSeek 翻译会记录原文结构和实际请求。";
+	if (!props.logging) return "先开启“记录事件”和“原文、请求与响应”，再翻译一个网页。";
+	if (!props.captureEnabled) return "开启“原文、请求与响应”后，下一次 DeepSeek 翻译会记录原文结构、实际请求与响应。";
 	if (props.query.trim()) return "没有匹配的页面任务。可以搜索标题、原文、DOM 路径或任务 ID。";
 	return "等待下一次网页翻译。新记录会自动出现；开启之前的原文无法追溯。";
 });
@@ -88,7 +88,7 @@ async function copySource() {
 						<small :title="item.path">{{ item.path }}</small>
 					</button>
 				</nav>
-				<article class="trace-detail" :aria-label="`${node.tag} 原文与请求`">
+				<article class="trace-detail" :aria-label="`${node.tag} 原文、请求与响应`">
 					<header class="trace-node-heading">
 						<div><span class="trace-step">01 / 原文</span><h3>&lt;{{ node.tag }}&gt; <small>修订 {{ node.revision }} · {{ node.text.length }} 字符</small></h3></div>
 						<button type="button" @click="copySource">复制原文</button>

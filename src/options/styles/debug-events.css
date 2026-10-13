@@ -117,7 +117,8 @@
 .debug-event-meta div[data-field="requestId"],
 .debug-event-meta div[data-field="runId"],
 .debug-event-meta div[data-field="workerInstanceId"],
-.debug-event-meta div[data-field="requestPayload"] {
+.debug-event-meta div[data-field="requestPayload"],
+.debug-event-meta div[data-field="responsePayload"] {
 	grid-column: 1 / -1;
 }
 
@@ -137,7 +138,8 @@
 	overflow-wrap: anywhere;
 }
 
-.debug-event-meta div[data-field="requestPayload"] dd {
+.debug-event-meta div[data-field="requestPayload"] dd,
+.debug-event-meta div[data-field="responsePayload"] dd {
 	max-height: 260px;
 	overflow: auto;
 	white-space: pre-wrap;

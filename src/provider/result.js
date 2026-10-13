@@ -8,7 +8,7 @@ function normalizeRequiredTokenCount(value) {
 		: undefined;
 }
 
-export function normalizeTranslationResult(result) {
+export function normalizeTranslationResult(result, captureResponseBody = false) {
 	const usage = result.usage ?? {};
 	const inputTokenDetails = usage.inputTokenDetails ?? {};
 	return {
@@ -17,6 +17,8 @@ export function normalizeTranslationResult(result) {
 		rawFinishReason: result.rawFinishReason ?? null,
 		responseId: result.response.id,
 		responseModel: result.response.modelId,
+		...(captureResponseBody && result.response.body !== undefined
+			? { responseBody: result.response.body } : {}),
 		usage: {
 			inputTokens: normalizeRequiredTokenCount(usage.inputTokens),
 			outputTokens: normalizeRequiredTokenCount(usage.outputTokens),

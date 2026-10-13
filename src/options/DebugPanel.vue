@@ -59,6 +59,7 @@ async function copyVisible() {
 			timestamp: row.dateTime, event: row.code, status: row.status,
 			fields: Object.fromEntries(row.fields.map((field) => [field.key, field.value])),
 			...(row.capture ? { capture: row.capture } : {}),
+			...(row.responseCapture ? { responseCapture: row.responseCapture } : {}),
 		}));
 	try {
 		await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
@@ -75,8 +76,8 @@ watch([mode, query], () => { copyState.value = ""; });
 	<section id="debug" class="debug-page">
 		<header class="debug-head">
 			<div>
-				<h1>原文与请求</h1>
-				<p>可另行授权记录网页原文、DOM 结构与 DeepSeek 实际请求。无痕窗口永不记录，API Key、请求头与响应体也不会记录。</p>
+				<h1>原文、请求与响应</h1>
+				<p>可另行开启网页原文、DOM 结构与 DeepSeek 实际请求和响应记录。无痕窗口不记录正文，API Key 与请求头不记录。</p>
 			</div>
 			<button id="debug-test-provider" class="debug-test" type="button"
 				:disabled="Boolean(busy)" @click="$emit('test')">
@@ -90,12 +91,12 @@ watch([mode, query], () => { copyState.value = ""; });
 				<i aria-hidden="true"></i>
 			</label>
 			<label class="switch-field">
-				<span><strong>原文与请求内容</strong><small>DeepSeek · 原文结构、分片与发送正文</small></span>
+				<span><strong>原文、请求与响应</strong><small>DeepSeek · 原文结构、分片、发送与返回正文</small></span>
 				<input id="debug-request-payload" v-model="requestPayload" type="checkbox"
 					:disabled="!enabled || Boolean(busy)" @change="$emit('save-request-payload')" />
 				<i aria-hidden="true"></i>
 			</label>
-			<p>先开启记录，再翻译网页。<br />关闭内容记录会清除已保存的原文和请求正文。</p>
+			<p>先开启记录，再翻译网页。<br />关闭内容记录会清除已保存的原文、请求与响应正文。</p>
 		</div>
 		<output v-if="status.text && ['debug', 'service'].includes(status.scope)" class="debug-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.text }}</output>
 		<p v-if="retention.droppedEvents" class="trace-notice" role="status">

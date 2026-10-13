@@ -8,6 +8,11 @@
 	font-size: 13px;
 	line-height: 1.6;
 }
+.debug-response-detail {
+	margin-top: 20px;
+	padding-top: 18px;
+	border-top: 1px solid var(--line);
+}
 .request-lineage {
 	display: flex;
 	flex-wrap: wrap;

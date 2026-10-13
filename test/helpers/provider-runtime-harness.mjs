@@ -22,6 +22,7 @@ function createBlockedFunctionConstructor() {
 function createRuntimeContext(fetchImplementation) {
 	const context = vm.createContext({
 		AbortController,
+		AbortSignal,
 		Blob,
 		CompressionStream,
 		Date,

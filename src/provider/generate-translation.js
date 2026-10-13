@@ -23,12 +23,13 @@ export async function generateTranslation(request) {
 			? getCustomEndpoint(baseUrl, modelId)
 			: getProviderAndModel(providerId, modelId);
 	const maxOutputTokens = validateGenerationInput(request, model);
+	const captureContent = provider.id === "deepseek" && captureRequestBody === true;
 	const languageModel = createLanguageModel(
 		provider,
 		apiKey,
 		model.id,
 		createObservedFetch(onRequestEvent, {
-			captureRequestBody: provider.id === "deepseek" && captureRequestBody === true,
+			captureRequestBody: captureContent,
 		}),
 	);
 	const result = await generateText({
@@ -38,7 +39,8 @@ export async function generateTranslation(request) {
 		abortSignal,
 		maxOutputTokens,
 		maxRetries: 0,
+		include: { responseBody: captureContent },
 		...createProviderGenerationOptions(provider.id),
 	});
-	return normalizeTranslationResult(result);
+	return normalizeTranslationResult(result, captureContent);
 }

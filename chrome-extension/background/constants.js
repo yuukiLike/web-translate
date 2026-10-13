@@ -29,6 +29,8 @@ export const DEBUG_LIMITS = Object.freeze({
 	maxBytes: 4_000_000,
 	maxRequestMessages: 32,
 	maxRequestPayloadBytes: 262_144,
+	maxResponsePayloadBytes: 262_144,
+	maxResponseChoices: 32,
 	maxContentTraceBytes: 524_288,
 	maxContentItems: 1_000,
 });

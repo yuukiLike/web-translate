@@ -172,8 +172,8 @@ export function exportDebugTrace(run, retention = {}) {
 			id: request.id, batchId: request.batchId, modelRequestId: request.modelRequestId,
 			parentModelRequestId: request.parentModelRequestId, attempt: request.attempt,
 			recoveryDepth: request.recoveryDepth, segmentIds: request.segmentIds,
-			rootSegmentIds: request.rootSegmentIds, capture: request.capture,
-			fields: Object.fromEntries(request.fields.filter((field) => field.key !== "requestPayload")
+			rootSegmentIds: request.rootSegmentIds, capture: request.capture, responseCapture: request.responseCapture,
+			fields: Object.fromEntries(request.fields.filter((field) => !["requestPayload", "responsePayload"].includes(field.key))
 				.map((field) => [field.key, field.value])),
 		})),
 	};

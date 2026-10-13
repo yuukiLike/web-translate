@@ -2,6 +2,18 @@
 
 目标是一个极简、稳定的中英翻译工具。使用方法见[项目 README](../README.md)。
 
+## 整体实现
+
+打开[整体实现网页](implementation.html)查看 SVG、请求响应示例与源码入口，也可[单独打开 SVG](assets/implementation-overview.svg)。文档是静态文件，可直接在浏览器打开，无需启动服务。
+
+![整体实现图：正文分片、SDK 请求、响应校验与 DOM 映射](assets/implementation-overview.svg)
+
+模型翻译使用 Vercel AI SDK 的 `generateText`。后台发送翻译指令与 `segments: [{ id, text }]`，从返回文本解析 `translations: [{ id, text }]`，校验 ID 和链接标记后恢复请求顺序，再通过 `results` 返回页面，由分片的 `targets` 定位 DOM。DeepL 与 Azure 使用各自的 REST 翻译协议。
+
+设置页「调试」同时开启「记录事件」和「原文、请求与响应」后，后续 DeepSeek 请求会保存实际发送正文与 SDK 保留的 HTTP 响应。请求详情可查看、复制响应 JSON 和返回分片；格式无效或截断的生成内容也会保留。JSON 错误响应按模型调用和尝试序号关联到对应 HTTP 请求。
+
+请求与响应均按白名单保存，单份最多 262,144 字节，超限和遗漏字段会提示部分记录。无痕不记录正文，请求头和 API Key 不记录；关闭内容开关会清除已保存原文、请求与响应。旧日志和未取得可解析正文的响应不会被补造。
+
 ## 构建
 
 使用 Node.js 24 与 npm，沿用仓库的 `package-lock.json`。

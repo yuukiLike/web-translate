@@ -11,6 +11,12 @@ const payload = {
 	],
 };
 const context = { runId: "run-1", tabId: 12, provider: "deepseek", timestamp: "2026-09-07T08:00:00Z", workerInstanceId: "worker-1" };
+const translated = '译文：<script>window.responseBad = true</script>\n第二行';
+const responsePayload = {
+	id: "chatcmpl-1", model: "deepseek-v4-flash",
+	choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ translations: [{ id: "part-1", text: translated }] }) }, finish_reason: "stop" }],
+	usage: { prompt_tokens: 8, completion_tokens: 3, total_tokens: 11 },
+};
 function events() {
 	return [
 		{ ...context, seq: 1, eventType: "content.planned", contentTrace: {
@@ -22,6 +28,7 @@ function events() {
 		{ ...context, seq: 2, eventType: "cache.resolved", batchId: "batch-1", batchIndex: 1, segmentIds: ["part-1"], cacheMissIds: ["part-1"] },
 		{ ...context, seq: 3, eventType: "sdk.request-start", batchId: "batch-1", requestId: "http-1", modelRequestId: "model-1", segmentIds: ["part-1"], rootSegmentIds: ["part-1"], attempt: 1, method: "POST", endpoint: "https://api.deepseek.com/chat/completions", requestPayload: payload },
 		{ ...context, seq: 4, eventType: "sdk.request-end", batchId: "batch-1", requestId: "http-1", modelRequestId: "model-1", attempt: 1, httpStatus: 200, elapsedMs: 52 },
+		{ ...context, seq: 5, eventType: "model.request.completed", batchId: "batch-1", requestId: "model-1", modelRequestId: "model-1", attempt: 1, responsePayload },
 	];
 }
 async function openDebug(options = {}) {
@@ -59,6 +66,14 @@ test("调试页贯通原文分片实际请求并安全格式化展示", async ()
 		page.document.querySelector(".request-copy").click();
 		await settle();
 		assert.deepEqual(JSON.parse(page.copiedText), payload);
+		assert.equal(page.document.querySelector(".response-segments .request-text").textContent, translated);
+		assert.equal(page.document.querySelector("#debug script"), null);
+		clickByText(page.document, ".response-view-controls button", "响应 JSON");
+		await settle();
+		assert.match(page.document.querySelector(".debug-response-detail .debug-json").textContent, /choices|usage/u);
+		page.document.querySelector(".response-copy").click();
+		await settle();
+		assert.deepEqual(JSON.parse(page.copiedText), responsePayload);
 	} finally { page.cleanup(); }
 });
 
@@ -75,10 +90,12 @@ test("调试实时快照清除已展开正文并说明窗口淘汰", async () =>
 		request.dispatchEvent(new page.window.Event("toggle"));
 		await settle();
 		assert.ok(page.document.querySelector(".request-messages"));
-		const scrubbed = events().map(({ contentTrace, requestPayload, ...event }) => event);
+		const scrubbed = events().map(({ contentTrace, requestPayload, responsePayload, ...event }) => event);
 		page.ports[0].onMessage.emit({ type: "DEBUG_SNAPSHOT", events: scrubbed, retention: { droppedEvents: 7 } });
 		await settle();
 		assert.equal(page.document.querySelector(".request-messages"), null);
+		assert.equal(page.document.querySelector(".response-messages"), null);
+		assert.equal(page.document.querySelector(".response-copy").disabled, true);
 		assert.match(page.document.querySelector(".capture-notice").textContent, /没有保存正文/u);
 		assert.match(page.document.querySelector(".trace-notice").textContent, /7 条旧事件/u);
 		assert.doesNotMatch(page.document.querySelector("#debug").textContent, /window.bad/u);
@@ -103,8 +120,37 @@ test("关闭记录开关立即清除页面内正文与复制数据", async () =>
 			page.document.querySelector("#copy-debug-logs").click();
 			await settle();
 			assert.doesNotMatch(page.copiedText, /window.bad|Translate the provided/u);
+			assert.doesNotMatch(page.copiedText, /responseBad|私密译文/u);
 		} finally { page.cleanup(); }
 	}
+});
+
+test("模型格式错误保留返回的文本与 HTTP 错误响应", async () => {
+	const page = await openDebug();
+	try {
+		const invalidBody = structuredClone(responsePayload);
+		invalidBody.choices[0].message.content = '{"translations":[<script>bad()</script>';
+		const snapshot = events();
+		snapshot.at(-1).responsePayload = invalidBody;
+		snapshot.push({ ...context, seq: 6, eventType: "model.response.invalid", modelRequestId: "model-1", attempt: 1, errorCode: "MODEL_RESPONSE_INVALID" });
+		page.ports[0].onMessage.emit({ type: "DEBUG_SNAPSHOT", events: snapshot });
+		await settle();
+		clickByText(page.document, ".debug-modes button", "HTTP 请求");
+		await settle();
+		const request = page.document.querySelector(".debug-event");
+		request.open = true;
+		request.dispatchEvent(new page.window.Event("toggle"));
+		await settle();
+		assert.equal(page.document.querySelector(".response-messages .request-text").textContent, invalidBody.choices[0].message.content);
+		assert.equal(page.document.querySelector(".response-segments"), null);
+		assert.equal(page.document.querySelector("#debug script"), null);
+		const errorPayload = { error: { code: "bad_request", message: "Invalid parameter" } };
+		snapshot.at(-2).eventType = "model.request.failed";
+		snapshot.at(-2).responsePayload = errorPayload;
+		page.ports[0].onMessage.emit({ type: "DEBUG_SNAPSHOT", events: snapshot.slice(0, -1) });
+		await settle();
+		assert.match(page.document.querySelector(".debug-response-detail .debug-json").textContent, /Invalid parameter/u);
+	} finally { page.cleanup(); }
 });
 
 // 实时清空已经生效后，晚到的GET快照不能让已清除正文重新出现在界面。

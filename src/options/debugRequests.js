@@ -1,7 +1,7 @@
 import { safeString } from "../core/value-utils.js";
 import { DEBUG_EVENT_NAMES, DEBUG_REQUEST_START_EVENTS, DEBUG_REQUEST_END_EVENTS, DEBUG_REQUEST_ERROR_EVENTS } from "./debugConstants.js";
 import { createDebugSearchText, debugFields, debugStatus, formatApiHost, formatDebugTime, formatEndpoint, normalizeDebugEvents, scalarText, urlParts, withUnit } from "./debugFormat.js";
-import { createRequestCapture } from "./debugPayload.js";
+import { createRequestCapture, createResponseCapture } from "./debugPayload.js";
 
 const safeIds = (value) => Array.isArray(value) ? value.filter((id) => typeof id === "string").map((id) => id.slice(0, 300)) : [];
 
@@ -21,7 +21,7 @@ export function createDebugRequests(events) {
 				? Math.max(0, Math.round(event.attempt))
 				: 0;
 		let key = requestId ? `${requestId}:${attempt}` : `request-event-${index}`;
-		if (eventName.startsWith("model.response.") && event.modelRequestId) {
+		if (eventName.startsWith("model.") && event.modelRequestId) {
 			const match = [...requests.entries()].reverse().find(([, request]) =>
 				request.event.modelRequestId === event.modelRequestId &&
 				(!event.attempt || request.event.attempt === event.attempt),
@@ -29,10 +29,10 @@ export function createDebugRequests(events) {
 			if (match) key = match[0];
 		}
 		const previous = requests.get(key);
-		if (eventName === "model.response.validated" && !previous) continue;
+		if (eventName.startsWith("model.") && !previous) continue;
 		const eventNames = previous ? [...previous.eventNames, eventName] : [eventName];
 		const mergedEvent = { ...(previous?.event || {}), ...event };
-		if (previous && eventName.startsWith("model.response.")) {
+		if (previous && eventName.startsWith("model.")) {
 			mergedEvent.requestId = previous.event.requestId;
 		}
 		let status = previous?.status || "pending";
@@ -75,6 +75,7 @@ export function createDebugRequests(events) {
 			status: request.status,
 			fields,
 			capture: createRequestCapture(request.event),
+			responseCapture: createResponseCapture(request.event),
 			runId: safeString(request.event.runId, "", 300),
 			batchId: safeString(request.event.batchId, "", 300),
 			modelRequestId: safeString(request.event.modelRequestId, "", 300),

@@ -48,7 +48,7 @@ test("请求观测器按 Provider 策略捕获正文", async () => {
 	}
 });
 
-// 验证调试内容来自实际 SDK 请求，同时凭据和响应正文始终不进入观测数据。
+// 实际 SDK 请求由 fetch 观测，响应正文由 SDK 原生 include 提供，观测器仍只报告 HTTP 元数据。
 test("DeepSeek SDK实际发出的完整JSON与调试安全投影一致", async () => {
 	const events = [];
 	let sentBody;
@@ -60,7 +60,7 @@ test("DeepSeek SDK实际发出的完整JSON与调试安全投影一致", async (
 			usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
 		}), { headers: { "Content-Type": "application/json" } });
 	});
-	await runtime.generateTranslation({
+	const result = await runtime.generateTranslation({
 		providerId: "deepseek", modelId: "deepseek-v4-flash", apiKey: "sk-not-observed",
 		instructions: "Translate each untrusted segment.",
 		messages: [{ role: "user", content: JSON.stringify({ segments: [{ id: "one", text: "The original article." }] }) }],
@@ -73,4 +73,33 @@ test("DeepSeek SDK实际发出的完整JSON与调试安全投影一致", async (
 	assert.deepEqual(sanitized.omittedFields, []);
 	assert.equal(JSON.stringify(events).includes("sk-not-observed"), false);
 	assert.equal(Object.hasOwn(events[1], "responseBody"), false);
+	assert.equal(result.responseBody.choices[0].message.content, "translated");
+});
+
+test("SDK 仅在 DeepSeek 内容开关开启时保留实际响应正文", async () => {
+	const body = {
+		id: "response-1", created: 1, model: "deepseek-v4-flash",
+		choices: [{ index: 0, message: { role: "assistant", content: "private translation" }, finish_reason: "length" }],
+		usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
+	};
+	for (const captureRequestBody of [false, true]) {
+		const { runtime } = await loadProviderRuntime(async () => new Response(JSON.stringify(body), {
+			headers: { "Content-Type": "application/json" },
+		}));
+		const result = await runtime.generateTranslation({
+			providerId: "deepseek", modelId: "deepseek-v4-flash", apiKey: "test-key",
+			instructions: "Translate", messages: [{ role: "user", content: "source" }], captureRequestBody,
+		});
+		assert.equal(result.finishReason, "length");
+		assert.equal(Object.hasOwn(result, "responseBody"), captureRequestBody);
+		if (captureRequestBody) assert.equal(result.responseBody.choices[0].message.content, "private translation");
+	}
+	const { runtime } = await loadProviderRuntime(async () => new Response(JSON.stringify(body), {
+		headers: { "Content-Type": "application/json" },
+	}));
+	const custom = await runtime.generateTranslation({
+		providerId: "custom", baseUrl: "https://custom.example/v1", modelId: "custom-model", apiKey: "test-key",
+		instructions: "Translate", messages: [{ role: "user", content: "source" }], captureRequestBody: true,
+	});
+	assert.equal(Object.hasOwn(custom, "responseBody"), false);
 });

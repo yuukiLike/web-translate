@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2080" viewBox="0 0 1600 2080" role="img" aria-labelledby="title description">
+  <title id="title">一键双语翻译：整体实现与请求响应协议</title>
+  <desc id="description">Chrome Manifest V3 扩展的实现图。内容脚本扫描正文、切分去重并分配 ID，后台检查缓存并通过 Vercel AI SDK 请求模型，校验 translations 后映射回 DOM。下方展示 DeepSeek 请求、两层响应 JSON 和开发者日志路径。示例为说明协议而编写。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2563eb"/></marker>
+    <marker id="return-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#047857"/></marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #172b45; }
+      .title { font-size: 36px; font-weight: 750; }
+      .subtitle { font-size: 17px; fill: #526780; }
+      .lane-title { font-size: 22px; font-weight: 700; }
+      .card-title { font-size: 20px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 13px; fill: #526780; }
+      .code { font: 14px "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+      .source { font: 12px "SFMono-Regular", Consolas, monospace; fill: #526780; }
+      .blue { fill: #2563eb; }
+      .green { fill: #047857; }
+      .orange { fill: #a16207; }
+      .card { fill: white; stroke: #d9e2ef; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #2563eb; stroke-width: 2.5; marker-end: url(#arrow); }
+      .back { fill: none; stroke: #047857; stroke-width: 2.5; marker-end: url(#return-arrow); }
+      .number { font-size: 14px; font-weight: 700; fill: white; text-anchor: middle; }
+      .label { font-size: 13px; fill: #2563eb; }
+    </style>
+  </defs>
+  <rect width="1600" height="2080" fill="#f6f8fc"/>
+  <text x="64" y="78" class="title">网页文字，如何变成对应位置的译文？</text>
+  <text x="64" y="113" class="subtitle">web-translate · 按当前源码绘制 · 箭头表示实际数据流 · 示例内容用于说明协议</text>
+  <rect x="64" y="141" width="166" height="30" rx="15" fill="#e5edff"/><text x="83" y="162" class="small blue">Chrome Manifest V3</text>
+  <rect x="242" y="141" width="155" height="30" rx="15" fill="#e5edff"/><text x="260" y="162" class="small blue">Vue 设置页 / 面板</text>
+  <rect x="409" y="141" width="211" height="30" rx="15" fill="#dcf4e9"/><text x="428" y="162" class="small green">Vercel AI SDK · generateText</text>
+  <rect x="632" y="141" width="212" height="30" rx="15" fill="#fff0d7"/><text x="651" y="162" class="small orange">非流式请求 · 本地 ID 映射</text>
+
+  <rect x="40" y="202" width="480" height="1138" rx="18" fill="#edf3ff"/>
+  <rect x="560" y="202" width="480" height="1138" rx="18" fill="#edf7f3"/>
+  <rect x="1080" y="202" width="480" height="1138" rx="18" fill="#f1effa"/>
+  <text x="64" y="241" class="lane-title">网页 · Content Script</text>
+  <text x="584" y="241" class="lane-title">扩展后台 · Service Worker</text>
+  <text x="1104" y="241" class="lane-title">外部服务 · 所选 Provider</text>
+
+  <rect x="64" y="270" width="432" height="160" rx="12" class="card"/>
+  <circle cx="91" cy="300" r="14" fill="#2563eb"/><text x="91" y="305" class="number">1</text>
+  <text x="117" y="307" class="card-title">扫描可翻译的 DOM 正文</text>
+  <text x="84" y="344" class="body">提取语义块，识别中英方向与站点规则</text>
+  <text x="84" y="372" class="body">过滤代码、编辑区；按可视范围安排优先级</text>
+  <text x="84" y="400" class="body">保留原文链接，给链接文字加入 BT_LINK 标记</text>
+  <path d="M280 430V466" class="flow"/>
+
+  <rect x="64" y="466" width="432" height="176" rx="12" class="card"/>
+  <circle cx="91" cy="497" r="14" fill="#2563eb"/><text x="91" y="502" class="number">2</text>
+  <text x="117" y="504" class="card-title">切分、去重、生成分片 ID</text>
+  <text x="84" y="541" class="body">长正文切成 parts，相同文字与方向只请求一次</text>
+  <text x="84" y="570" class="code">segment = { id, text, targets: [...] }</text>
+  <text x="84" y="598" class="body">targets 保存 DOM record 与 partIndex</text>
+  <text x="84" y="624" class="small">ID 由 runId + 序号生成；一个 ID 可对应多个位置</text>
+  <path d="M280 642V678" class="flow"/>
+
+  <rect x="64" y="678" width="432" height="164" rx="12" class="card"/>
+  <circle cx="91" cy="709" r="14" fill="#2563eb"/><text x="91" y="714" class="number">3</text>
+  <text x="117" y="716" class="card-title">页面缓存与请求批次</text>
+  <text x="84" y="752" class="body">命中本轮内存缓存 → 直接展示</text>
+  <text x="84" y="780" class="body">剩余分片按语言、数量与字符预算分批</text>
+  <text x="84" y="808" class="code">TRANSLATE_BATCH { runId, segments }</text>
+  <path d="M496 750H584" class="flow"/>
+  <text x="499" y="735" class="label">消息</text>
+
+  <rect x="584" y="270" width="432" height="160" rx="12" class="card"/>
+  <text x="604" y="307" class="card-title">入口、设置与运行生命周期</text>
+  <text x="604" y="344" class="body">面板 / 快捷键 / 菜单 → 开始、恢复、划词</text>
+  <text x="604" y="372" class="body">Vue 设置页管理 Provider、语言与阅读偏好</text>
+  <text x="604" y="400" class="body">后台管理权限、runId、取消与任务状态</text>
+  <path d="M584 350H496" class="flow" stroke-dasharray="5 5"/>
+
+  <rect x="584" y="466" width="432" height="176" rx="12" class="card"/>
+  <text x="604" y="505" class="card-title">本机状态与存储</text>
+  <text x="604" y="542" class="body">chrome.storage.local：设置与持久译文缓存</text>
+  <text x="604" y="570" class="body">chrome.storage.session：任务快照与调试事件</text>
+  <text x="604" y="598" class="body">API Key 在扩展可信上下文中读取和使用</text>
+  <text x="604" y="624" class="small">用量统计、缓存命中与请求次数分别记录</text>
+
+  <rect x="584" y="678" width="432" height="164" rx="12" class="card"/>
+  <text x="604" y="717" class="card-title">校验任务与检查持久缓存</text>
+  <text x="604" y="753" class="body">验证发送者、当前 runId、输入与服务配置</text>
+  <text x="604" y="781" class="body">缓存命中 → 复用；未命中 → 后台调度 Provider</text>
+  <text x="604" y="809" class="small">发送给模型的分片只有 id 和 text，不包含 DOM</text>
+  <path d="M800 842V894" class="flow"/>
+
+  <rect x="584" y="894" width="432" height="168" rx="12" class="card"/>
+  <circle cx="611" cy="925" r="14" fill="#2563eb"/><text x="611" y="930" class="number">4</text>
+  <text x="637" y="932" class="card-title">翻译指令 + SDK 请求</text>
+  <text x="604" y="968" class="body">instructions：只翻译、保留 ID、返回指定 JSON</text>
+  <text x="604" y="996" class="code">messages: [{ role: "user", content: JSON }]</text>
+  <text x="604" y="1024" class="body">generateText → Provider adapter → fetch</text>
+  <text x="604" y="1048" class="small">SDK maxRetries=0；后台负责有限重试与超时</text>
+  <path d="M1016 953H1104" class="flow"/>
+  <text x="1034" y="937" class="label">HTTPS</text>
+
+  <rect x="1104" y="270" width="432" height="160" rx="12" class="card"/>
+  <text x="1124" y="307" class="card-title">模型 Provider 与 SDK adapters</text>
+  <text x="1124" y="344" class="body">DeepSeek · OpenAI · Gemini · Anthropic</text>
+  <text x="1124" y="372" class="body">自定义服务使用 OpenAI Chat Completions</text>
+  <text x="1124" y="400" class="small">ai + @ai-sdk/deepseek / openai / google / anthropic</text>
+
+  <rect x="1104" y="466" width="432" height="176" rx="12" class="card"/>
+  <text x="1124" y="505" class="card-title">项目的其他路径</text>
+  <text x="1124" y="542" class="body">DeepL / Azure：后台直接调用 REST 翻译接口</text>
+  <text x="1124" y="570" class="body">划词：保存选区 → 后台翻译 → 浮层显示</text>
+  <text x="1124" y="598" class="body">朗读：系统 TTS 或可选 Edge TTS 本地服务</text>
+  <text x="1124" y="624" class="small">机器翻译路径使用服务自身协议，无模型 prompt</text>
+  <path d="M1016 711H1057V523H1104" class="flow" stroke-dasharray="5 5"/>
+
+  <rect x="1104" y="894" width="432" height="168" rx="12" class="card"/>
+  <circle cx="1131" cy="925" r="14" fill="#2563eb"/><text x="1131" y="930" class="number">5</text>
+  <text x="1157" y="932" class="card-title">模型根据指令生成译文</text>
+  <text x="1124" y="968" class="body">DeepSeek 的 HTTP 外层：choices + usage 等</text>
+  <text x="1124" y="996" class="code">choices[0].message.content</text>
+  <text x="1124" y="1024" class="body">content 是字符串，内部才是 translations JSON</text>
+  <text x="1124" y="1048" class="small">当前用 generateText，收齐结果后解析，非流式</text>
+  <path d="M1320 1062V1118H1016" class="back"/>
+  <text x="1086" y="1103" class="small green">SDK 提取 text、finishReason、usage</text>
+
+  <rect x="584" y="1094" width="432" height="166" rx="12" class="card"/>
+  <circle cx="611" cy="1125" r="14" fill="#047857"/><text x="611" y="1130" class="number">6</text>
+  <text x="637" y="1132" class="card-title">解析、校验、按 ID 恢复顺序</text>
+  <text x="604" y="1168" class="body">检查数量、重复 / 未知 ID、非空 text 与链接标记</text>
+  <text x="604" y="1196" class="code">Map(id → text) → expectedIds.map(...)</text>
+  <text x="604" y="1224" class="body">有效译文写缓存，返回 results: [{ id, text }]</text>
+  <text x="604" y="1248" class="small">格式无效 / length → 缩批或拆段，在有限预算内恢复</text>
+  <path d="M1016 1201H1060V1020H1016" class="flow" stroke-dasharray="5 5"/>
+  <path d="M584 1177H496" class="back"/>
+  <text x="499" y="1159" class="small green">results</text>
+
+  <rect x="64" y="1094" width="432" height="166" rx="12" class="card"/>
+  <circle cx="91" cy="1125" r="14" fill="#047857"/><text x="91" y="1130" class="number">7</text>
+  <text x="117" y="1132" class="card-title">映射回 DOM 并渲染双语</text>
+  <text x="84" y="1168" class="code">byId.get(result.id) → segment.targets</text>
+  <text x="84" y="1196" class="body">按 partIndex 填回，正文的各个 parts 齐全后展示</text>
+  <text x="84" y="1224" class="body">原文链接恢复为安全 DOM；模型 HTML 按文本处理</text>
+  <text x="84" y="1248" class="small">校验当前任务与 DOM revision，丢弃过期异步结果</text>
+  <path d="M96 1094V876H280V842" class="back" stroke-dasharray="5 5"/>
+  <text x="113" y="900" class="small green">结果写入本轮缓存</text>
+  <text x="64" y="1305" class="small">滚动 / MutationObserver → 增量扫描；恢复原文时移除译文与监听</text>
+  <text x="584" y="1305" class="small">取消与导航传播 AbortSignal，旧任务不能继续写入</text>
+  <text x="1104" y="1305" class="small">主流程适用于模型翻译；外层 HTTP 格式因 Provider 而异</text>
+
+  <text x="64" y="1394" class="lane-title">用一个分片看清协议</text>
+  <text x="64" y="1424" class="subtitle">以下是说明样例。ID 从页面生成并原样往返；content 中的 JSON 仍是字符串，需要再次解析。</text>
+  <rect x="64" y="1450" width="472" height="392" rx="12" class="card"/>
+  <text x="84" y="1489" class="card-title blue">A · 发送给模型</text>
+  <text x="84" y="1520" class="small">DeepSeek adapter 将 instructions 放进 system 消息</text>
+  <text x="84" y="1550" class="code">system: "You are a translation engine. ..."</text>
+  <text x="84" y="1581" class="small">user.content 的 JSON 字符串，解码后：</text>
+  <text x="84" y="1611" class="code">{</text>
+  <text x="84" y="1634" class="code">  "source_language": "English",</text>
+  <text x="84" y="1657" class="code">  "target_language": "Simplified Chinese",</text>
+  <text x="84" y="1680" class="code">  "segments": [</text>
+  <text x="84" y="1703" class="code">    { "id": "run-a-1", "text": "Hello." }</text>
+  <text x="84" y="1726" class="code">  ]</text>
+  <text x="84" y="1749" class="code">}</text>
+  <text x="84" y="1791" class="small">每批一次请求；模型看不到 targets 或网页 DOM</text>
+  <text x="84" y="1817" class="small">链接文字可以翻译，BT_LINK 标记与 ID 必须保留</text>
+
+  <rect x="564" y="1450" width="472" height="392" rx="12" class="card"/>
+  <text x="584" y="1489" class="card-title blue">B · DeepSeek 的两层返回</text>
+  <text x="584" y="1520" class="small">HTTP 外层（此处只展示核心字段）：</text>
+  <text x="584" y="1550" class="code">{ "id": "chatcmpl-…", "choices": [{</text>
+  <text x="584" y="1573" class="code">    "message": { "role": "assistant",</text>
+  <text x="584" y="1596" class="code">      "content": "{...}" },</text>
+  <text x="584" y="1619" class="code">    "finish_reason": "stop" }],</text>
+  <text x="584" y="1642" class="code">  "usage": { "prompt_tokens": 80, ... } }</text>
+  <text x="584" y="1680" class="small green">content 字符串解码后是这个内层 JSON：</text>
+  <text x="584" y="1710" class="code">{ "translations": [</text>
+  <text x="584" y="1733" class="code">    { "id": "run-a-1", "text": "你好。" }</text>
+  <text x="584" y="1756" class="code">] }</text>
+  <text x="584" y="1791" class="small">translations 来自 prompt 约定 + 本地校验</text>
+  <text x="584" y="1817" class="small">当前没有使用 generateObject 或输出 JSON Schema</text>
+
+  <rect x="1064" y="1450" width="472" height="392" rx="12" class="card"/>
+  <text x="1084" y="1489" class="card-title green">C · 扩展返回与页面映射</text>
+  <text x="1084" y="1520" class="small">后台验证后返回给 content script：</text>
+  <text x="1084" y="1550" class="code">{ "results": [</text>
+  <text x="1084" y="1573" class="code">    { "id": "run-a-1", "text": "你好。" }</text>
+  <text x="1084" y="1596" class="code">  ], "cacheHits": 0 }</text>
+  <text x="1084" y="1638" class="small">Map 找回分片；targets 找回一个或多个原文位置：</text>
+  <text x="1084" y="1670" class="code">byId.get("run-a-1")</text>
+  <text x="1084" y="1700" class="code">  → targets[{ record, partIndex: 0 }]</text>
+  <text x="1084" y="1730" class="code">  → record.translations[0] = "你好。"</text>
+  <text x="1084" y="1760" class="code">  → renderer.renderIfReady(record)</text>
+  <text x="1084" y="1817" class="small">模型可以调整数组顺序，ID 必须完全对应原请求</text>
+
+  <rect x="64" y="1870" width="1472" height="130" rx="12" fill="#e5edff"/>
+  <text x="84" y="1905" class="card-title">开发者模式 · DeepSeek 原文、请求与响应</text>
+  <text x="84" y="1937" class="body">实际请求 / SDK 保留的响应 → 后台白名单与大小上限 → chrome.storage.session → 实时设置页 → 查看 / 复制</text>
+  <text x="84" y="1966" class="small">请求与响应分别最多 262,144 字节；日志总量最多 600 条 / 4,000,000 字节。关闭内容记录会清除已保存正文。</text>
+  <text x="84" y="1989" class="small">无痕不记录正文；请求头与 API Key 不记录。格式错误和 length 响应保留已捕获的内容，缺失与截断会明确提示。</text>
+  <text x="64" y="2040" class="source">实现依据：scanner / planner / cloud-translator · batch-translator / model-request / model-client · generate-translation / model-response</text>
+  <text x="64" y="2064" class="source">图中的 A / B / C 是协议样例，不能替代真实日志或页面验收结果。</text>
+</svg>

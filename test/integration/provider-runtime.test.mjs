@@ -120,6 +120,11 @@ test("DeepSeek 请求关闭思考并捕获实际请求正文", async () => {
 			noCacheTokens: 8,
 		},
 		warningCount: 0,
+		responseBody: {
+			id: "response-test-id", created: 1, model: "deepseek-v4-flash",
+			choices: [{ message: { role: "assistant", content: "译文" }, finish_reason: "stop" }],
+			usage: { prompt_tokens: 10, completion_tokens: 3, prompt_cache_hit_tokens: 2, total_tokens: 13 },
+		},
 	});
 	const plainEvents = assertSafeRequestEvents(
 		events,

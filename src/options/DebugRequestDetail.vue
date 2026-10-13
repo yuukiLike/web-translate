@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import DebugJson from "./DebugJson.vue";
+import DebugResponseDetail from "./DebugResponseDetail.vue";
 import { createMessageViews, formatDebugJson, requestParameters } from "./debugPayload.js";
 
 defineOptions({ name: "DebugRequestDetail" });
@@ -12,7 +13,7 @@ const capture = computed(() => props.request.capture);
 const messages = computed(() => createMessageViews(capture.value?.payload));
 const parameters = computed(() => requestParameters(capture.value?.payload));
 const metadata = computed(() => (props.request.fields || []).filter(
-	({ key }) => !["requestPayload", "requestPayloadTruncated", "requestPayloadOmittedFields"].includes(key),
+	({ key }) => !["requestPayload", "requestPayloadTruncated", "requestPayloadOmittedFields", "responsePayload", "responsePayloadTruncated", "responsePayloadOmittedFields"].includes(key),
 ));
 const captureLabel = computed(() => ({
 	missing: "未记录正文",
@@ -83,7 +84,7 @@ watch(() => props.request.id, () => {
 			</button>
 		</header>
 		<p v-if="!capture?.payload" class="capture-notice">
-			这次请求没有保存正文。开启“原文与请求内容”后重新翻译，后续请求会在这里展示；已有记录无法补回正文。
+			这次请求没有保存正文。开启“原文、请求与响应”后重新翻译，后续请求会在这里展示；已有记录无法补回正文。
 		</p>
 		<template v-else>
 			<div v-if="capture.status === 'partial'" class="capture-notice" data-partial="true">
@@ -129,5 +130,6 @@ watch(() => props.request.id, () => {
 			<DebugJson v-else :value="capture.payload" />
 		</template>
 		<output class="request-copy-state" role="status" aria-live="polite">{{ copyState }}</output>
+		<DebugResponseDetail :request="request" />
 	</section>
 </template>

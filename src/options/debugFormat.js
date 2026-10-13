@@ -1,7 +1,7 @@
 import { isRecord, safeString } from "../core/value-utils.js";
 import { DEBUG_EVENT_LIMIT, DEBUG_REQUEST_ERROR_EVENTS } from "./debugConstants.js";
 import { formatNumber } from "./formatters.js";
-import { createRequestCapture } from "./debugPayload.js";
+import { createRequestCapture, createResponseCapture } from "./debugPayload.js";
 
 export function normalizeDebugEvents(value) {
 	if (!Array.isArray(value)) {
@@ -106,6 +106,11 @@ function formatRequestPayload(value) {
 	return payload ? JSON.stringify(payload, null, 2) : "";
 }
 
+function formatResponsePayload(value) {
+	const { payload } = createResponseCapture({ responsePayload: value });
+	return payload ? JSON.stringify(payload, null, 2) : "";
+}
+
 export function debugFields(event) {
 	const fields = [
 		["seq", "序号", event.seq],
@@ -121,6 +126,8 @@ export function debugFields(event) {
 		["model", "模型", event.model],
 		["requestPayload", "DeepSeek 请求正文", formatRequestPayload(event.requestPayload), true],
 		["requestPayloadTruncated", "请求正文已截断", booleanText(event.requestPayloadTruncated)],
+		["responsePayload", "DeepSeek 响应正文", formatResponsePayload(event.responsePayload), true],
+		["responsePayloadTruncated", "响应正文已截断", booleanText(event.responsePayloadTruncated)],
 		["responseId", "响应 ID", event.responseId],
 		["responseModel", "响应模型", event.responseModel],
 		["finishReason", "结束原因", event.finishReason],

@@ -106,3 +106,25 @@ test("调试结构导出携带记录窗口和缺失提示", () => {
 	assert.equal(exported.retention.droppedEvents, 18);
 	assert.equal(exported.retention.scope, "retained-scans");
 });
+
+test("响应正文与错误分别关联到对应的 HTTP 尝试，导出包含实际返回", () => {
+	const failedPayload = { error: { code: "rate_limit", message: "Too many requests" } };
+	const payload = { choices: [{ message: { role: "assistant", content: '{"translations":[]}' }, finish_reason: "stop" }] };
+	const context = { runId: "run-1", modelRequestId: "model" };
+	const events = [
+		planned({ nodes: [node], segments: [segment] }),
+		{ ...context, eventType: "sdk.request-end", requestId: "http-1", attempt: 1, httpStatus: 429 },
+		{ ...context, eventType: "sdk.request-end", requestId: "http-2", attempt: 2, httpStatus: 200 },
+		{ ...context, eventType: "model.request.failed", requestId: "model", attempt: 1, responsePayload: failedPayload, errorCode: "http_429" },
+		{ ...context, eventType: "model.request.completed", requestId: "model", attempt: 2, responsePayload: payload },
+	];
+	const rows = createDebugRequests(events);
+	assert.equal(rows.length, 2);
+	assert.deepEqual(rows[0].responseCapture.payload, failedPayload);
+	assert.deepEqual(rows[1].responseCapture.payload, payload);
+	assert.equal(rows[0].status, "error");
+	assert.equal(rows[1].status, "ok");
+	assert.equal(rows[1].fields.find(({ key }) => key === "requestId").value, "http-2");
+	const [run] = createDebugTraces(events, rows);
+	assert.deepEqual(exportDebugTrace(run).requests[1].responseCapture.payload, payload);
+});

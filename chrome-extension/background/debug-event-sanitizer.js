@@ -1,6 +1,7 @@
 import { DEBUG_BOOLEAN_FIELDS, DEBUG_NUMBER_FIELDS, DEBUG_STRING_FIELDS } from "./constants.js";
 import { createSafeContentAliases, createSafeContentTrace, safeIdentifiers } from "./content-trace-sanitizer.js";
 import { createSafeRequestPayload, normalizeOmittedFields } from "./request-payload-sanitizer.js";
+import { createSafeResponsePayload, normalizeResponseOmittedFields } from "./response-payload-sanitizer.js";
 
 const ID_LIST_FIELDS = ["segmentIds", "rootSegmentIds", "cacheHitIds", "cacheMissIds"];
 
@@ -28,6 +29,7 @@ export function createSafeDebugEvent(event, requestPayloadEnabled) {
 		safe.provider === "deepseek";
 	if (!allowed) return safe;
 	if (safe.eventType === "sdk.request-start") addRequestPayload(safe, event);
+	if (["model.request.completed", "model.request.failed"].includes(safe.eventType)) addResponsePayload(safe, event);
 	if (safe.eventType === "content.planned") {
 		const trace = createSafeContentTrace(event.contentTrace);
 		if (trace) safe.contentTrace = trace;
@@ -39,11 +41,23 @@ export function createSafeDebugEvent(event, requestPayloadEnabled) {
 			safe.contentAliasesTruncated = true;
 		}
 	}
-	if (safe.requestPayload || safe.contentTrace || safe.contentAliases) {
+	if (safe.requestPayload || safe.responsePayload || safe.contentTrace || safe.contentAliases) {
 		safe.requestPayloadAllowed = true;
 		safe.incognito = false;
 	}
 	return safe;
+}
+
+function addResponsePayload(safe, event) {
+	const result = createSafeResponsePayload(event.responseBody ?? event.responsePayload);
+	if (!result) return;
+	safe.responsePayload = result.payload;
+	if (result.truncated || event.responsePayloadTruncated === true) safe.responsePayloadTruncated = true;
+	const omitted = normalizeResponseOmittedFields([
+		...result.omittedFields,
+		...normalizeResponseOmittedFields(event.responsePayloadOmittedFields),
+	]);
+	if (omitted.length) safe.responsePayloadOmittedFields = omitted;
 }
 
 function addRequestPayload(safe, event) {

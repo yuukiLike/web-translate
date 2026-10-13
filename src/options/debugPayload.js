@@ -3,6 +3,7 @@ import {
 	normalizeOmittedFields,
 } from "../../chrome-extension/background/request-payload-sanitizer.js";
 import { isRecord } from "../core/value-utils.js";
+import { createSafeResponsePayload, normalizeResponseOmittedFields } from "../../chrome-extension/background/response-payload-sanitizer.js";
 
 /** Project only captured HTTP data. Metadata and prompt templates never fill missing bodies. */
 export function createRequestCapture(event) {
@@ -20,6 +21,38 @@ export function createRequestCapture(event) {
 		omittedFields,
 		status: !payload ? "missing" : truncated || omittedFields.length ? "partial" : "complete",
 	};
+}
+
+export function createResponseCapture(event) {
+	const source = isRecord(event) ? event : {};
+	const safe = createSafeResponsePayload(source.responsePayload);
+	const omittedFields = normalizeResponseOmittedFields([
+		...(safe?.omittedFields ?? []),
+		...normalizeResponseOmittedFields(source.responsePayloadOmittedFields),
+	]);
+	const payload = safe?.payload ?? null;
+	const truncated = safe?.truncated === true || source.responsePayloadTruncated === true;
+	return {
+		payload, truncated, omittedFields,
+		status: !payload ? "missing" : truncated || omittedFields.length ? "partial" : "complete",
+	};
+}
+
+export function createResponseMessageViews(payload) {
+	if (!Array.isArray(payload?.choices)) return [];
+	return payload.choices.map((choice, index) => {
+		const content = choice.message?.content;
+		const parsed = parseMessageContent(content);
+		const items = parsed.value?.translations;
+		const translations = Array.isArray(items) && items.every(
+			(item) => isRecord(item) && typeof item.id === "string" && typeof item.text === "string",
+		) ? items.map(({ id, text }) => ({ id, text })) : null;
+		return {
+			index: choice.index ?? index, role: choice.message?.role || "assistant",
+			finishReason: choice.finish_reason, content: typeof content === "string" ? content : "",
+			translations,
+		};
+	});
 }
 
 function translationContent(value) {
