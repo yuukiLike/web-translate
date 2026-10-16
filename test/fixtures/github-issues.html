@@ -1,0 +1,59 @@
+<!-- Reduced from https://github.com/flameshot-org/flameshot/issues on 2026-10-17.
+     Native list grid, title boundary, metadata and filter controls retained. -->
+<style>
+	.listItem__X41oTe {
+		display: grid;
+		grid-template-columns: min-content min-content minmax(30%, 1fr) minmax(0, max-content) min-content;
+		grid-template-areas: "selection status primary metadata actions" "selection status main-content metadata actions";
+	}
+	.container__mDVuhO { grid-area: primary; display: block; }
+	.container__Woawlr { grid-area: status; }
+	.container__VGL_Vt { grid-area: main-content; display: flex; overflow: hidden; }
+	.container__1MF1B1 { grid-area: metadata; display: flex; }
+	.container__FLA0EF { display: flex; height: 48px; align-items: center; }
+	.stateFilters__hwDIsq { display: flex; flex-wrap: nowrap; flex-shrink: 0; }
+	.Box_1__4yTbfu { display: flex; flex-shrink: 0; contain: layout style; }
+	.prc-Button-ButtonContent-Iohp5 { display: grid; grid-template-areas: "leadingVisual text trailingVisual"; }
+	.prc-Button-Label-FWkx3 { grid-area: text; }
+	.prc-VisuallyHidden-VisuallyHidden-Q0qSB { display: none; }
+</style>
+<div data-testid="issues-list-surface">
+	<div id="_R_qfaj85_-list-view-container">
+		<div id="_R_qfaj85_-list-view-metadata" class="container__FLA0EF flexibleHeight__w76w3G">
+			<div class="elementContainer__3yGXL9">
+				<ul class="stateFilters__hwDIsq" aria-label="Filter issues by state">
+					<li><a href="#"><div>Open</div><span data-component="CounterLabel">671</span></a></li>
+					<li><a href="#"><div>Closed</div><span data-component="CounterLabel">2,500</span></a></li>
+				</ul>
+			</div>
+			<div role="toolbar" aria-label="Issue list controls">
+				<div class="Box_1__4yTbfu">
+					<div><button data-testid="authors-anchor-button"><span data-component="buttonContent" class="prc-Button-ButtonContent-Iohp5"><span data-component="text" class="prc-Button-Label-FWkx3">Author</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button data-testid="labels-anchor-button"><span data-component="buttonContent"><span data-component="text">Labels</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button data-testid="projects-anchor-button"><span data-component="buttonContent"><span data-component="text">Projects</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button data-testid="milestones-anchor-button"><span data-component="buttonContent"><span data-component="text">Milestones</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button data-testid="assignees-anchor-button"><span data-component="buttonContent"><span data-component="text">Assignees</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button data-testid="issue-types-anchor-button"><span data-component="buttonContent"><span data-component="text">Types</span></span><span data-component="trailingAction">▾</span></button></div>
+					<div><button aria-label="Sort by Newest descending"><span data-component="buttonContent"><span data-component="text">Newest</span></span><span data-component="trailingAction">▾</span></button></div>
+				</div>
+			</div>
+			<ul aria-label="Issues display density"><li><button aria-label="Comfortable display density"></button><span data-component="Tooltip">Comfortable display density</span></li></ul>
+		</div>
+		<ul data-listview-component="items-list">
+			<li id="_R_qfaj85_-list-view-node-_R_vqfaj85_" class="listItem__X41oTe" aria-label="More information available below.">
+				<div class="container__mDVuhO" data-listview-item-title-container="true">
+					<h3 class="heading__fzQskI"><a data-testid="issue-listitem-title-link" href="https://github.com/flameshot-org/flameshot/issues/5001"><span><span data-component="Text">Second instance does not exit when D-Bus name is taken, leaving duplicate daemons and duplicate notifications</span></span></a></h3>
+					<span class="trailingBadgesContainer__4AEjpg"></span>
+				</div>
+				<div class="container__Woawlr"><svg role="img" aria-label="Open"></svg></div>
+				<div class="container__VGL_Vt">
+					<div class="inner__Rm1Enx"><div class="container__W45oI6">
+						<span>flameshot-org/flameshot#5001</span>
+						<span>· <button data-testid="author-filter-link"><span class="prc-VisuallyHidden-VisuallyHidden-Q0qSB">Filter by author</span>ssearles</button> <span>opened</span> <relative-time data-testid="issue-activity-timestamp">on Oct 12, 2026</relative-time></span>
+					</div></div>
+				</div>
+				<div class="container__1MF1B1 metadataContainer__NZBoVo"><div><svg aria-label="1 comments"></svg>1</div></div>
+			</li>
+		</ul>
+	</div>
+</div>

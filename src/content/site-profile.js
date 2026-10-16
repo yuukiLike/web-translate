@@ -55,6 +55,14 @@ const GITHUB_COMMIT_CHROME = [
 	"[data-testid='commit-row-show-description-button']",
 ].map((selector) => `[data-testid='commit-row-item'] ${selector}`).join(", ");
 const GITHUB_COMMIT_DESCRIPTION = "[data-testid='commit-row-item'] .extended-commit-description-container";
+// Issues 的元信息共享卡片网格；筛选栏与标签也需保留原生布局。
+const GITHUB_ISSUES = "[data-testid='issues-list-surface']";
+const GITHUB_ISSUE_ROW = `${GITHUB_ISSUES} li[id*='-list-view-node-']`;
+const GITHUB_ISSUE_CHROME = [
+	`${GITHUB_ISSUES} [id$='-list-view-metadata']`,
+	`${GITHUB_ISSUE_ROW} > :not([data-listview-item-title-container])`,
+	`${GITHUB_ISSUE_ROW} [data-listview-item-title-container] > :not(h3)`,
+].join(", ");
 const GITHUB_FEED_BOUNDARY_CLASSES = new Set([
 	"feed-item-heading-menu-button",
 	"js-feed-item-component",
@@ -69,7 +77,7 @@ const GITHUB_PROFILE = Object.freeze({
 	getPresentation: () => null,
 	isExcluded(element) {
 		return isGitHubContributionGraph(element) || isGitHubFeedChrome(element) ||
-			Boolean(element.closest(GITHUB_COMMIT_CHROME));
+			Boolean(element.closest(GITHUB_COMMIT_CHROME)) || Boolean(element.closest(GITHUB_ISSUE_CHROME));
 	},
 	isMetadata: () => false,
 });
