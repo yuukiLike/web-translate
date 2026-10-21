@@ -47,7 +47,11 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 				: "";
 			// 读取期间到达的新任务优先，初始化不能覆盖正在更新的角标。
 			if (tabBadgeStates.has(tab.id)) return;
-			await updateTabStatus(tab.id, { state, error: title.replace(/ · v\d+(?:\.\d+)*$/u, "") });
+			await updateTabStatus(tab.id, {
+				state,
+				deferred: text === "…",
+				error: title.replace(/ · v\d+(?:\.\d+)*$/u, ""),
+			});
 		}));
 	}
 
@@ -165,8 +169,9 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 			case "done": {
 				const deferred = message.deferred === true;
 				return {
-					text: deferred ? "…" : "✓", color: "#dcfce7", textColor: "#15803d",
-					title: deferred ? "翻译已开启，滚动后继续" : "当前网页已完成双语翻译",
+					// 隐藏或屏外内容可长期延后，不应让已完成的任务看起来仍在等待。
+					text: "✓", color: "#dcfce7", textColor: "#15803d",
+					title: deferred ? "当前可见内容已完成翻译，滚动或展开后继续" : "当前网页已完成双语翻译",
 				};
 			}
 			case "error":
@@ -211,7 +216,7 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 
 function getLegacyBadgeState(text) {
 	if (text === "•") return "working";
-	if (text === "OK") return "done";
+	if (text === "OK" || text === "…") return "done";
 	if (text === "ERR") return "error";
 	if (text === "SET") return "settings-required";
 	return /^\d+%?$/u.test(text) ? "working" : null;

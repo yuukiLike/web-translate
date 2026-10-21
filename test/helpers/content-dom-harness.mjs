@@ -43,6 +43,7 @@ export function createContentHarness({
 	Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
 	Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
 		configurable: true,
+		writable: true,
 		value() {
 			return { top: 0, right: 600, bottom: 24, left: 0, width: 600, height: 24 };
 		},

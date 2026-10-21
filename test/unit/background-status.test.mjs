@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createActionUi } from "../../chrome-extension/background/action-ui.js";
 import { createStatusController } from "../../chrome-extension/background/status-controller.js";
 import { createFakeClock, flushMicrotasks } from "../helpers/background-harness.mjs";
 
@@ -18,6 +19,57 @@ function createStatusHarness(currentRunId = "run-current") {
 	});
 	return { clock, controller, updates };
 }
+
+function createActionHarness(initialBadge = "") {
+	const badges = new Map([[7, initialBadge]]);
+	const titles = new Map();
+	const icons = new Map();
+	const chrome = {
+		action: {
+			async getBadgeText({ tabId }) { return badges.get(tabId) ?? ""; },
+			async getTitle({ tabId }) { return titles.get(tabId) ?? ""; },
+			async setBadgeText({ tabId, text }) { badges.set(tabId, text); },
+			async setTitle({ tabId, title }) { titles.set(tabId, title); },
+			async setIcon({ tabId, path }) { icons.set(tabId, path); },
+			async setBadgeBackgroundColor() {},
+			async setBadgeTextColor() {},
+		},
+		contextMenus: { async removeAll() {}, create() {}, async update() {} },
+		tabs: { async query() { return [{ id: 7 }]; } },
+	};
+	const actionUi = createActionUi({ chrome, extensionVersion: "0.5.8", settingsStore: {} });
+	return { actionUi, badges, icons, titles };
+}
+
+// 隐藏或屏外内容可以长期延后，但当前任务完成后应显示勾号，新任务开始后再恢复进度。
+test("延后内容不让已完成的工具栏停留在省略号", async () => {
+	const { actionUi, badges, icons, titles } = createActionHarness();
+	await actionUi.updateTabStatus(7, { state: "done", deferred: true });
+	assert.equal(badges.get(7), "✓", "当前任务已经完成，不应显示等待省略号");
+	assert.match(titles.get(7), /当前可见内容已完成翻译/u);
+	assert.match(titles.get(7), /滚动或展开后继续/u);
+
+	await actionUi.updateTabStatus(7, { state: "working", completed: 1, total: 2 });
+	assert.equal(badges.get(7), "");
+	assert.match(icons.get(7)[16], /icon-loading-/u);
+	assert.match(titles.get(7), /正在翻译/u);
+
+	await actionUi.updateTabStatus(7, { state: "done", deferred: false });
+	assert.equal(badges.get(7), "✓");
+	assert.equal(icons.get(7)[16], "assets/icons/icon-16.png");
+	assert.match(titles.get(7), /当前网页已完成双语翻译/u);
+
+	await actionUi.updateTabStatus(7, { state: "off" });
+	assert.equal(badges.get(7), "");
+});
+
+// 扩展更新后没有新正文触发状态上报时，也要清理先前遗留的省略号。
+test("初始化将残留的省略号恢复为完成勾号", async () => {
+	const { actionUi, badges, titles } = createActionHarness("…");
+	await actionUi.initialize({ debugLogging: false, debugRequestPayload: false });
+	assert.equal(badges.get(7), "✓");
+	assert.match(titles.get(7), /滚动或展开后继续/u);
+});
 
 // 验证 done 处理器保持消息通道，并在完整等待 320ms 后才写入 OK 状态。
 test("完成状态等待稳定窗口后才生效", async () => {
