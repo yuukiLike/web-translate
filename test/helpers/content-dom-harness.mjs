@@ -23,6 +23,7 @@ const DEFAULT_CONTENT_FILTERS = Object.freeze({
 });
 
 export function createContentHarness({
+	url = "https://example.com/article",
 	contentType = "text/html",
 	sourceMode = "auto",
 	targetMode = "zh",
@@ -31,7 +32,7 @@ export function createContentHarness({
 	captureContentTrace = false,
 	translateDynamicContent = true,
 } = {}) {
-	const window = new Window({ url: "https://example.com/article" });
+	const window = new Window({ url });
 	retainMutationObserverCallbacks(window);
 	const { document } = window;
 	Object.defineProperty(document, "contentType", { configurable: true, value: contentType });
@@ -120,7 +121,7 @@ export function createContentHarness({
 		window.eval(coreSource);
 		window.eval(contentSource);
 		// 当前脚本只安装控制器；测试启动需要显式执行页面开关。
-		void window.__bilingualWebTranslatorController.toggle();
+		void window.__bilingualWebTranslatorController?.toggle();
 	}
 
 	return {

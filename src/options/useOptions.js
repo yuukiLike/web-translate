@@ -274,7 +274,6 @@ export function useOptions() {
 		readingDirty: readingPreferences.dirty,
 		previewSpeech: readingPreferences.previewSpeech,
 		speechPreviewActive: readingPreferences.previewActive,
-		grantFrames: readingPreferences.grantFrames,
 		debug,
 	};
 }

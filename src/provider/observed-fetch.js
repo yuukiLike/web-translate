@@ -48,8 +48,16 @@ export function createObservedFetch(onRequestEvent, options = {}) {
 	if (typeof nativeFetch !== "function") {
 		throw new Error("The Fetch API is unavailable");
 	}
+	const apiUrl = new URL(options.apiBaseURL);
+	if (!["https:", "http:"].includes(apiUrl.protocol) || apiUrl.username || apiUrl.password) {
+		throw new Error("Translation requires an HTTP(S) API endpoint without URL credentials");
+	}
 	const captureRequestBody = options.captureRequestBody === true;
 	return async (input, init) => {
+		const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+		if (url.protocol !== apiUrl.protocol || url.origin !== apiUrl.origin || url.username || url.password) {
+			throw new Error("Translation requests must stay on the configured API origin");
+		}
 		requestSequence += 1;
 		const requestId = `provider-request-${Date.now()}-${requestSequence}`;
 		const endpoint = sanitizeEndpoint(input);
@@ -66,7 +74,9 @@ export function createObservedFetch(onRequestEvent, options = {}) {
 				: {}),
 		});
 		try {
-			const response = await nativeFetch.call(globalThis, input, init);
+			const response = await nativeFetch.call(globalThis, input, {
+				...init, redirect: "error", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer",
+			});
 			const succeeded = response.ok;
 			emitRequestEvent(onRequestEvent, {
 				eventType: "request-end",

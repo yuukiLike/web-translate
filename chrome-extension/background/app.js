@@ -41,9 +41,22 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 	const runStore = createRunStore({ chrome, core });
 	const validators = createMessageValidators(core);
 	const frameRuns = createFrameRuns({ chrome, runStore });
-	const speechService = createSpeechService({ chrome, settingsStore, validators });
+	const speechService = createSpeechService({ chrome, settingsStore, validators,
+		assertPageAccess: (sender, capability) => pageService.assertSender(sender, capability),
+	});
 	const pageService = createPageService({
 		chrome, core, settingsStore,
+		onDisabled: async (tabId, state) => {
+			if (!state.active) {
+				await frameRuns.removeTab(tabId);
+				statusController.removeTab(tabId);
+				await actionUi.updateTabStatus(tabId, { state: "off" });
+			}
+			if (!state.selectionActive) {
+				selectionService.removeTab(tabId);
+				await speechService.removeTab(tabId);
+			}
+		},
 		onNavigation: async (tabId, frameId) => {
 			selectionService.removeTab(tabId, frameId === 0 ? null : frameId);
 			await speechService.removeTab(tabId, frameId === 0 ? null : frameId);
@@ -56,6 +69,7 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 	});
 	const actionUi = createActionUi({
 		chrome,
+		core,
 		extensionVersion,
 		settingsStore,
 		pageService,
@@ -88,6 +102,7 @@ export function createBackgroundApp({ chrome, core, providerCatalog, providerRun
 		usageStore,
 		providerService,
 		settingsStore,
+		assertPageAccess: pageService.assertSender,
 		debug,
 	});
 	const selectionService = createSelectionService({ core, validators, settingsStore, cacheStore, batchTranslator });

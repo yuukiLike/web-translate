@@ -7,6 +7,7 @@ import {
 	USAGE_KEY,
 } from "./constants.js";
 import { parseModelTranslations } from "./model-response.js";
+import { getPageAccessError, getPageOrigin } from "./page-policy.js";
 import { createProviderDefinitions } from "./provider-definitions.js";
 import { createSettingsApi, normalizeCustomBaseUrl, usesChatTranslation } from "./settings.js";
 import {
@@ -39,6 +40,8 @@ export function createCore(catalog) {
 		getLanguagePair,
 		getMaximumTranslationLength,
 		getMonthKey,
+		getPageAccessError,
+		getPageOrigin,
 		getProviderConfigurationError: settings.getProviderConfigurationError,
 		getProviderLabel: settings.getProviderLabel,
 		getProviderLimits: settings.getProviderLimits,

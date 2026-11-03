@@ -106,7 +106,10 @@ export function createJsonClient({ fetchImpl = globalThis.fetch, debug }) {
 		parentSignal.addEventListener("abort", abortFromParent, { once: true });
 
 		try {
-			const response = await fetchImpl(url, { ...init, signal: timeoutController.signal });
+			const response = await fetchImpl(url, {
+				...init, signal: timeoutController.signal,
+				redirect: "error", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer",
+			});
 			const body = await response.text();
 			if (body.length > maximumResponseCharacters) {
 				throw new Error("服务响应过大");

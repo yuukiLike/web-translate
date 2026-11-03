@@ -17,7 +17,7 @@ test("请求观测器按 Provider 策略捕获正文", async () => {
 		const deepSeekEvents = [];
 		const deepSeekFetch = createObservedFetch(
 			(event) => deepSeekEvents.push(structuredClone(event)),
-			{ captureRequestBody: true },
+			{ apiBaseURL: "https://api.deepseek.com", captureRequestBody: true },
 		);
 		const requestBody = JSON.stringify({
 			model: "deepseek-v4-flash",
@@ -35,7 +35,9 @@ test("请求观测器按 Provider 策略捕获正文", async () => {
 		assert.equal(Object.hasOwn(deepSeekEvents[1], "requestBody"), false);
 
 		const otherProviderEvents = [];
-		const otherProviderFetch = createObservedFetch((event) => otherProviderEvents.push(event));
+		const otherProviderFetch = createObservedFetch((event) => otherProviderEvents.push(event), {
+			apiBaseURL: "https://api.openai.com/v1",
+		});
 		await otherProviderFetch("https://api.openai.com/v1/responses", {
 			method: "POST",
 			body: requestBody,
@@ -76,6 +78,7 @@ test("DeepSeek SDK实际发出的完整JSON与调试安全投影一致", async (
 	assert.equal(result.responseBody.choices[0].message.content, "translated");
 });
 
+// 正文调试授权只适用于 DeepSeek，不得向其他服务扩散。
 test("SDK 仅在 DeepSeek 内容开关开启时保留实际响应正文", async () => {
 	const body = {
 		id: "response-1", created: 1, model: "deepseek-v4-flash",

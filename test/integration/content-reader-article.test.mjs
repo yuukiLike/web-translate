@@ -18,6 +18,7 @@ import { mountReaderArticle, READER_ARTICLE_URL } from "../helpers/reader-articl
 test("长博客文章在首次模型 JSON 非法后仍完成整页翻译", async () => {
 	const content = createContentHarness();
 	const background = createChromeHarness({
+		activeTabs: [{ id: 7, incognito: false, url: READER_ARTICLE_URL }],
 		settings: createConfiguredSettings({ debugLogging: true, debugRequestPayload: true }),
 	});
 	const provider = createProviderRuntimeFake();

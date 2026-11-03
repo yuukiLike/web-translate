@@ -37,7 +37,6 @@ const {
 	saveReading,
 	previewSpeech,
 	speechPreviewActive,
-	grantFrames,
 	usageRows,
 	version,
 } = useOptions();
@@ -176,10 +175,9 @@ function reloadOptions() { globalThis.location.reload(); }
 						/>
 						<section class="settings-panel frame-panel" aria-labelledby="frames-title">
 							<div class="frame-access">
-								<div><h2 id="frames-title">嵌入网页</h2><p>需要翻译其他网站嵌入的内容时，再授予访问权限。</p></div>
-								<button class="secondary" type="button" :disabled="Boolean(busy)" :aria-busy="busy === 'permission'" @click="grantFrames">{{ busy === "permission" ? "正在申请…" : "授权访问" }}</button>
+								<div><h2 id="frames-title">网页访问范围</h2><p>只处理你主动启用的网页及其同源嵌入内容。跨站嵌入内容请单独打开后翻译。</p></div>
 							</div>
-							<output class="action-status" :data-error="String(status.error)" role="status" aria-live="polite">{{ status.scope === "frames" ? status.text : "" }}</output>
+							<p class="reading-note">不读取本地文件、本地域名或 IP 地址页面，也不申请全站访问权限。</p>
 						</section>
 						<UsagePanel :rows="usageRows" :busy="busy" :status="status" @clear="clearCache" />
 					</div>

@@ -29,13 +29,15 @@ export async function generateTranslation(request) {
 		apiKey,
 		model.id,
 		createObservedFetch(onRequestEvent, {
+			apiBaseURL: provider.apiBaseURL,
 			captureRequestBody: captureContent,
 		}),
 	);
 	const result = await generateText({
 		model: languageModel,
 		instructions,
-		messages,
+		// 只传文本字段，避免 SDK 将附件 URL、文件或工具消息解释为额外读取请求。
+		messages: messages.map(({ content }) => ({ role: "user", content })),
 		abortSignal,
 		maxOutputTokens,
 		maxRetries: 0,

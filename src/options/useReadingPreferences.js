@@ -104,21 +104,6 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 		window.addEventListener("pageshow", resumePage);
 	});
 
-	async function grantFrames() {
-		if (busy.value) return;
-		busy.value = "permission";
-		setStatus("正在申请嵌入内容访问权限…", false, "frames");
-		try {
-			if (!await permissions.request({ origins: ["https://*/*"] })) throw new Error("未授予嵌入内容的访问权限");
-			await sendMessage({ type: "REFRESH_READING_FRAMES" });
-			setStatus("已授权 HTTPS 嵌入内容，正在阅读的页面会补充处理可访问的框架", false, "frames");
-		} catch (error) {
-			setStatus(errorText(error), true, "frames");
-		} finally {
-			busy.value = "";
-		}
-	}
-
 	onBeforeUnmount(() => {
 		runtime?.onMessage?.removeListener(onSpeechEvent);
 		window.removeEventListener("pagehide", stopOnExit);
@@ -126,5 +111,5 @@ export function useReadingPreferences({ busy, draft, permissions, runtime, sendM
 		stopOnExit();
 	});
 
-	return { save, previewSpeech, previewActive, grantFrames, accept, sync, dirty };
+	return { save, previewSpeech, previewActive, accept, sync, dirty };
 }

@@ -2,6 +2,10 @@ import { createRunMessageHandlers } from "./run-message-handlers.js";
 import { createContentTraceHandler } from "./content-trace-handler.js";
 
 const POPUP_PROTOCOL_VERSION = 3;
+const PAGE_CAPABILITIES = Object.freeze({
+	START_RUN: "active", TRANSLATE_BATCH: "active", CONTENT_TRACE: "active", CONTENT_TRACE_ALIAS: "active",
+	TRANSLATE_SELECTION: "selectionActive", SPEAK_TEXT: "selectionActive",
+});
 
 export function createMessageRouter({
 	chrome,
@@ -45,6 +49,14 @@ export function createMessageRouter({
 		if (!core.isRecord(message) || typeof message.type !== "string") {
 			throw new Error("无效消息");
 		}
+		const capability = PAGE_CAPABILITIES[message.type];
+		if (capability) {
+			if (message.type === "SPEAK_TEXT" && settingsStore.isExtensionPageUrl(sender.url)) {
+				settingsStore.assertExtensionPage(sender);
+			} else {
+				await pageService.assertSender(sender, capability);
+			}
+		}
 		switch (message.type) {
 			case "GET_POPUP_STATE":
 				return await getPopupState(sender);
@@ -68,10 +80,6 @@ export function createMessageRouter({
 				await pageService.updatePreferences(settings);
 				return { settings };
 			}
-			case "REFRESH_READING_FRAMES":
-				settingsStore.assertExtensionPage(sender);
-				await pageService.refreshFrames(await settingsStore.getSettings());
-				return {};
 			case "TRANSLATE_SELECTION":
 				return await selectionService.translate(message, sender);
 			case "CANCEL_SELECTION":

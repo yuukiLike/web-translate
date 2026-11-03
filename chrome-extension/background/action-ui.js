@@ -4,7 +4,7 @@ import { getErrorMessage, numberOrZero } from "./utilities.js";
 
 const defaultIconPaths = getActionIconPaths();
 
-export function createActionUi({ chrome, extensionVersion, settingsStore, pageService }) {
+export function createActionUi({ chrome, core, extensionVersion, settingsStore, pageService }) {
 	const tabBadgeStates = new Map();
 
 	async function initialize(settings) {
@@ -124,9 +124,8 @@ export function createActionUi({ chrome, extensionVersion, settingsStore, pageSe
 		if (!tab || !Number.isInteger(tab.id)) {
 			return { available: false, reason: "未找到当前标签页" };
 		}
-		if (!isInjectableUrl(tab.url)) {
-			return { available: false, reason: "此页面不支持网页翻译" };
-		}
+		const reason = core.getPageAccessError(tab.url);
+		if (reason) return { available: false, reason };
 		return { available: true, reason: "" };
 	}
 
@@ -226,8 +225,4 @@ function getDebugMenuTitle(settings) {
 	return settings.debugRequestPayload
 		? "开发调试事件（含 DeepSeek 正文）"
 		: "开发调试事件（不含网页正文）";
-}
-
-function isInjectableUrl(url) {
-	return typeof url === "string" && /^(?:https?|file):/u.test(url);
 }

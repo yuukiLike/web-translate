@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "一键双语翻译",
-	"version": "0.5.8",
+	"version": "0.5.9",
 	"description": "自然的双语网页阅读，支持动态页面、划词翻译与英语朗读。",
 	"minimum_chrome_version": "140",
 	"icons": {
@@ -20,7 +20,7 @@
 		"https://generativelanguage.googleapis.com/*",
 		"https://api.anthropic.com/*"
 	],
-	"optional_host_permissions": ["http://*/*", "https://*/*"],
+	"optional_host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*", "https://*/*"],
 	"background": {
 		"service_worker": "background/service-worker.js",
 		"type": "module"

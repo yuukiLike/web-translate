@@ -54,7 +54,7 @@ export function createSelectionService({ core, validators, settingsStore, cacheS
 					!sender.tab.incognito,
 					{ batchId: createIdentifier(), batchIndex: index + 1, queueDepth: batches.length - index - 1 },
 					signal,
-					{ incognito: sender.tab.incognito === true },
+					{ incognito: sender.tab.incognito === true, sender, capability: "selectionActive" },
 				);
 				for (const item of result.results) translations.set(item.id, item.text);
 			}

@@ -81,7 +81,7 @@ export function createRunMessageHandlers({
 				!sender.tab.incognito,
 				batchState,
 				controller.signal,
-				{ incognito: sender.tab.incognito === true },
+				{ incognito: sender.tab.incognito === true, sender, capability: "active" },
 			);
 		} catch (error) {
 			batchTranslator.recordFailure(snapshot, request, tabId, batchState, error);

@@ -23,10 +23,21 @@ export function createSettingsStore({
 		if (typeof chrome.storage.session.setAccessLevel === "function") {
 			await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 		}
+		await revokeBroadHostPermissions();
 		await ensureStoredSettings();
 		const settings = await getSettings();
 		await notifyDebugSettings(settings);
 		return settings;
+	}
+
+	async function revokeBroadHostPermissions() {
+		const granted = await chrome.permissions.getAll();
+		const broad = new Set(["<all_urls>", "*://*/*", "http://*/*", "https://*/*"]);
+		const origins = (granted.origins ?? []).filter((origin) => broad.has(origin));
+		if (!origins.length) return;
+		if (!await chrome.permissions.remove({ origins })) {
+			throw new Error("无法撤回旧版全站访问权限，请在扩展管理页移除该权限后重试");
+		}
 	}
 
 	async function ensureStoredSettings() {

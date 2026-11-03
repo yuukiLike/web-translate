@@ -5,7 +5,7 @@ const SESSION_KEY = "reading-speech";
 const END_EVENTS = new Set(["end", "cancelled", "interrupted", "error"]);
 
 /** 密钥和 Edge 服务地址只经过扩展的可信上下文，页面只提交文字。 */
-export function createSpeechService({ chrome, settingsStore, validators }) {
+export function createSpeechService({ chrome, settingsStore, validators, assertPageAccess }) {
 	const queue = createSerialTaskQueue();
 	let creating = null;
 
@@ -19,6 +19,14 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 			documentId: sender.documentId ?? null };
 		settingsStore.assertExtensionPage(sender);
 		return { tabId: null, frameId: null };
+	}
+
+	async function assertSource(sender) {
+		if (settingsStore.isExtensionPageUrl(sender.url)) {
+			settingsStore.assertExtensionPage(sender);
+			return;
+		}
+		await assertPageAccess(sender, "selectionActive");
 	}
 
 	async function offscreenExists() {
@@ -87,6 +95,7 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 				await ensureOffscreen();
 				const prepared = await queue.run(async () => {
 					if ((await active())?.requestId !== requestId) return null;
+					await assertSource(sender);
 					// 只串行投递，不在队列内等音频，停止操作可以取消正在合成的请求。
 					return { started: chrome.runtime.sendMessage({
 						target: "speech-offscreen", type: "PLAY", requestId, text: message.text, settings: speech,
@@ -98,11 +107,12 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 			} else {
 				const voices = await chrome.tts.getVoices();
 				const locale = speech.voice.slice(0, 5).toLowerCase();
-				const english = voices.filter((voice) => /^en(?:-|$)/iu.test(voice.lang ?? ""));
+				const english = voices.filter((voice) => isLocalEnglishVoice(voice, voices));
 				english.sort((a, b) => scoreVoice(b, locale) - scoreVoice(a, locale));
-				if (!english.length) throw new Error("系统没有可用的英语语音，请在设置中选择 Edge TTS");
+				if (!english.length) throw new Error("系统没有可确认的本机英语语音，请安装本机声音，或在设置中主动选择联网的 Edge TTS");
 				const started = await queue.run(async () => {
 					if ((await active())?.requestId !== requestId) return false;
+					await assertSource(sender);
 					await chrome.tts.speak(message.text, {
 						voiceName: english[0].voiceName, lang: english[0].lang, rate: speech.rate, enqueue: false,
 						onEvent: (event) => void handleEvent(playback, event.type, event.type === "error" ? "系统语音播放失败" : "").catch(() => {}),
@@ -158,5 +168,13 @@ export function createSpeechService({ chrome, settingsStore, validators }) {
 }
 
 function scoreVoice(voice, locale) {
-	return (voice.lang?.toLowerCase() === locale ? 4 : 0) + (voice.remote ? 0 : 2) + (voice.eventTypes?.includes("end") ? 1 : 0);
+	return (voice.lang?.toLowerCase() === locale ? 4 : 0) + (voice.eventTypes?.includes("end") ? 1 : 0);
+}
+
+function isLocalEnglishVoice(voice, voices) {
+	if (voice.remote !== false || voice.extensionId || !/^en(?:-|$)/iu.test(voice.lang ?? "")) return false;
+	// 空名称会让浏览器任意选声；同名的联网声音也无法通过 voiceName 排除。
+	if (typeof voice.voiceName !== "string" || !voice.voiceName.trim()) return false;
+	return !voices.some((other) => other.voiceName === voice.voiceName &&
+		(other.remote !== false || other.extensionId));
 }

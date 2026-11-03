@@ -9,6 +9,7 @@ export function createBatchTranslator({
 	usageStore,
 	providerService,
 	settingsStore,
+	assertPageAccess,
 	debug,
 }) {
 	const scheduler = createTranslationScheduler();
@@ -29,6 +30,8 @@ export function createBatchTranslator({
 			request,
 			tabId,
 			incognito: privacy.incognito === true,
+			sender: privacy.sender,
+			capability: privacy.capability,
 			...batchState,
 			sourceCharacters: sumSegmentCharacters(request.segments),
 		};
@@ -68,11 +71,12 @@ export function createBatchTranslator({
 			assertNotAborted(signal);
 		}
 
-		recordBatchCompleted(
-			context,
-			cacheResult.cacheHits,
-			cacheResult.missingSegments.length,
-		);
+		debug.record({
+			...debugFields(context, "background", "batch.completed"),
+			cacheHits: cacheResult.cacheHits,
+			cacheMisses: cacheResult.missingSegments.length,
+			status: "completed",
+		});
 		return {
 			results: request.segments.map((segment) => ({
 				id: segment.id,
@@ -136,8 +140,13 @@ export function createBatchTranslator({
 			providerResult = await scheduler.run(
 				tabId,
 				Math.min(settings.concurrency, core.getProviderMaximumConcurrency(settings)),
-				() => providerService.translate(settings, request.sourceLanguage, request.targetLanguage,
-					missingSegments, signal, { tabId, runId: request.runId, batchId, batchIndex, queueDepth, incognito }),
+				async () => {
+					// 缓存读取和排队都可能跨过关闭或导航；实际出站前再次确认授权。
+					await assertPageAccess(context.sender, context.capability);
+					assertNotAborted(signal);
+					return providerService.translate(settings, request.sourceLanguage, request.targetLanguage,
+						missingSegments, signal, { tabId, runId: request.runId, batchId, batchIndex, queueDepth, incognito });
+				},
 				signal,
 				request.runId.startsWith("selection-") ? 0 : 1,
 			);
@@ -247,15 +256,6 @@ export function createBatchTranslator({
 			sourceLanguage: context.request.sourceLanguage,
 			targetLanguage: context.request.targetLanguage,
 			status: "started",
-		});
-	}
-
-	function recordBatchCompleted(context, cacheHits, cacheMisses) {
-		debug.record({
-			...debugFields(context, "background", "batch.completed"),
-			cacheHits,
-			cacheMisses,
-			status: "completed",
 		});
 	}
 

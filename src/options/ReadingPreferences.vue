@@ -97,9 +97,9 @@ onMounted(() => {
 						<label class="field"><span>服务地址</span><input v-model.trim="speech.endpoint" type="url" placeholder="http://127.0.0.1:8765/tts" spellcheck="false" /></label>
 						<label class="field"><span>访问令牌</span><input v-model.trim="speech.token" type="password" autocomplete="off" placeholder="本地服务的令牌" /></label>
 					</div>
-					<p class="reading-note">需要运行 Edge TTS 本地服务；只有朗读时才发送选中的英语。</p>
+					<p class="reading-note">Edge TTS 是联网朗读：本地服务会把选中的英语发送给微软语音服务；自定义端点则交给你配置的服务处理。</p>
 				</template>
-				<p v-else class="reading-note">直接使用系统已安装的英语声音，优先选择本机语音。</p>
+				<p v-else class="reading-note">仅使用明确标记为本机的系统英语声音；没有可用声音时不会切换到联网引擎。</p>
 			</fieldset>
 		</section>
 		<footer class="panel-actions reading-actions">

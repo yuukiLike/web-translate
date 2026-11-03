@@ -72,26 +72,40 @@ function createChromeEvent() {
 	const listeners = [];
 	return {
 		listeners,
-		addListener(listener) {
-			listeners.push(listener);
-		},
+		addListener(listener) { listeners.push(listener); },
 	};
 }
 
 export function createChromeHarness(options = {}) {
 	const settings = options.settings ?? createConfiguredSettings();
 	const local = options.local ?? createStorageArea({ [backgroundCore.SETTINGS_KEY]: settings });
-	const session = options.session ?? createStorageArea();
 	const badgeTexts = [];
 	const activeTabs = options.activeTabs ?? [
 		{ id: 7, incognito: false, url: "https://page.example/article" },
 	];
+	const frames = options.frames ?? activeTabs.map((tab) => ({
+		tabId: tab.id, frameId: 0, documentId: `document-${tab.id}-0`, documentLifecycle: "active", url: tab.url,
+	}));
+	// 既有后台用例从用户已经启用翻译开始；安全入口用例明确设置 pageAuthorized: false。
+	const authorizedPages = options.pageAuthorized === false ? {} : Object.fromEntries(activeTabs.map((tab) => [
+		`reading-page:${tab.id}`, { active: true, selectionActive: true, origin: new URL(tab.url).origin,
+			documents: frames.filter((frame) => frame.tabId === tab.id).map(({ frameId, documentId }) => ({ frameId, documentId })),
+		},
+	]));
+	const session = options.session ?? createStorageArea(authorizedPages);
 	const scriptExecutions = [];
 	const tabQueries = [];
+	const pageStates = new Map();
+	const installed = new Set();
+	const grantedOrigins = [...(options.grantedOrigins ?? [])];
+	const removedOrigins = [];
 	let createdTabCount = 0;
 
 	const chrome = {
 		action: {
+			async setIcon() {},
+			async setBadgeTextColor() {},
+			async getBadgeText() { return ""; },
 			async setBadgeText(details) {
 				badgeTexts.push(details.text);
 			},
@@ -101,26 +115,29 @@ export function createChromeHarness(options = {}) {
 		contextMenus: {
 			onClicked: createChromeEvent(),
 			async removeAll() {},
-			create(item) {
-				return item.id;
-			},
+			create: (item) => item.id,
 			async update() {},
 		},
 		permissions: {
-			async contains() {
-				return options.permissionGranted !== false;
+			async getAll() { return { origins: [...grantedOrigins] }; },
+			async remove({ origins }) {
+				if (options.removePermissionFails) return false;
+				removedOrigins.push(...origins);
+				for (const origin of origins) {
+					const index = grantedOrigins.indexOf(origin);
+					if (index !== -1) grantedOrigins.splice(index, 1);
+				}
+				return true;
 			},
+			async contains() { return options.permissionGranted !== false; },
 		},
 		runtime: {
+			id: "background-test",
 			onConnect: createChromeEvent(),
 			onInstalled: createChromeEvent(),
 			onMessage: createChromeEvent(),
-			getManifest() {
-				return { version: "0.4.0" };
-			},
-			getURL(path = "") {
-				return `${extensionOrigin}${path}`;
-			},
+			getManifest: () => ({ version: "0.4.0" }),
+			getURL: (path = "") => `${extensionOrigin}${path}`,
 			async openOptionsPage() {},
 		},
 		scripting: {
@@ -128,12 +145,28 @@ export function createChromeHarness(options = {}) {
 				scriptExecutions.push({ type: "css", details: structuredClone(details) });
 			},
 			async executeScript(details) {
-				scriptExecutions.push({ type: "script", details: structuredClone(details) });
+				const { func, ...serializable } = details;
+				scriptExecutions.push({ type: "script", details: { ...structuredClone(serializable), ...(func ? { func: "probe" } : {}) } });
+				const documentId = details.target.documentIds?.[0];
+				const result = installed.has(documentId);
+				if (details.files) installed.add(documentId);
+				return [{ result, documentId }];
 			},
+		},
+		webNavigation: {
+			async getAllFrames({ tabId }) { return structuredClone(frames.filter((frame) => frame.tabId === tabId)); },
 		},
 		storage: { local, session },
 		tabs: {
 			onRemoved: createChromeEvent(),
+			async sendMessage(tabId, message, target) {
+				const key = `${tabId}:${target.documentId ?? "main"}`;
+				if (message.type === "BT_GET_PAGE_STATE") return pageStates.get(`${tabId}:document-${tabId}-0`) ?? { active: false, selectionActive: false };
+				if (message.type === "BT_PAGE_COMMAND" && message.command === "sync") {
+					pageStates.set(key, { active: message.active, selectionActive: message.selectionActive });
+				}
+				return { ok: true, ...pageStates.get(key) };
+			},
 			async query(details) {
 				tabQueries.push(structuredClone(details));
 				return structuredClone(activeTabs);
@@ -146,30 +179,32 @@ export function createChromeHarness(options = {}) {
 	};
 
 	return {
-		badgeTexts,
-		chrome,
-		local,
-		scriptExecutions,
-		session,
-		tabQueries,
+		badgeTexts, chrome, local, frames, grantedOrigins, removedOrigins,
+		scriptExecutions, session, tabQueries,
 	};
 }
 
 export function createWebpageSender(options = {}) {
 	const url = options.url ?? "https://page.example/article";
+	const tabId = options.tabId ?? 7;
+	const frameId = options.frameId ?? 0;
 	return {
+		id: "background-test",
 		url,
-		frameId: options.frameId ?? 0,
+		frameId,
+		origin: new URL(url).origin,
+		documentId: options.documentId ?? `document-${tabId}-${frameId}`,
+		documentLifecycle: "active",
 		tab: {
-			id: options.tabId ?? 7,
+			id: tabId,
 			incognito: options.incognito ?? false,
-			url,
+			url: options.tabUrl ?? url,
 		},
 	};
 }
 
 export function createExtensionSender(path = "options/index.html") {
-	return { url: `${extensionOrigin}${path}` };
+	return { id: "background-test", url: `${extensionOrigin}${path}` };
 }
 
 export function createProviderRuntimeFake(options = {}) {
@@ -211,9 +246,7 @@ export function createProviderRuntimeFake(options = {}) {
 				}),
 				finishReason: "stop",
 			};
-			if (options.omitUsage !== true) {
-				result.usage = { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 };
-			}
+			if (options.omitUsage !== true) result.usage = { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 };
 			return result;
 		},
 	};
